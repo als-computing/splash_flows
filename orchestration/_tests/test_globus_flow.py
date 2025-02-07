@@ -109,10 +109,6 @@ class MockGlobusComputeClient:
 class MockSecret:
     value = str(uuid4())
 
-# ----------------------------
-# Tests for 733
-# ----------------------------
-
 
 # ----------------------------
 # Tests for 733
@@ -145,7 +141,7 @@ class MockConfig733:
 def test_process_new_733_file(mocker: MockFixture) -> None:
     """
     Test the process_new_733_file flow from orchestration.flows.bl733.move.
-    
+
     This test verifies that:
       - The get_transfer_controller function is called (patched) with the correct parameters.
       - The returned transfer controller's copy method is called with the expected file path,
