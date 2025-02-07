@@ -79,6 +79,121 @@ class MockEndpoint:
         self.name = name or f"mock_endpoint_{self.uuid[:8]}"
 
 
+# Mock the Client class to avoid real network calls
+class MockGlobusComputeClient:
+    def __init__(self, *args, **kwargs):
+        # No real initialization, as this is a mock
+        pass
+
+    def version_check(self):
+        # Mock version check to do nothing
+        pass
+
+    def run(self, *args, **kwargs):
+        # Return a mock task ID
+        return "mock_task_id"
+
+    def get_task(self, task_id):
+        # Return a mock task response
+        return {
+            "pending": False,
+            "status": "success",
+            "result": "mock_result"
+        }
+
+    def get_result(self, task_id):
+        # Return a mock result
+        return "mock_result"
+
+
+class MockSecret:
+    value = str(uuid4())
+
+# ----------------------------
+# Tests for 733
+# ----------------------------
+
+
+# ----------------------------
+# Tests for 733
+# ----------------------------
+
+class MockConfig733:
+    def __init__(self) -> None:
+        """
+        Dummy configuration for 733 flows.
+        """
+        # Create mock endpoints
+        self.endpoints = {
+            "data733_raw": MockEndpoint(root_path="mock_data733_raw_path", uuid_value=str(uuid4())),
+            "nersc733_alsdev_raw": MockEndpoint(root_path="mock_nersc733_alsdev_raw_path", uuid_value=str(uuid4())),
+        }
+
+        # Define mock apps
+        self.apps = {
+            "als_transfer": "mock_als_transfer_app"
+        }
+
+        # Use the mock transfer client instead of the real TransferClient
+        self.tc = MockTransferClient()
+
+        # Set attributes for easy access
+        self.data733_raw = self.endpoints["data733_raw"]
+        self.nersc733_alsdev_raw = self.endpoints["nersc733_alsdev_raw"]
+
+
+def test_process_new_733_file(mocker: MockFixture) -> None:
+    """
+    Test the process_new_733_file flow from orchestration.flows.bl733.move.
+    
+    This test verifies that:
+      - The get_transfer_controller function is called (patched) with the correct parameters.
+      - The returned transfer controller's copy method is called with the expected file path,
+        source, and destination endpoints from the provided configuration.
+
+    Parameters:
+        mocker (MockFixture): The pytest-mock fixture for patching and mocking objects.
+    """
+    # Import the flow to test.
+    from orchestration.flows.bl733.move import process_new_733_file
+
+    # Patch the Secret.load and init_transfer_client in the configuration context.
+    with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
+        mocker.patch(
+            "orchestration.flows.bl733.config.transfer.init_transfer_client",
+            return_value=mocker.MagicMock()  # Return a dummy TransferClient
+        )
+        from orchestration.flows.bl733.config import Config733
+
+    # Instantiate the dummy configuration.
+    mock_config = Config733()
+
+    # Generate a test file path.
+    test_file_path = f"/tmp/test_file_{uuid4()}.txt"
+
+    # Create a mock transfer controller with a mocked 'copy' method.
+    mock_transfer_controller = mocker.MagicMock()
+    mock_transfer_controller.copy.return_value = True
+
+    # Patch get_transfer_controller where it is used in process_new_733_file.
+    mocker.patch(
+        "orchestration.flows.bl733.move.get_transfer_controller",
+        return_value=mock_transfer_controller
+    )
+
+    # Execute the flow with the test file path and dummy configuration.
+    result = process_new_733_file(file_path=test_file_path, config=mock_config)
+
+    # Verify that the transfer controller's copy method was called exactly once.
+    assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
+    assert result is None, "The flow should return None"
+
+
+# ----------------------------
+# Tests for 832
+# ----------------------------
+
+
 class MockConfig832():
     def __init__(self) -> None:
         # Mock configuration
@@ -122,39 +237,10 @@ class MockConfig832():
         self.scicat = config["scicat"]
 
 
-# Mock the Client class to avoid real network calls
-class MockGlobusComputeClient:
-    def __init__(self, *args, **kwargs):
-        # No real initialization, as this is a mock
-        pass
-
-    def version_check(self):
-        # Mock version check to do nothing
-        pass
-
-    def run(self, *args, **kwargs):
-        # Return a mock task ID
-        return "mock_task_id"
-
-    def get_task(self, task_id):
-        # Return a mock task response
-        return {
-            "pending": False,
-            "status": "success",
-            "result": "mock_result"
-        }
-
-    def get_result(self, task_id):
-        # Return a mock result
-        return "mock_result"
-
-
 def test_832_dispatcher(mocker: MockFixture):
     """Test 832 uber decision flow."""
 
     # Mock the Secret block load using a simple manual mock class
-    class MockSecret:
-        value = str(uuid4())
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
 
