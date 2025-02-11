@@ -55,13 +55,12 @@ class BeamlineConfig(ABC):
     Attributes:
         beamline_id (str): Beamline identifier (e.g. "832" or "733").
         config (dict): The loaded configuration dictionary.
-        endpoints (dict): Endpoints built from the configuration.
-        apps (dict): Apps built from the configuration.
-        tc (TransferClient): Globus Transfer client.
-        flow_client: Globus Flows client.
     """
 
-    def __init__(self, beamline_id: str) -> None:
+    def __init__(
+        self,
+        beamline_id: str
+    ) -> None:
         self.beamline_id = beamline_id
         self.config = read_config()
         self._beam_specific_config()
