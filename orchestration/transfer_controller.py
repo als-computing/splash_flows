@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import re
 import time
-from typing import Generic, TypeVar, Optional
+from typing import Generic, List, Optional, TypeVar
 
 import globus_sdk
 from sfapi_client import Client
@@ -93,6 +93,21 @@ class HPSSEndpoint(TransferEndpoint):
         root_path: str
     ) -> None:
         super().__init__(name, root_path)
+
+    def full_path(self, path_suffix: str) -> str:
+        """
+        Constructs the full path by appending the path_suffix to the HPSS endpoint's root_path.
+        This is used by the HPSS transfer controllers to compute the absolute path on HPSS.
+
+        Args:
+            path_suffix (str): The relative path to append.
+
+        Returns:
+            str: The full absolute path.
+        """
+        if path_suffix.startswith("/"):
+            path_suffix = path_suffix[1:]
+        return f"{self.root_path.rstrip('/')}/{path_suffix}"
 
 
 Endpoint = TypeVar("Endpoint", bound=TransferEndpoint)
@@ -603,14 +618,148 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         config: BeamlineConfig
     ) -> None:
         super().__init__(config)
+        self.client = client
     """
-    Use SFAPI to move data between CFS and HPSS at NERSC.
+    Use SFAPI to move data between HPSS and CFS at NERSC.
 
+    This controller retrieves data from an HPSS source endpoint and places it on a CFS destination endpoint.
+    It supports:
+      - Single file retrieval via hsi get.
+      - Full tar archive extraction via htar -xvf.
+      - Partial extraction from a tar archive: if a list of files is provided (via files_to_extract),
+        only the specified files will be extracted.
+
+    A single SLURM job script is generated that branches based on the mode.
     Args:
-        TransferController: Abstract class for transferring data.
-    """
+        file_path (str): Path to the file or tar archive on HPSS.
+        source (HPSSEndpoint): The HPSS source endpoint.
+        destination (FileSystemEndpoint): The CFS destination endpoint.
+        files_to_extract (List[str], optional): Specific files to extract from the tar archive.
+            If provided (and file_path ends with '.tar'), only these files will be extracted.
 
-    pass
+    Returns:
+        bool: True if the transfer job completes successfully, False otherwise.
+    """
+    def copy(
+        self,
+        file_path: str = None,
+        source: HPSSEndpoint = None,
+        destination: FileSystemEndpoint = None,
+        files_to_extract: Optional[List[str]] = None,
+    ) -> bool:
+        logger.info("Starting HPSS to CFS transfer.")
+        if not file_path or not source or not destination:
+            logger.error("Missing required parameters: file_path, source, or destination.")
+            return False
+
+        # Set the job name suffix based on the file name (or archive stem)
+        job_name_suffix = Path(file_path).stem
+
+        # Compute the full HPSS path from the source endpoint.
+        hpss_path = source.full_path(file_path)
+        dest_root = destination.root_path
+        logs_path = "/global/cfs/cdirs/als/data_mover/hpss_transfer_logs"
+
+        # If files_to_extract is provided, join them as a space‐separated string.
+        files_to_extract_str = " ".join(files_to_extract) if files_to_extract else ""
+
+        # The following SLURM script contains all logic to decide the transfer mode.
+        # It determines:
+        #   - if HPSS_PATH ends with .tar, then if FILES_TO_EXTRACT is nonempty, MODE becomes "partial",
+        #     else MODE is "tar".
+        #   - Otherwise, MODE is "single" and hsi get is used.
+        job_script = fr"""#!/bin/bash
+#SBATCH -q xfer
+#SBATCH -A als
+#SBATCH -C cron
+#SBATCH --time=12:00:00
+#SBATCH --job-name=transfer_from_HPSS_{job_name_suffix}
+#SBATCH --output={logs_path}/%j.out
+#SBATCH --error={logs_path}/%j.err
+#SBATCH --licenses=SCRATCH
+#SBATCH --mem=100GB
+
+set -euo pipefail
+date
+
+# Environment variables provided by Python.
+HPSS_PATH="{hpss_path}"
+DEST_ROOT="{dest_root}"
+FILES_TO_EXTRACT="{files_to_extract_str}"
+
+# Determine the transfer mode in bash.
+if [[ "$HPSS_PATH" =~ \.tar$ ]]; then
+    if [ -n "${{FILES_TO_EXTRACT}}" ]; then
+         MODE="partial"
+    else
+         MODE="tar"
+    fi
+else
+    MODE="single"
+fi
+
+echo "Transfer mode: $MODE"
+if [ "$MODE" = "single" ]; then
+    echo "Single file detected. Using hsi get."
+    mkdir -p "$DEST_ROOT"
+    hsi get "$HPSS_PATH" "$DEST_ROOT/"
+elif [ "$MODE" = "tar" ]; then
+    echo "Tar archive detected. Extracting entire archive using htar."
+    ARCHIVE_BASENAME=$(basename "$HPSS_PATH")
+    ARCHIVE_NAME="${{ARCHIVE_BASENAME%.tar}}"
+    DEST_PATH="${{DEST_ROOT}}/${{ARCHIVE_NAME}}"
+    mkdir -p "$DEST_PATH"
+    htar -xvf "$HPSS_PATH" -C "$DEST_PATH"
+elif [ "$MODE" = "partial" ]; then
+    echo "Partial extraction detected. Extracting selected files using htar."
+    ARCHIVE_BASENAME=$(basename "$HPSS_PATH")
+    ARCHIVE_NAME="${{ARCHIVE_BASENAME%.tar}}"
+    DEST_PATH="${{DEST_ROOT}}/${{ARCHIVE_NAME}}"
+    mkdir -p "$DEST_PATH"
+    echo "Files to extract: $FILES_TO_EXTRACT"
+    htar -xvf "$HPSS_PATH" -C "$DEST_PATH" $FILES_TO_EXTRACT
+else
+    echo "Error: Unknown mode: $MODE"
+    exit 1
+fi
+
+date
+"""
+        logger.info("Submitting HPSS to CFS transfer job to Perlmutter.")
+        try:
+            perlmutter = self.client.compute(Machine.perlmutter)
+            job = perlmutter.submit_job(job_script)
+            logger.info(f"Submitted job ID: {job.jobid}")
+
+            try:
+                job.update()
+            except Exception as update_err:
+                logger.warning(f"Initial job update failed, continuing: {update_err}")
+
+            time.sleep(60)
+            logger.info(f"Job {job.jobid} current state: {job.state}")
+
+            job.complete()  # Wait until the job completes.
+            logger.info("HPSS to CFS transfer job completed successfully.")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error during job submission or completion: {e}")
+            match = re.search(r"Job not found:\s*(\d+)", str(e))
+            if match:
+                jobid = match.group(1)
+                logger.info(f"Attempting to recover job {jobid}.")
+                try:
+                    job = self.client.perlmutter.job(jobid=jobid)
+                    time.sleep(30)
+                    job.complete()
+                    logger.info("HPSS to CFS transfer job completed successfully after recovery.")
+                    return True
+                except Exception as recovery_err:
+                    logger.error(f"Failed to recover job {jobid}: {recovery_err}")
+                    return False
+            else:
+                return False
 
 
 class CopyMethod(Enum):

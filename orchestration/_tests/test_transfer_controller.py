@@ -2,6 +2,7 @@
 
 import pytest
 from pytest_mock import MockFixture
+import time
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -12,6 +13,14 @@ from prefect.testing.utilities import prefect_test_harness
 from .test_globus import MockTransferClient
 
 
+<<<<<<< HEAD
+=======
+@pytest.fixture(autouse=True)
+def fast_sleep(monkeypatch):
+    """Patch time.sleep to return immediately to speed up tests."""
+    monkeypatch.setattr(time, "sleep", lambda x: None)
+
+>>>>>>> 67e515a (Added logic for HPSSToCFSTransferController() copy() method. Now it will launch an SFAPI Slurm job script that handles each case: a single file is requested (non-tar), an entire tar file, or specified files within a tar (partial). Added pytest cases in test_transfer_controller.py for the new HPSS controllers.)
 
 @pytest.fixture(autouse=True, scope="session")
 def prefect_test_fixture():
@@ -45,6 +54,9 @@ def transfer_controller_module():
         FileSystemEndpoint,
         GlobusTransferController,
         SimpleTransferController,
+        CFSToHPSSTransferController,
+        HPSSToCFSTransferController,
+        HPSSEndpoint,
         get_transfer_controller,
         CopyMethod,
     )
@@ -52,6 +64,9 @@ def transfer_controller_module():
         "FileSystemEndpoint": FileSystemEndpoint,
         "GlobusTransferController": GlobusTransferController,
         "SimpleTransferController": SimpleTransferController,
+        "CFSToHPSSTransferController": CFSToHPSSTransferController,
+        "HPSSToCFSTransferController": HPSSToCFSTransferController,
+        "HPSSEndpoint": HPSSEndpoint,
         "get_transfer_controller": get_transfer_controller,
         "CopyMethod": CopyMethod,
     }
@@ -349,3 +364,201 @@ def test_simple_transfer_controller_copy_exception(
 
         assert result is False, "Expected False when an exception is raised during copy."
         mock_os_system.assert_called_once()
+
+
+# --------------------------------------------------------------------------
+# Tests for CFSToHPSSTransferController
+# --------------------------------------------------------------------------
+
+def test_cfs_to_hpss_transfer_controller_success(mock_config832, transfer_controller_module, mocker: MockFixture):
+    """
+    Test a successful copy() operation using CFSToHPSSTransferController.
+    We simulate a successful job submission and completion.
+    """
+    CFSToHPSSTransferController = transfer_controller_module["CFSToHPSSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    # Create mock endpoints for source (CFS) and destination (HPSS)
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest")
+
+    # Create a fake job object that simulates successful completion.
+    fake_job = MagicMock()
+    fake_job.jobid = "12345"
+    fake_job.state = "COMPLETED"
+    fake_job.complete.return_value = None
+
+    # Create a fake compute object that returns the fake job.
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    # Create a fake client whose compute() returns our fake_compute.
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = CFSToHPSSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="test_dir/test_file.txt",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is True, "Expected True when CFSToHPSSTransferController transfer completes successfully."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_cfs_to_hpss_transfer_controller_failure(mock_config832, transfer_controller_module):
+    """
+    Test a failing copy() operation using CFSToHPSSTransferController when job submission raises an exception.
+    """
+    CFSToHPSSTransferController = transfer_controller_module["CFSToHPSSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest")
+
+    # Create a fake client whose compute().submit_job raises an exception.
+    fake_client = MagicMock()
+    fake_compute = MagicMock()
+    fake_compute.submit_job.side_effect = Exception("Job submission failed")
+    fake_client.compute.return_value = fake_compute
+
+    controller = CFSToHPSSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="test_dir/test_file.txt",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is False, "Expected False when CFSToHPSSTransferController transfer fails due to job submission error."
+    fake_compute.submit_job.assert_called_once()
+
+
+# --------------------------------------------------------------------------
+# Tests for HPSSToCFSTransferController
+# --------------------------------------------------------------------------
+
+def test_hpss_to_cfs_transfer_controller_success(mock_config832, transfer_controller_module, mocker: MockFixture):
+    """
+    Test a successful copy() operation using HPSSToCFSTransferController.
+    We simulate a successful job submission and completion.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+
+    # Create a fake job object for a successful transfer.
+    fake_job = MagicMock()
+    fake_job.jobid = "67890"
+    fake_job.state = "COMPLETED"
+    fake_job.complete.return_value = None
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+        files_to_extract=["file1.txt", "file2.txt"]
+    )
+    assert result is True, "Expected True when HPSSToCFSTransferController transfer completes successfully."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_hpss_to_cfs_transfer_controller_missing_params(mock_config832, transfer_controller_module):
+    """
+    Test that HPSSToCFSTransferController.copy() returns False when required parameters are missing.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    fake_client = MagicMock()  # Client is not used because the method returns early.
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+
+    result = controller.copy(file_path=None, source=None, destination=None)
+    assert result is False, "Expected False when required parameters are missing."
+
+
+def test_hpss_to_cfs_transfer_controller_job_failure(mock_config832, transfer_controller_module):
+    """
+    Test HPSSToCFSTransferController.transfer() returns False when job.complete() raises an exception.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+
+    fake_job = MagicMock()
+    fake_job.jobid = "67891"
+    fake_job.state = "FAILED"
+    fake_job.complete.side_effect = Exception("Job completion failed")
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is False, "Expected False when HPSSToCFSTransferController job fails to complete."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_hpss_to_cfs_transfer_controller_recovery(mock_config832, transfer_controller_module):
+    """
+    Test HPSSToCFSTransferController recovery scenario when initial job.complete() fails with 'Job not found:'.
+    The controller should attempt to recover the job and complete successfully.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+
+    # Fake job that fails initially with a "Job not found:" error.
+    fake_job_initial = MagicMock()
+    fake_job_initial.jobid = "11111"
+    fake_job_initial.state = "UNKNOWN"
+    fake_job_initial.complete.side_effect = Exception("Job not found: 11111")
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job_initial
+
+    # When recovery is attempted, return a job that completes successfully.
+    fake_job_recovered = MagicMock()
+    fake_job_recovered.jobid = "11111"
+    fake_job_recovered.state = "COMPLETED"
+    fake_job_recovered.complete.return_value = None
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+    fake_client.perlmutter.job.return_value = fake_job_recovered
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is True, "Expected True after successful job recovery in HPSSToCFSTransferController."
+    fake_compute.submit_job.assert_called_once()
+    fake_job_initial.complete.assert_called_once()
+    fake_client.perlmutter.job.assert_called_once_with(jobid="11111")
+    fake_job_recovered.complete.assert_called_once()
