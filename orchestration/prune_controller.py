@@ -64,7 +64,22 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         check_endpoint: FileSystemEndpoint = None,
         days_from_now: datetime.timedelta = 0
     ) -> bool:
-        pass
+        flow_name = f"prune_from_{source_endpoint.name}"
+        logger.info(f"Running flow: {flow_name}")
+        logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
+        schedule_prefect_flow(
+            "prune_hpss_endpoint/prune_hpss_endpoint",
+            flow_name,
+            {
+                "relative_path": file_path,
+                "source_endpoint": source_endpoint,
+                "check_endpoint": check_endpoint,
+                "config": self.config
+            },
+
+            datetime.timedelta(days=days_from_now),
+        )
+        return True
 
 
 class FileSystemPruneController(PruneController[FileSystemEndpoint]):
@@ -81,7 +96,22 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
         check_endpoint: FileSystemEndpoint = None,
         days_from_now: datetime.timedelta = 0
     ) -> bool:
-        pass
+        flow_name = f"prune_from_{source_endpoint.name}"
+        logger.info(f"Running flow: {flow_name}")
+        logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
+        schedule_prefect_flow(
+            "prune_filesystem_endpoint/prune_filesystem_endpoint",
+            flow_name,
+            {
+                "relative_path": file_path,
+                "source_endpoint": source_endpoint,
+                "check_endpoint": check_endpoint,
+                "config": self.config
+            },
+
+            datetime.timedelta(days=days_from_now),
+        )
+        return True
 
 
 class GlobusPruneController(PruneController[GlobusEndpoint]):
@@ -111,6 +141,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
                 "relative_path": file_path,
                 "source_endpoint": source_endpoint,
                 "check_endpoint": check_endpoint,
+                "config": self.config
             },
 
             datetime.timedelta(days=days_from_now),
@@ -118,12 +149,26 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         return True
 
 
+def get_prune_controller(
+    endpoint: TransferEndpoint,
+    config: BeamlineConfig
+) -> PruneController:
+    if isinstance(endpoint, HPSSEndpoint):
+        return HPSSPruneController(config)
+    elif isinstance(endpoint, FileSystemEndpoint):
+        return FileSystemPruneController(config)
+    elif isinstance(endpoint, GlobusEndpoint):
+        return GlobusPruneController(config)
+    else:
+        raise ValueError(f"Unsupported endpoint type: {type(endpoint)}")
+
+
 @flow(name="prune_globus_endpoint")
 def prune_globus_files(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
     check_endpoint: Union[GlobusEndpoint, None] = None,
-    config=None
+    config: BeamlineConfig = None
 ):
     """
     Prune files from a source endpoint.
@@ -147,3 +192,39 @@ def prune_globus_files(
         logger=logger,
         max_wait_seconds=max_wait_seconds
     )
+
+
+@flow(name="prune_filesystem_endpoint")
+def prune_filesystem_files(
+    relative_path: str,
+    source_endpoint: FileSystemEndpoint,
+    check_endpoint: Union[FileSystemEndpoint, None] = None,
+    config: BeamlineConfig = None
+):
+    """
+    Prune files from a source endpoint.
+
+    Args:
+        relative_path (str): The path of the file or directory to prune.
+        source_endpoint (GlobusEndpoint): The Globus source endpoint to prune from.
+        check_endpoint (GlobusEndpoint, optional): The Globus target endpoint to check. Defaults to None.
+    """
+    pass
+
+
+@flow(name="prune_hpss_endpoint")
+def prune_hpss_files(
+    relative_path: str,
+    source_endpoint: HPSSEndpoint,
+    check_endpoint: Union[FileSystemEndpoint, None] = None,
+    config: BeamlineConfig = None
+):
+    """
+    Prune files from a source endpoint.
+
+    Args:
+        relative_path (str): The path of the file or directory to prune.
+        source_endpoint (GlobusEndpoint): The Globus source endpoint to prune from.
+        check_endpoint (GlobusEndpoint, optional): The Globus target endpoint to check. Defaults to None.
+    """
+    pass
