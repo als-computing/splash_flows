@@ -86,9 +86,10 @@ def get_controller(
             config=config
         )
     elif hpc_type == HPC.NERSC:
+        from orchestration.sfapi import create_sfapi_client
         from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
         return NERSCTomographyHPCController(
-            client=NERSCTomographyHPCController.create_sfapi_client(),
+            client=create_sfapi_client(),
             config=config
         )
     elif hpc_type == HPC.OLCF:

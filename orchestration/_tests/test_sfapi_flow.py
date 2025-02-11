@@ -37,9 +37,13 @@ def test_create_sfapi_client_success():
     """
     Test successful creation of the SFAPI client.
     """
-    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
+    from orchestration.sfapi import create_sfapi_client
 
-    # Mock data for client_id and client_secret files
+    # Define fake credential file paths
+    fake_client_id_path = "/path/to/client_id"
+    fake_client_secret_path = "/path/to/client_secret"
+
+    # Mock file contents
     mock_client_id = 'value'
     mock_client_secret = '{"key": "value"}'
 
@@ -47,34 +51,26 @@ def test_create_sfapi_client_success():
     mock_open_client_id = mock_open(read_data=mock_client_id)
     mock_open_client_secret = mock_open(read_data=mock_client_secret)
 
-    with patch("orchestration.flows.bl832.nersc.os.getenv") as mock_getenv, \
-         patch("orchestration.flows.bl832.nersc.os.path.isfile") as mock_isfile, \
+    with patch("orchestration.sfapi.os.path.isfile") as mock_isfile, \
          patch("builtins.open", side_effect=[
              mock_open_client_id.return_value,
              mock_open_client_secret.return_value
          ]), \
-            patch("orchestration.flows.bl832.nersc.JsonWebKey.import_key") as mock_import_key, \
-            patch("orchestration.flows.bl832.nersc.Client") as MockClient:
+            patch("orchestration.sfapi.JsonWebKey.import_key") as mock_import_key, \
+            patch("orchestration.sfapi.Client") as MockClient:
 
-        # Mock environment variables
-        mock_getenv.side_effect = lambda x: {
-            "PATH_NERSC_CLIENT_ID": "/path/to/client_id",
-            "PATH_NERSC_PRI_KEY": "/path/to/client_secret"
-        }.get(x, None)
-
-        # Mock file existence
+        # Simulate that both credential files exist
         mock_isfile.return_value = True
 
-        # Mock JsonWebKey.import_key to return a mock secret
+        # Mock key import to return a fake secret
         mock_import_key.return_value = "mock_secret"
 
-        # Create the client
-        client = NERSCTomographyHPCController.create_sfapi_client()
+        # Create the client using the provided fake paths
+        client = create_sfapi_client(fake_client_id_path, fake_client_secret_path)
 
-        # Assert that Client was instantiated with 'value' and 'mock_secret'
+        # Verify that Client was instantiated with the expected arguments
         MockClient.assert_called_once_with("value", "mock_secret")
-
-        # Assert that the returned client is the mocked client
+        # Assert that the returned client is the mocked Client instance
         assert client == MockClient.return_value, "Client should be the mocked sfapi_client.Client instance"
 
 
@@ -82,36 +78,25 @@ def test_create_sfapi_client_missing_paths():
     """
     Test creation of the SFAPI client with missing credential paths.
     """
-    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
+    from orchestration.sfapi import create_sfapi_client
 
-    with patch("orchestration.flows.bl832.nersc.os.getenv", return_value=None):
-        with pytest.raises(ValueError, match="Missing NERSC credentials paths."):
-            NERSCTomographyHPCController.create_sfapi_client()
+    # Passing None for both paths should trigger a ValueError.
+    with pytest.raises(ValueError, match="Missing NERSC credentials paths."):
+        create_sfapi_client(None, None)
 
 
 def test_create_sfapi_client_missing_files():
     """
     Test creation of the SFAPI client with missing credential files.
     """
-    with (
-        # Mock environment variables
-        patch(
-            "orchestration.flows.bl832.nersc.os.getenv",
-            side_effect=lambda x: {
-                "PATH_NERSC_CLIENT_ID": "/path/to/client_id",
-                "PATH_NERSC_PRI_KEY": "/path/to/client_secret"
-            }.get(x, None)
-        ),
+    from orchestration.sfapi import create_sfapi_client
+    fake_client_id_path = "/path/to/client_id"
+    fake_client_secret_path = "/path/to/client_secret"
 
-        # Mock file existence to simulate missing files
-        patch("orchestration.flows.bl832.nersc.os.path.isfile", return_value=False)
-    ):
-        # Import the module after applying patches to ensure mocks are in place
-        from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
-
-        # Expect a FileNotFoundError due to missing credential files
+    # Simulate missing credential files by patching os.path.isfile to return False.
+    with patch("orchestration.sfapi.os.path.isfile", return_value=False):
         with pytest.raises(FileNotFoundError, match="NERSC credential files are missing."):
-            NERSCTomographyHPCController.create_sfapi_client()
+            create_sfapi_client(fake_client_id_path, fake_client_secret_path)
 
 # ----------------------------
 # Fixture for Mocking SFAPI Client

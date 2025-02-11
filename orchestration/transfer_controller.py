@@ -4,11 +4,17 @@ from enum import Enum
 import datetime
 import logging
 import os
+from pathlib import Path
+import re
 import time
 from typing import Generic, TypeVar, Optional
 
 import globus_sdk
+from sfapi_client import Client
+from sfapi_client.compute import Machine
 
+
+# We should have a more generic Config class that can be used across beamlines...
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import HPC
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
@@ -74,6 +80,21 @@ class FileSystemEndpoint(TransferEndpoint):
         if path_suffix.startswith("/"):
             path_suffix = path_suffix[1:]
         return f"{self.root_path.rstrip('/')}/{path_suffix}"
+
+
+class HPSSEndpoint(TransferEndpoint):
+    """
+    An HPSS endpoint.
+
+    Args:
+        TransferEndpoint: Abstract class for endpoints.
+    """
+    def __init__(
+        self,
+        name: str,
+        root_path: str
+    ) -> None:
+        super().__init__(name, root_path)
 
 
 Endpoint = TypeVar("Endpoint", bound=TransferEndpoint)
@@ -318,7 +339,10 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
 
 
 class SimpleTransferController(TransferController[FileSystemEndpoint]):
-    def __init__(self, config: Config832) -> None:
+    def __init__(
+        self,
+        config: Config832
+    ) -> None:
         super().__init__(config)
     """
     Use a simple 'cp' command to move data within the same system.
@@ -380,6 +404,216 @@ class SimpleTransferController(TransferController[FileSystemEndpoint]):
             logger.info(f"Transfer process took {elapsed_time:.2f} seconds.")
 
 
+class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
+    def __init__(
+        self,
+        client: Client,
+        config: Config832
+    ) -> None:
+        super().__init__(config)
+        self.client = client
+    """
+    Use SFAPI, Slurm, hsi, and htar to move data from CFS to HPSS at NERSC.
+
+    This transfer contoller requires the source to be a FileSystemEndpoint on CFS and the destination to be an HPSSEndpoint.
+    If you want to move data from somewhere else to HPSS, you will first need to transfer to CFS using a different controller,
+    and then to HPSS with this one.
+
+    Args:
+        TransferController: Abstract class for transferring data.
+    """
+    def copy(
+        self,
+        file_path: str = "",
+        source: FileSystemEndpoint = None,
+        destination: HPSSEndpoint = None,
+    ) -> bool:
+        """
+        Copy a file from a CFS source endpoint to an HPSS destination endpoint.
+
+        For a single file, the transfer is done using hsi (via hsi put).
+        For a directory, the transfer is performed with htar:
+          - If the directory's total size is less than 2TB, a single tar archive is created.
+          - If the size exceeds 2TB, the files are split into multiple tar archives,
+            each not exceeding the 2TB threshold.
+
+        The data is saved on HPSS in the correct location using the destination's root path.
+
+
+        Args:
+            file_path (str): The path of the file or directory to copy.
+            source (FileSystemEndpoint): The CFS source endpoint.
+            destination (HPSSEndpoint): The HPSS destination endpoint.
+        """
+
+        logger.info("Transferring data from CFS to HPSS")
+        if not file_path or not source or not destination:
+            logger.error("Missing required parameters for CFSToHPSSTransferController.")
+            return False
+
+        path = Path(file_path)
+        folder_name = path.parent.name
+        if not folder_name:
+            folder_name = ""
+
+        file_name = f"{path.stem}"
+
+        logger.info(f"File name: {file_name}")
+        logger.info(f"Folder name: {folder_name}")
+
+        # Construct absolute source path as visible on Perlmutter
+        abs_source_path = source.full_path(file_path)
+        dest_root = destination.root_path
+        job_name_suffix = Path(abs_source_path).name
+
+        logs_path = "/global/cfs/cdirs/als/data_mover/hpss_transfer_logs"
+
+        # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
+        # Note: If q=debug, there is no minimum time limit
+        # However, if q=preempt, there is a minimum time limit of 2 hours. Otherwise the job won't run.
+        # The realtime queue  can only be used for select accounts (e.g. ALS)
+        job_script = f"""#!/bin/bash
+#SBATCH -q xfer
+#SBATCH -A als
+#SBATCH -C cron
+#SBATCH --time=12:00:00
+#SBATCH --job-name=transfer_to_HPSS_{job_name_suffix}
+#SBATCH --output={logs_path}/%j.out
+#SBATCH --error={logs_path}/%j.err
+#SBATCH --licenses=SCRATCH
+#SBATCH --mem=100GB
+
+set -euo pipefail
+date
+
+# Define source and destination variables
+SOURCE_PATH="{abs_source_path}"
+DEST_ROOT="{dest_root}"
+FOLDER_NAME=$(basename "$SOURCE_PATH")
+DEST_PATH="${{DEST_ROOT}}/${{FOLDER_NAME}}"
+
+# Create destination directory if it doesn't exist on HPSS
+echo "Checking if HPSS destination directory $DEST_PATH exists."
+if hsi ls "$DEST_PATH" >/dev/null 2>&1; then
+    echo "Destination directory $DEST_PATH already exists."
+else
+    echo "Destination directory $DEST_PATH does not exist. Creating it now."
+    hsi mkdir "$DEST_PATH"
+fi
+
+# Check if source is a file or directory, and run the appropriate transfer command (hsi vs htar)
+
+# Case: Single File
+if [ -f "$SOURCE_PATH" ]; then
+    echo "Single file detected. Transferring via hsi put."
+    FILE_NAME=$(basename "$SOURCE_PATH")
+    hsi put "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
+
+# Case: Directory
+elif [ -d "$SOURCE_PATH" ]; then
+    # Check directory size and split into multiple archives if necessary
+
+    echo "Directory detected. Calculating total size..."
+    TOTAL_SIZE=$(du -sb "$SOURCE_PATH" | awk '{{print $1}}')
+    THRESHOLD=2199023255552  # 2 TB in bytes
+    echo "Total size: $TOTAL_SIZE bytes"
+
+    # If directory size is less than 2TB, archive directly with htar
+    if [ "$TOTAL_SIZE" -lt "$THRESHOLD" ]; then
+        echo "Directory size is under 2TB. Archiving with htar."
+        htar -cvf "${{DEST_PATH}}/${{FOLDER_NAME}}.tar" "$SOURCE_PATH"
+
+    # If directory size exceeds 2TB, split the project into multiple archives that are less than 2TB each
+    else
+        echo "Directory size exceeds 2TB. Splitting into multiple archives."
+        FILE_LIST=$(mktemp)
+        find "$SOURCE_PATH" -type f > "$FILE_LIST"
+        chunk=1
+        current_size=0
+        current_files=()
+        while IFS= read -r file; do
+            size=$(stat -c%s "$file")
+            if (( current_size + size > THRESHOLD )); then
+                tar_archive="${{DEST_PATH}}/${{FOLDER_NAME}}_part${{chunk}}.tar"
+                echo "Creating archive $tar_archive with size $current_size bytes"
+                htar -cvf "$tar_archive" "${{current_files[@]}}"
+                current_files=()
+                current_size=0
+                ((chunk++))
+            fi
+            current_files+=("$file")
+            current_size=$(( current_size + size ))
+        done < "$FILE_LIST"
+        if [ ${{#current_files[@]}} -gt 0 ]; then
+            tar_archive="${{DEST_PATH}}/${{FOLDER_NAME}}_part${{chunk}}.tar"
+            echo "Creating final archive $tar_archive with size $current_size bytes"
+            htar -cvf "$tar_archive" "${{current_files[@]}}"
+        fi
+        rm "$FILE_LIST"
+    fi
+else
+    echo "Error: $SOURCE_PATH is neither a file nor a directory."
+    exit 1
+fi
+
+date
+"""
+        try:
+            logger.info("Submitting HPSS transfer job to Perlmutter.")
+            perlmutter = self.client.compute(Machine.perlmutter)
+            job = perlmutter.submit_job(job_script)
+            logger.info(f"Submitted job ID: {job.jobid}")
+
+            try:
+                job.update()
+            except Exception as update_err:
+                logger.warning(f"Initial job update failed, continuing: {update_err}")
+
+            time.sleep(60)
+            logger.info(f"Job {job.jobid} current state: {job.state}")
+
+            job.complete()  # Wait until the job completes
+            logger.info("Reconstruction job completed successfully.")
+            return True
+
+        except Exception as e:
+            logger.info(f"Error during job submission or completion: {e}")
+            match = re.search(r"Job not found:\s*(\d+)", str(e))
+
+            if match:
+                jobid = match.group(1)
+                logger.info(f"Attempting to recover job {jobid}.")
+                try:
+                    job = self.client.perlmutter.job(jobid=jobid)
+                    time.sleep(30)
+                    job.complete()
+                    logger.info("Reconstruction job completed successfully after recovery.")
+                    return True
+                except Exception as recovery_err:
+                    logger.error(f"Failed to recover job {jobid}: {recovery_err}")
+                    return False
+            else:
+                # Unknown error: cannot recover
+                return False
+
+
+class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
+    def __init__(
+        self,
+        client: Client,
+        config: Config832
+    ) -> None:
+        super().__init__(config)
+    """
+    Use SFAPI to move data between CFS and HPSS at NERSC.
+
+    Args:
+        TransferController: Abstract class for transferring data.
+    """
+
+    pass
+
+
 class CopyMethod(Enum):
     """
     Enum representing different transfer methods.
@@ -387,6 +621,8 @@ class CopyMethod(Enum):
     """
     GLOBUS = "globus"
     SIMPLE = "simple"
+    CFS_TO_HPSS = "cfs_to_hpss"
+    HPSS_TO_CFS = "hpss_to_cfs"
 
 
 def get_transfer_controller(
@@ -408,6 +644,18 @@ def get_transfer_controller(
         return GlobusTransferController(config, prometheus_metrics)
     elif transfer_type == CopyMethod.SIMPLE:
         return SimpleTransferController(config)
+    elif transfer_type == CopyMethod.CFS_TO_HPSS:
+        from orchestration.sfapi import create_sfapi_client
+        return CFSToHPSSTransferController(
+            client=create_sfapi_client(),
+            config=config
+        )
+    elif transfer_type == CopyMethod.HPSS_TO_CFS:
+        from orchestration.sfapi import create_sfapi_client
+        return HPSSToCFSTransferController(
+            client=create_sfapi_client(),
+            config=config
+        )
     else:
         raise ValueError(f"Invalid transfer type: {transfer_type}")
 

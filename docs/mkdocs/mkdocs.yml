@@ -17,6 +17,7 @@ nav:
 - Compute at NERSC: nersc832.md
 - Orchestration: orchestration.md
 - Configuration: configuration.md
+- HPSS Tape Archive Access: hpss.md
 # - Troubleshooting: troubleshooting.md
 - Glossary: glossary.md
 - About: about.md
