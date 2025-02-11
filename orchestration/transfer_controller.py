@@ -13,10 +13,8 @@ import globus_sdk
 from sfapi_client import Client
 from sfapi_client.compute import Machine
 
-
-# We should have a more generic Config class that can be used across beamlines...
-from orchestration.flows.bl832.config import Config832
-from orchestration.flows.bl832.job_controller import HPC
+# Import the generic Beamline configuration class.
+from orchestration.config import BeamlineConfig
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
 from orchestration.prometheus_utils import PrometheusMetrics
 
@@ -109,7 +107,7 @@ class TransferController(Generic[Endpoint], ABC):
     """
     def __init__(
         self,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         self.config = config
 
@@ -135,19 +133,20 @@ class TransferController(Generic[Endpoint], ABC):
 
 
 class GlobusTransferController(TransferController[GlobusEndpoint]):
+    def __init__(
+        self,
+        config: BeamlineConfig,
+        prometheus_metrics: Optional[PrometheusMetrics] = None
+    ) -> None:
+        super().__init__(config)
+        self.prometheus_metrics = prometheus_metrics
+
     """
     Use Globus Transfer to move data between endpoints.
 
     Args:
         TransferController: Abstract class for transferring data.
     """
-    def __init__(
-        self,
-        config: Config832,
-        prometheus_metrics: Optional[PrometheusMetrics] = None
-    ) -> None:
-        super().__init__(config)
-        self.prometheus_metrics = prometheus_metrics
 
     def get_transfer_file_info(
         self,
@@ -156,23 +155,23 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     ) -> Optional[dict]:
         """
         Get information about a completed transfer from the Globus API.
-        
+
         Args:
             task_id (str): The Globus transfer task ID
             transfer_client (TransferClient, optional): TransferClient instance
-            
+
         Returns:
             Optional[dict]: Task information including bytes_transferred, or None if unavailable
         """
         if transfer_client is None:
             transfer_client = self.config.tc
-            
+
         try:
             task_info = transfer_client.get_task(task_id)
             task_dict = task_info.data
 
             if task_dict.get('status') == 'SUCCEEDED':
-                bytes_transferred = task_dict.get('bytes_transferred', 0) 
+                bytes_transferred = task_dict.get('bytes_transferred', 0)
                 bytes_checksummed = task_dict.get('bytes_checksummed', 0)
                 files_transferred = task_dict.get('files_transferred', 0)
                 effective_bytes_per_second = task_dict.get('effective_bytes_per_second', 0)
@@ -182,13 +181,13 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     'files_transferred': files_transferred,
                     'effective_bytes_per_second': effective_bytes_per_second
                 }
-                
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting transfer task info: {e}")
             return None
-    
+
     def collect_and_push_metrics(
         self,
         start_time: float,
@@ -202,7 +201,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     ) -> None:
         """
         Collect transfer metrics and push them to Prometheus.
-        
+
         Args:
             start_time (float): Transfer start time as UNIX timestamp.
             end_time (float): Transfer end time as UNIX timestamp.
@@ -222,10 +221,10 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
             end_datetime = datetime.datetime.fromtimestamp(end_time, tz=datetime.timezone.utc)
             start_timestamp = start_datetime.isoformat()
             end_timestamp = end_datetime.isoformat()
-            
+
             # Calculate duration in seconds
             duration_seconds = end_time - start_time
-            
+
             # Calculate transfer speed (bytes per second)
             # transfer_speed = file_size / duration_seconds if duration_seconds > 0 and file_size > 0 else 0
 
@@ -241,13 +240,13 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                 "status": "success" if success else "failed",
                 "machine": machine_name
             }
-            
+
             # Push metrics to Prometheus
             self.prometheus_metrics.push_metrics_to_prometheus(metrics, logger)
-            
+
         except Exception as e:
             logger.error(f"Error collecting or pushing metrics: {e}")
-    
+
     def copy(
         self,
         file_path: str = None,
@@ -265,11 +264,11 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
         Returns:
             bool: True if the transfer was successful, False otherwise.
         """
-        
+
         if not file_path:
             logger.error("No file_path provided")
             return False
-            
+
         if not source or not destination:
             logger.error("Source or destination endpoint not provided")
             return False
@@ -289,7 +288,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
         success = False
         task_id = None  # Initialize task_id here to prevent UnboundLocalError
         file_size = 0   # Initialize file_size here as well
-        
+
         try:
             success, task_id = start_transfer(
                 transfer_client=self.config.tc,
@@ -305,10 +304,10 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                 logger.info("Transfer completed successfully.")
             else:
                 logger.error("Transfer failed.")
-                
+
         except globus_sdk.services.transfer.errors.TransferAPIError as e:
             logger.error(f"Failed to submit transfer: {e}")
-            
+
         finally:
             # Stop the timer and calculate the duration
             transfer_end_time = time.time()
@@ -321,7 +320,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     transfer_speed = transfer_info.get('effective_bytes_per_second', 0)
                     logger.info(f"Globus Task Info: Transferred {file_size} bytes ")
                     logger.info(f"Globus Task Info: Effective speed: {transfer_speed} bytes/second")
-            
+
             # Collect and push metrics if enabled
             if self.prometheus_metrics and file_size > 0:
                 self.collect_and_push_metrics(
@@ -334,14 +333,14 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     transfer_speed=transfer_speed,
                     success=success,
                 )
-                
+
             return success
 
 
 class SimpleTransferController(TransferController[FileSystemEndpoint]):
     def __init__(
         self,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         super().__init__(config)
     """
@@ -408,7 +407,7 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
     def __init__(
         self,
         client: Client,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         super().__init__(config)
         self.client = client
@@ -601,7 +600,7 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
     def __init__(
         self,
         client: Client,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         super().__init__(config)
     """
@@ -627,7 +626,7 @@ class CopyMethod(Enum):
 
 def get_transfer_controller(
     transfer_type: CopyMethod,
-    config: Config832,
+    config: BeamlineConfig,
     prometheus_metrics: Optional[PrometheusMetrics] = None
 ) -> TransferController:
     """
@@ -661,6 +660,7 @@ def get_transfer_controller(
 
 
 if __name__ == "__main__":
+    from orchestration.flows.bl832.config import Config832
     config = Config832()
     transfer_type = CopyMethod.GLOBUS
     globus_transfer_controller = get_transfer_controller(transfer_type, config)

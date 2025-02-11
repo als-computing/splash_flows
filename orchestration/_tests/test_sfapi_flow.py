@@ -108,7 +108,7 @@ def mock_sfapi_client():
     """
     Mock the sfapi_client.Client class with necessary methods.
     """
-    with patch("orchestration.flows.bl832.nersc.Client") as MockClient:
+    with patch("orchestration.sfapi.Client") as MockClient:
         mock_client_instance = MockClient.return_value
 
         # Mock the user method
@@ -136,7 +136,7 @@ def mock_config832():
     """
     Mock the Config832 class to provide necessary configurations.
     """
-    with patch("orchestration.flows.bl832.nersc.Config832") as MockConfig:
+    with patch("orchestration.flows.bl832.config.Config832") as MockConfig:
         mock_config = MockConfig.return_value
         mock_config.harbor_images832 = {
             "recon_image": "mock_recon_image",

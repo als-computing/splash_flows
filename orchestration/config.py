@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import collections
 import builtins
 from pathlib import Path
@@ -41,3 +42,37 @@ def expand_environment_variables(config):
         return type(config)([expand_environment_variables(v) for v in config])
     else:
         return config
+
+
+class BeamlineConfig(ABC):
+    """
+    Base class for beamline configurations.
+
+    This class reads the common configuration from disk, builds endpoints and apps,
+    and initializes the Globus Transfer and Flows clients. Beamline-specific subclasses
+    must override the _setup_specific_config() method to assign their own attributes.
+
+    Attributes:
+        beamline_id (str): Beamline identifier (e.g. "832" or "733").
+        config (dict): The loaded configuration dictionary.
+        endpoints (dict): Endpoints built from the configuration.
+        apps (dict): Apps built from the configuration.
+        tc (TransferClient): Globus Transfer client.
+        flow_client: Globus Flows client.
+    """
+
+    def __init__(self, beamline_id: str) -> None:
+        self.beamline_id = beamline_id
+        self.config = read_config()
+        self._beam_specific_config()
+
+    @abstractmethod
+    def _beam_specific_config(self) -> None:
+        """
+        Set up beamline-specific configuration attributes.
+
+        This method must be implemented by subclasses. Typical assignments
+        include selecting endpoints (using keys that include the beamline ID),
+        and other beamline-specific parameters.
+        """
+        pass
