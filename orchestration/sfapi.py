@@ -11,16 +11,15 @@ logger.setLevel(logging.INFO)
 load_dotenv()
 
 
+# TODO: we need a better way to store the client_id and client_secret
 def create_sfapi_client(
-    client_id_path: str,
-    client_secret_path: str,
+    client_id_path: str = os.getenv("PATH_NERSC_CLIENT_ID"),
+    client_secret_path: str = os.getenv("PATH_NERSC_PRI_KEY"),
 ) -> Client:
     """Create and return an NERSC client instance"""
 
     # When generating the SFAPI Key in Iris, make sure to select "asldev" as the user!
     # Otherwise, the key will not have the necessary permissions to access the data.
-    # client_id_path = os.getenv("PATH_NERSC_CLIENT_ID")
-    # client_secret_path = os.getenv("PATH_NERSC_PRI_KEY")
 
     if not client_id_path or not client_secret_path:
         logger.error("NERSC credentials paths are missing.")

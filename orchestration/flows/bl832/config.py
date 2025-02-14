@@ -6,7 +6,7 @@ from orchestration.globus import flows, transfer
 
 class Config832(BeamlineConfig):
     def __init__(self) -> None:
-        super().__init__(beamline_id="832")
+        super().__init__(beamline_id="8.3.2")
 
     def _beam_specific_config(self) -> None:
         # config = transfer.get_config()
@@ -27,5 +27,6 @@ class Config832(BeamlineConfig):
         self.nersc832_alsdev_recon_scripts = self.endpoints["nersc832_alsdev_recon_scripts"]
         self.alcf832_raw = self.endpoints["alcf832_raw"]
         self.alcf832_scratch = self.endpoints["alcf832_scratch"]
+        self.hpss_alsdev = self.config["hpss_alsdev"]
         self.scicat = self.config["scicat"]
         self.ghcr_images832 = self.config["ghcr_images832"]

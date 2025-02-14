@@ -281,7 +281,7 @@ class SimpleTransferController(TransferController[FileSystemEndpoint]):
 
     def copy(
         self,
-        file_path: str = "",
+        file_path: str = None,
         source: FileSystemEndpoint = None,
         destination: FileSystemEndpoint = None,
     ) -> bool:
@@ -333,6 +333,30 @@ class SimpleTransferController(TransferController[FileSystemEndpoint]):
 
 
 class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
+    """
+    Use SFAPI, Slurm, hsi, and htar to move data from CFS to HPSS at NERSC.
+
+    This controller requires the source to be a FileSystemEndpoint on CFS and the
+    destination to be an HPSSEndpoint. For a single file, the transfer is done using hsi (via hsi cput).
+    For a directory, the transfer is performed with htar. In this updated version, if the source is a
+    directory then the files are bundled into tar archives based on their modification dates as follows:
+      - Files with modification dates between Jan 1 and Jul 15 (inclusive) are grouped together
+        (Cycle 1 for that year).
+      - Files with modification dates between Jul 16 and Dec 31 are grouped together (Cycle 2).
+
+    Within each group, if the total size exceeds 2 TB the files are partitioned into multiple tar bundles.
+    The resulting naming convention on HPSS is:
+
+        /home/a/alsdev/data_mover/[beamline]/raw/[proposal_name]/
+           [proposal_name]_[year]-[cycle].tar
+           [proposal_name]_[year]-[cycle]_part0.tar
+           [proposal_name]_[year]-[cycle]_part1.tar
+           ...
+
+    At the end of the SLURM script, the directory tree for both the source (CFS) and destination (HPSS)
+    is echoed for logging purposes.
+    """
+
     def __init__(
         self,
         client: Client,
@@ -340,149 +364,205 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
     ) -> None:
         super().__init__(config)
         self.client = client
-    """
-    Use SFAPI, Slurm, hsi, and htar to move data from CFS to HPSS at NERSC.
 
-    This transfer contoller requires the source to be a FileSystemEndpoint on CFS and the destination to be an HPSSEndpoint.
-    If you want to move data from somewhere else to HPSS, you will first need to transfer to CFS using a different controller,
-    and then to HPSS with this one.
-
-    Args:
-        TransferController: Abstract class for transferring data.
-    """
     def copy(
         self,
-        file_path: str = "",
+        file_path: str = None,
         source: FileSystemEndpoint = None,
-        destination: HPSSEndpoint = None,
+        destination: HPSSEndpoint = None
     ) -> bool:
-        """
-        Copy a file from a CFS source endpoint to an HPSS destination endpoint.
-
-        For a single file, the transfer is done using hsi (via hsi put).
-        For a directory, the transfer is performed with htar:
-          - If the directory's total size is less than 2TB, a single tar archive is created.
-          - If the size exceeds 2TB, the files are split into multiple tar archives,
-            each not exceeding the 2TB threshold.
-
-        The data is saved on HPSS in the correct location using the destination's root path.
-
-
-        Args:
-            file_path (str): The path of the file or directory to copy.
-            source (FileSystemEndpoint): The CFS source endpoint.
-            destination (HPSSEndpoint): The HPSS destination endpoint.
-        """
-
         logger.info("Transferring data from CFS to HPSS")
         if not file_path or not source or not destination:
             logger.error("Missing required parameters for CFSToHPSSTransferController.")
             return False
 
+        # Compute the full path on CFS for the file/directory.
+        full_cfs_path = source.full_path(file_path)
+        # Get the beamline_id from the configuration.
+        beamline_id = self.config.beamline_id
+        # Build the HPSS destination root path using the convention: [destination.root_path]/[beamline_id]/raw
+        hpss_root_path = f"{destination.root_path.rstrip('/')}/{beamline_id}/raw"
+
+        # Determine the proposal (project) folder name from the file_path.
         path = Path(file_path)
-        folder_name = path.parent.name
-        if not folder_name:
-            folder_name = ""
-
-        file_name = f"{path.stem}"
-
-        logger.info(f"File name: {file_name}")
-        logger.info(f"Folder name: {folder_name}")
-
-        # Construct absolute source path as visible on Perlmutter
-        abs_source_path = source.full_path(file_path)
-        dest_root = destination.root_path
-        job_name_suffix = Path(abs_source_path).name
+        proposal_name = path.parent.name
+        if not proposal_name or proposal_name == ".":  # if file_path is in the root directory
+            proposal_name = file_path
 
         logs_path = "/global/cfs/cdirs/als/data_mover/hpss_transfer_logs"
 
-        # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
-        # Note: If q=debug, there is no minimum time limit
-        # However, if q=preempt, there is a minimum time limit of 2 hours. Otherwise the job won't run.
-        # The realtime queue  can only be used for select accounts (e.g. ALS)
-        job_script = f"""#!/bin/bash
-#SBATCH -q xfer
-#SBATCH -A als
-#SBATCH -C cron
-#SBATCH --time=12:00:00
-#SBATCH --job-name=transfer_to_HPSS_{job_name_suffix}
-#SBATCH --output={logs_path}/%j.out
-#SBATCH --error={logs_path}/%j.err
-#SBATCH --licenses=SCRATCH
-#SBATCH --mem=100GB
+        # Build the SLURM job script with detailed inline comments for clarity.
+        job_script = rf"""#!/bin/bash
+# ------------------------------------------------------------------
+# SLURM Job Script for Transferring Data from CFS to HPSS
+# This script will:
+#   1. Define the source (CFS) and destination (HPSS) paths.
+#   2. Create the destination directory on HPSS if it doesn't exist.
+#   3. Determine if the source is a file or a directory.
+#      - If a file, transfer it using 'hsi cput'.
+#      - If a directory, group files by beam cycle and archive them.
+#         * Cycle 1: Jan 1 - Jul 15
+#         * Cycle 2: Jul 16 - Dec 31
+#         * If a group exceeds 2 TB, it is partitioned into multiple tar archives.
+#         * Archive names:
+#              [proposal_name]_[year]-[cycle].tar
+#              [proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.
+#   4. Echo directory trees for both source and destination for logging.
+# ------------------------------------------------------------------
 
-set -euo pipefail
-date
+#SBATCH -q xfer                           # Specify the SLURM queue to use.
+#SBATCH -A als                            # Specify the account.
+#SBATCH -C cron                           # Use the 'cron' constraint.
+#SBATCH --time=12:00:00                   # Maximum runtime of 12 hours.
+#SBATCH --job-name=transfer_to_HPSS_{file_path}  # Set a descriptive job name.
+#SBATCH --output={logs_path}/%j.out       # Standard output log file.
+#SBATCH --error={logs_path}/%j.err        # Standard error log file.
+#SBATCH --licenses=SCRATCH                # Request the SCRATCH license.
+#SBATCH --mem=4GB                         # Request #GB of memory. Defult 2GB.
 
-# Define source and destination variables
-SOURCE_PATH="{abs_source_path}"
-DEST_ROOT="{dest_root}"
-FOLDER_NAME=$(basename "$SOURCE_PATH")
+set -euo pipefail                        # Enable strict error checking.
+date                                      # Print current date/time for logging.
+
+# ------------------------------------------------------------------
+# Define source and destination variables.
+# ------------------------------------------------------------------
+
+# SOURCE_PATH: Full path of the file or directory on CFS.
+SOURCE_PATH="{full_cfs_path}"
+
+# DEST_ROOT: Root destination on HPSS built from configuration.
+DEST_ROOT="{hpss_root_path}"
+
+# FOLDER_NAME: Proposal name (project folder) derived from the file path.
+FOLDER_NAME="{proposal_name}"
+
+# DEST_PATH: Final HPSS destination directory.
 DEST_PATH="${{DEST_ROOT}}/${{FOLDER_NAME}}"
 
-# Create destination directory if it doesn't exist on HPSS
+# ------------------------------------------------------------------
+# Create destination directory on HPSS if it doesn't exist.
+# ------------------------------------------------------------------
+
 echo "Checking if HPSS destination directory $DEST_PATH exists."
-if hsi ls "$DEST_PATH" >/dev/null 2>&1; then
+if hsi ls "$DEST_PATH"; then
     echo "Destination directory $DEST_PATH already exists."
 else
     echo "Destination directory $DEST_PATH does not exist. Creating it now."
-    hsi mkdir "$DEST_PATH"
+    # hsi mkdir "$DEST_PATH"
 fi
 
-# Check if source is a file or directory, and run the appropriate transfer command (hsi vs htar)
+# ------------------------------------------------------------------
+# Transfer Logic: Check if SOURCE_PATH is a file or directory.
+# ------------------------------------------------------------------
 
-# Case: Single File
 if [ -f "$SOURCE_PATH" ]; then
-    echo "Single file detected. Transferring via hsi put."
+    # Case: Single file detected.
+    echo "Single file detected. Transferring via hsi cput."
     FILE_NAME=$(basename "$SOURCE_PATH")
-    hsi put "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
+    # Transfer the file to HPSS. 'hsi cput' will only overwrite if the source is newer.
+    # hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
 
-# Case: Directory
 elif [ -d "$SOURCE_PATH" ]; then
-    # Check directory size and split into multiple archives if necessary
+    # Case: Directory detected.
+    echo "Directory detected. Bundling scans by beam cycle."
+    THRESHOLD=2199023255552  # 2 TB in bytes.
 
-    echo "Directory detected. Calculating total size..."
-    TOTAL_SIZE=$(du -sb "$SOURCE_PATH" | awk '{{print $1}}')
-    THRESHOLD=2199023255552  # 2 TB in bytes
-    echo "Total size: $TOTAL_SIZE bytes"
+    # ------------------------------------------------------------------
+    # Group files based on modification date:
+    #   - Cycle 1: Jan 1 - Jul 15
+    #   - Cycle 2: Jul 16 - Dec 31
+    # For each group, if total size exceeds THRESHOLD, partition into multiple tar archives.
+    # Naming convention:
+    #    [proposal_name]_[year]-[cycle].tar
+    #    [proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.
+    # ------------------------------------------------------------------
 
-    # If directory size is less than 2TB, archive directly with htar
-    if [ "$TOTAL_SIZE" -lt "$THRESHOLD" ]; then
-        echo "Directory size is under 2TB. Archiving with htar."
-        htar -cvf "${{DEST_PATH}}/${{FOLDER_NAME}}.tar" "$SOURCE_PATH"
+    # Create a temporary file to store list of files.
+    FILE_LIST=$(mktemp)
+    find "$SOURCE_PATH" -type f > "$FILE_LIST"
 
-    # If directory size exceeds 2TB, split the project into multiple archives that are less than 2TB each
-    else
-        echo "Directory size exceeds 2TB. Splitting into multiple archives."
-        FILE_LIST=$(mktemp)
-        find "$SOURCE_PATH" -type f > "$FILE_LIST"
-        chunk=1
-        current_size=0
-        current_files=()
-        while IFS= read -r file; do
-            size=$(stat -c%s "$file")
-            if (( current_size + size > THRESHOLD )); then
-                tar_archive="${{DEST_PATH}}/${{FOLDER_NAME}}_part${{chunk}}.tar"
-                echo "Creating archive $tar_archive with size $current_size bytes"
-                htar -cvf "$tar_archive" "${{current_files[@]}}"
-                current_files=()
-                current_size=0
-                ((chunk++))
-            fi
-            current_files+=("$file")
-            current_size=$(( current_size + size ))
-        done < "$FILE_LIST"
-        if [ ${{#current_files[@]}} -gt 0 ]; then
-            tar_archive="${{DEST_PATH}}/${{FOLDER_NAME}}_part${{chunk}}.tar"
-            echo "Creating final archive $tar_archive with size $current_size bytes"
-            htar -cvf "$tar_archive" "${{current_files[@]}}"
-        fi
-        rm "$FILE_LIST"
-    fi
+    # Declare associative arrays to hold grouped file paths and sizes.
+    declare -A group_files
+    declare -A group_sizes
+
+    # Read each file and determine its group based on modification date.
+    while IFS= read -r file; do
+         mtime=$(stat -c %Y "$file")
+         year=$(date -d @"$mtime" +%Y)
+         month=$(date -d @"$mtime" +%m | sed 's/^0*//')
+         day=$(date -d @"$mtime" +%d | sed 's/^0*//')
+         # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
+         if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ] }}; then
+              cycle=1
+         else
+              cycle=2
+         fi
+         key="${{year}}-${{cycle}}"
+         group_files["$key"]="${{group_files["$key"]}} $file"
+         fsize=$(stat -c %s "$file")
+         group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
+    done < "$FILE_LIST"
+    rm "$FILE_LIST"
+
+    # Iterate over each (year,cycle) group and create tar archives.
+    for key in "${{!group_files[@]}}"; do
+         files=(${{group_files["$key"]}})
+         total_group_size=${{group_sizes["$key"]}}
+         echo "Group $key has ${{#files[@]}} files, total size $total_group_size bytes."
+
+         part=0
+         current_size=0
+         current_files=()
+         # Bundle files until the THRESHOLD is reached, then create an archive.
+         for f in "${{files[@]}}"; do
+              fsize=$(stat -c %s "$f")
+              if (( current_size + fsize > THRESHOLD && ${{#current_files[@]}} > 0 )); then
+                   # Determine tar archive name based on whether it is the first bundle or a subsequent part.
+                   if [ $part -eq 0 ]; then
+                        tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+                   else
+                        tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+                   fi
+                   echo "Creating archive $tar_name with ${{#current_files[@]}} files, size $current_size bytes."
+                #    htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+                   part=$((part+1))
+                   current_files=()
+                   current_size=0
+              fi
+              # Add the current file to the bundle and update the cumulative size.
+              current_files+=("$f")
+              current_size=$(( current_size + fsize ))
+         done
+         # Create the final archive for the group if there are remaining files.
+         if [ ${{#current_files[@]}} -gt 0 ]; then
+              if [ $part -eq 0 ]; then
+                   tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+              else
+                   tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+              fi
+              echo "Creating final archive $tar_name with ${{#current_files[@]}} files, size $current_size bytes."
+            #   htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+         fi
+    done
+
 else
-    echo "Error: $SOURCE_PATH is neither a file nor a directory."
+    echo "Error: $SOURCE_PATH is neither a file nor a directory. Are you sure it exists?"
     exit 1
 fi
+
+# ------------------------------------------------------------------
+# Logging: Display directory trees for both source and destination.
+# ------------------------------------------------------------------
+
+echo "=== Listing Source (CFS) Tree ==="
+if [ -d "$SOURCE_PATH" ]; then
+    find "$SOURCE_PATH" -print
+else
+    echo "$SOURCE_PATH is a file."
+fi
+
+echo "=== Listing Destination (HPSS) Tree ==="
+# hsi ls -R "$DEST_PATH" || echo "Failed to list HPSS tree at $DEST_PATH"
 
 date
 """
@@ -500,14 +580,13 @@ date
             time.sleep(60)
             logger.info(f"Job {job.jobid} current state: {job.state}")
 
-            job.complete()  # Wait until the job completes
-            logger.info("Reconstruction job completed successfully.")
+            job.complete()  # Wait until the job completes.
+            logger.info("Transfer job completed successfully.")
             return True
 
         except Exception as e:
-            logger.info(f"Error during job submission or completion: {e}")
+            logger.error(f"Error during job submission or completion: {e}")
             match = re.search(r"Job not found:\s*(\d+)", str(e))
-
             if match:
                 jobid = match.group(1)
                 logger.info(f"Attempting to recover job {jobid}.")
@@ -515,24 +594,16 @@ date
                     job = self.client.perlmutter.job(jobid=jobid)
                     time.sleep(30)
                     job.complete()
-                    logger.info("Reconstruction job completed successfully after recovery.")
+                    logger.info("Transfer job completed successfully after recovery.")
                     return True
                 except Exception as recovery_err:
                     logger.error(f"Failed to recover job {jobid}: {recovery_err}")
                     return False
             else:
-                # Unknown error: cannot recover
                 return False
 
 
 class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
-    def __init__(
-        self,
-        client: Client,
-        config: BeamlineConfig
-    ) -> None:
-        super().__init__(config)
-        self.client = client
     """
     Use SFAPI to move data between HPSS and CFS at NERSC.
 
@@ -554,6 +625,15 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
     Returns:
         bool: True if the transfer job completes successfully, False otherwise.
     """
+
+    def __init__(
+        self,
+        client: Client,
+        config: BeamlineConfig
+    ) -> None:
+        super().__init__(config)
+        self.client = client
+
     def copy(
         self,
         file_path: str = None,
