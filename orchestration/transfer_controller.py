@@ -415,8 +415,8 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
 #SBATCH -C cron                           # Use the 'cron' constraint.
 #SBATCH --time=12:00:00                   # Maximum runtime of 12 hours.
 #SBATCH --job-name=transfer_to_HPSS_{file_path}  # Set a descriptive job name.
-#SBATCH --output={logs_path}/%j.out       # Standard output log file.
-#SBATCH --error={logs_path}/%j.err        # Standard error log file.
+#SBATCH --output={logs_path}/{file_path}_%j.out       # Standard output log file.
+#SBATCH --error={logs_path}/{file_path}_%j.err        # Standard error log file.
 #SBATCH --licenses=SCRATCH                # Request the SCRATCH license.
 #SBATCH --mem=4GB                         # Request #GB of memory. Defult 2GB.
 
@@ -492,13 +492,13 @@ elif [ -d "$SOURCE_PATH" ]; then
          month=$(date -d @"$mtime" +%m | sed 's/^0*//')
          day=$(date -d @"$mtime" +%d | sed 's/^0*//')
          # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
-         if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ] }}; then
+         if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ]; }}; then
               cycle=1
          else
               cycle=2
          fi
          key="${{year}}-${{cycle}}"
-         group_files["$key"]="${{group_files["$key"]}} $file"
+         group_files["$key"]="${{group_files["$key"]:-}} $file"
          fsize=$(stat -c %s "$file")
          group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
     done < "$FILE_LIST"

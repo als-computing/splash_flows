@@ -18,8 +18,8 @@ logger.setLevel(logging.INFO)
 @flow(name="cfs_to_hpss_flow")
 def cfs_to_hpss_flow(
     file_path: str = None,
-    source_endpoint: FileSystemEndpoint = None,
-    destination_endpoint: HPSSEndpoint = None,
+    source: FileSystemEndpoint = None,
+    destination: HPSSEndpoint = None,
     config: BeamlineConfig = Config832()
 ) -> bool:
     """
@@ -29,14 +29,14 @@ def cfs_to_hpss_flow(
     ----------
     file_path : str
         The path of the file to transfer.
-    source_endpoint : FileSystemEndpoint
+    source : FileSystemEndpoint
         The source endpoint.
-    destination_endpoint : HPSSEndpoint
+    destination : HPSSEndpoints
         The destination endpoint.
     """
 
     logger.info("Running cfs_to_hpss_flow")
-    logger.info(f"Transferring {file_path} from {source_endpoint.name} to {destination_endpoint.name}")
+    logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
 
     logger.info("Configuring transfer controller for CFS_TO_HPSS.")
     transfer_controller = get_transfer_controller(
@@ -47,8 +47,8 @@ def cfs_to_hpss_flow(
     logger.info("CFSToHPSSTransferController selected. Initiating transfer.")
     result = transfer_controller.copy(
         file_path=file_path,
-        source_endpoint=source_endpoint,
-        destination_endpoint=destination_endpoint
+        source=source,
+        destination=destination
     )
 
     return result
@@ -57,8 +57,8 @@ def cfs_to_hpss_flow(
 @flow(name="hpss_to_cfs_flow")
 def hpss_to_cfs_flow(
     file_path: str = None,
-    source_endpoint: HPSSEndpoint = None,
-    destination_endpoint: FileSystemEndpoint = None,
+    source: HPSSEndpoint = None,
+    destination: FileSystemEndpoint = None,
     files_to_extract: Optional[List[str]] = None,
     config: BeamlineConfig = Config832()
 ) -> bool:
@@ -82,8 +82,8 @@ def hpss_to_cfs_flow(
 
     result = transfer_controller.copy(
         file_path=file_path,
-        source_endpoint=source_endpoint,
-        destination_endpoint=destination_endpoint,
+        source=source,
+        destination=destination,
         files_to_extract=files_to_extract,
     )
 
@@ -94,15 +94,17 @@ if __name__ == "__main__":
 
     config = Config832()
     project_name = "ALS-11193_nbalsara"
-    source_endpoint = FileSystemEndpoint(
+    source = FileSystemEndpoint(
         name="CFS",
         root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/"
     )
-    destination_endpoint = config.hpss_alsdev
-
+    destination = HPSSEndpoint(
+        name="HPSS",
+        root_path=config.hpss_alsdev["root_path"]
+    )
     cfs_to_hpss_flow(
         file_path=f"{project_name}",
-        source_endpoint=source_endpoint,
-        destination_endpoint=destination_endpoint,
+        source=source,
+        destination=destination,
         config=config
     )
