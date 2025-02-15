@@ -389,7 +389,7 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
         if not proposal_name or proposal_name == ".":  # if file_path is in the root directory
             proposal_name = file_path
 
-        logs_path = "/global/cfs/cdirs/als/data_mover/hpss_transfer_logs"
+        logs_path = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}"
 
         # Build the SLURM job script with detailed inline comments for clarity.
         job_script = rf"""#!/bin/bash
@@ -418,153 +418,171 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
 #SBATCH --output={logs_path}/{file_path}_%j.out       # Standard output log file.
 #SBATCH --error={logs_path}/{file_path}_%j.err        # Standard error log file.
 #SBATCH --licenses=SCRATCH                # Request the SCRATCH license.
-#SBATCH --mem=4GB                         # Request #GB of memory. Defult 2GB.
+#SBATCH --mem=20GB                        # Request #GB of memory. Default 2GB.
 
 set -euo pipefail                        # Enable strict error checking.
-date                                      # Print current date/time for logging.
+echo "[LOG] Job started at: $(date)"
 
 # ------------------------------------------------------------------
 # Define source and destination variables.
 # ------------------------------------------------------------------
+echo "[LOG] Defining source and destination paths."
 
 # SOURCE_PATH: Full path of the file or directory on CFS.
 SOURCE_PATH="{full_cfs_path}"
+echo "[LOG] SOURCE_PATH set to: $SOURCE_PATH"
 
 # DEST_ROOT: Root destination on HPSS built from configuration.
 DEST_ROOT="{hpss_root_path}"
+echo "[LOG] DEST_ROOT set to: $DEST_ROOT"
 
 # FOLDER_NAME: Proposal name (project folder) derived from the file path.
 FOLDER_NAME="{proposal_name}"
+echo "[LOG] FOLDER_NAME set to: $FOLDER_NAME"
 
 # DEST_PATH: Final HPSS destination directory.
 DEST_PATH="${{DEST_ROOT}}/${{FOLDER_NAME}}"
+echo "[LOG] DEST_PATH set to: $DEST_PATH"
 
 # ------------------------------------------------------------------
 # Create destination directory on HPSS if it doesn't exist.
 # ------------------------------------------------------------------
-
-echo "Checking if HPSS destination directory $DEST_PATH exists."
+echo "[LOG] Checking if HPSS destination directory exists at $DEST_PATH."
 if hsi ls "$DEST_PATH"; then
-    echo "Destination directory $DEST_PATH already exists."
+    echo "[LOG] Destination directory $DEST_PATH already exists."
 else
-    echo "Destination directory $DEST_PATH does not exist. Creating it now."
-    # hsi mkdir "$DEST_PATH"
+    echo "[LOG] Destination directory $DEST_PATH does not exist. Attempting to create it."
+    hsi mkdir "$DEST_PATH"
+    echo "[LOG] (Simulated) Created directory $DEST_PATH."
 fi
 
 # ------------------------------------------------------------------
 # Transfer Logic: Check if SOURCE_PATH is a file or directory.
 # ------------------------------------------------------------------
-
+echo "[LOG] Determining type of SOURCE_PATH: $SOURCE_PATH"
 if [ -f "$SOURCE_PATH" ]; then
     # Case: Single file detected.
-    echo "Single file detected. Transferring via hsi cput."
+    echo "[LOG] Single file detected. Transferring via hsi cput."
     FILE_NAME=$(basename "$SOURCE_PATH")
-    # Transfer the file to HPSS. 'hsi cput' will only overwrite if the source is newer.
-    # hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
+    echo "[LOG] File name: $FILE_NAME"
+    hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
+    echo "[LOG] (Simulated) File transfer completed for $FILE_NAME."
 
 elif [ -d "$SOURCE_PATH" ]; then
     # Case: Directory detected.
-    echo "Directory detected. Bundling scans by beam cycle."
+    echo "[LOG] Directory detected. Initiating bundling process."
     THRESHOLD=2199023255552  # 2 TB in bytes.
+    echo "[LOG] Threshold set to 2 TB (in bytes: $THRESHOLD)"
 
     # ------------------------------------------------------------------
-    # Group files based on modification date:
-    #   - Cycle 1: Jan 1 - Jul 15
-    #   - Cycle 2: Jul 16 - Dec 31
-    # For each group, if total size exceeds THRESHOLD, partition into multiple tar archives.
-    # Naming convention:
-    #    [proposal_name]_[year]-[cycle].tar
-    #    [proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.
+    # Group files based on modification date.
     # ------------------------------------------------------------------
-
-    # Create a temporary file to store list of files.
+    echo "[LOG] Grouping files by modification date."
     FILE_LIST=$(mktemp)
     find "$SOURCE_PATH" -type f > "$FILE_LIST"
+    echo "[LOG] List of files stored in temporary file: $FILE_LIST"
 
     # Declare associative arrays to hold grouped file paths and sizes.
     declare -A group_files
     declare -A group_sizes
 
-    # Read each file and determine its group based on modification date.
     while IFS= read -r file; do
-         mtime=$(stat -c %Y "$file")
-         year=$(date -d @"$mtime" +%Y)
-         month=$(date -d @"$mtime" +%m | sed 's/^0*//')
-         day=$(date -d @"$mtime" +%d | sed 's/^0*//')
-         # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
-         if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ]; }}; then
-              cycle=1
-         else
-              cycle=2
-         fi
-         key="${{year}}-${{cycle}}"
-         group_files["$key"]="${{group_files["$key"]:-}} $file"
-         fsize=$(stat -c %s "$file")
-         group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
+        mtime=$(stat -c %Y "$file")
+        year=$(date -d @"$mtime" +%Y)
+        month=$(date -d @"$mtime" +%m | sed 's/^0*//')
+        day=$(date -d @"$mtime" +%d | sed 's/^0*//')
+        # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
+        if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ]; }}; then
+            cycle=1
+        else
+            cycle=2
+        fi
+        key="${{year}}-${{cycle}}"
+        group_files["$key"]="${{group_files["$key"]:-}} $file"
+        fsize=$(stat -c %s "$file")
+        group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
     done < "$FILE_LIST"
     rm "$FILE_LIST"
+    echo "[LOG] Completed grouping files."
 
-    # Iterate over each (year,cycle) group and create tar archives.
+    # Print the files in each group at the end
     for key in "${{!group_files[@]}}"; do
-         files=(${{group_files["$key"]}})
-         total_group_size=${{group_sizes["$key"]}}
-         echo "Group $key has ${{#files[@]}} files, total size $total_group_size bytes."
-
-         part=0
-         current_size=0
-         current_files=()
-         # Bundle files until the THRESHOLD is reached, then create an archive.
-         for f in "${{files[@]}}"; do
-              fsize=$(stat -c %s "$f")
-              if (( current_size + fsize > THRESHOLD && ${{#current_files[@]}} > 0 )); then
-                   # Determine tar archive name based on whether it is the first bundle or a subsequent part.
-                   if [ $part -eq 0 ]; then
-                        tar_name="${{FOLDER_NAME}}_${{key}}.tar"
-                   else
-                        tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
-                   fi
-                   echo "Creating archive $tar_name with ${{#current_files[@]}} files, size $current_size bytes."
-                #    htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
-                   part=$((part+1))
-                   current_files=()
-                   current_size=0
-              fi
-              # Add the current file to the bundle and update the cumulative size.
-              current_files+=("$f")
-              current_size=$(( current_size + fsize ))
-         done
-         # Create the final archive for the group if there are remaining files.
-         if [ ${{#current_files[@]}} -gt 0 ]; then
-              if [ $part -eq 0 ]; then
-                   tar_name="${{FOLDER_NAME}}_${{key}}.tar"
-              else
-                   tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
-              fi
-              echo "Creating final archive $tar_name with ${{#current_files[@]}} files, size $current_size bytes."
-            #   htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
-         fi
+        echo "[LOG] Group $key contains files:"
+        for f in ${{group_files["$key"]}}; do
+            echo "    $f"
+        done
     done
 
+    # ------------------------------------------------------------------
+    # Bundle files into tar archives.
+    # ------------------------------------------------------------------
+    for key in "${{!group_files[@]}}"; do
+        files=(${{group_files["$key"]}})
+        total_group_size=${{group_sizes["$key"]}}
+        echo "[LOG] Processing group $key with ${{#files[@]}} files; total size: $total_group_size bytes."
+
+        part=0
+        current_size=0
+        current_files=()
+        for f in "${{files[@]}}"; do
+            fsize=$(stat -c %s "$f")
+            # If adding this file exceeds the threshold, process the current bundle.
+            if (( current_size + fsize > THRESHOLD && ${{#current_files[@]}} > 0 )); then
+                if [ $part -eq 0 ]; then
+                    tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+                else
+                    tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+                fi
+                echo "[LOG] Bundle reached threshold."
+                echo "[LOG] Files in current bundle:"
+                for file in "${{current_files[@]}}"; do
+                    echo "$file"
+                done
+                echo "[LOG] Creating archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
+                htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+                part=$((part+1))
+                echo "[DEBUG] Resetting bundle variables."
+                current_files=()
+                current_size=0
+            fi
+            current_files+=("$f")
+            current_size=$(( current_size + fsize ))
+        done
+        if [ ${{#current_files[@]}} -gt 0 ]; then
+            if [ $part -eq 0 ]; then
+                tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+            else
+                tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+            fi
+            echo "[LOG] Final bundle for group $key:"
+            echo "[LOG] Files in final bundle:"
+            for file in "${{current_files[@]}}"; do
+                echo "$file"
+            done
+            echo "[LOG] Creating final archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
+            htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+        fi
+        echo "[LOG] Completed processing group $key."
+    done
 else
-    echo "Error: $SOURCE_PATH is neither a file nor a directory. Are you sure it exists?"
+    echo "[ERROR] $SOURCE_PATH is neither a file nor a directory. Exiting."
     exit 1
 fi
 
 # ------------------------------------------------------------------
 # Logging: Display directory trees for both source and destination.
 # ------------------------------------------------------------------
-
-echo "=== Listing Source (CFS) Tree ==="
+echo "[LOG] Listing Source (CFS) Tree:"
 if [ -d "$SOURCE_PATH" ]; then
     find "$SOURCE_PATH" -print
 else
-    echo "$SOURCE_PATH is a file."
+    echo "[LOG] $SOURCE_PATH is a file."
 fi
 
-echo "=== Listing Destination (HPSS) Tree ==="
-# hsi ls -R "$DEST_PATH" || echo "Failed to list HPSS tree at $DEST_PATH"
+echo "[LOG] Listing Destination (HPSS) Tree:"
+hsi ls -R "$DEST_PATH" || echo "[ERROR] Failed to list HPSS tree at $DEST_PATH"
 
-date
+echo "[LOG] Job completed at: $(date)"
 """
         try:
             logger.info("Submitting HPSS transfer job to Perlmutter.")

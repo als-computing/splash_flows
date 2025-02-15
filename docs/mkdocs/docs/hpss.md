@@ -163,8 +163,64 @@ Most of the time we expect transfers to occur from CFS to HPSS on a scheduled ba
 ### Transfer to HPSS Implementation
 **`orchestration/transfer_controller.py`: `CFSToHPSSTransferController()`**
 
-Input
-Output
+
+```mermaid
+
+flowchart TD
+  subgraph "Parameter & Path Setup"
+    A["Validate Params:<br>file_path, source, destination"]
+    B["Compute CFS Path<br>and get beamline_id"]
+    C["Build HPSS Root Path<br>and determine proposal name"]
+    D["Set Logs Path"]
+  end
+
+  subgraph "SLURM Script"
+    E["Set SLURM Header Directives"]
+    F["Enable Strict Error Handling"]
+    G["Define Variables:<br>SOURCE_PATH, DEST_ROOT,<br>FOLDER_NAME, DEST_PATH"]
+    H["Check if Destination Directory Exists"]
+    I{"Directory Exists?"}
+    J["If Yes: Log Exists"]
+    K["If No: Create Directory"]
+    L["Determine Source Type"]
+    M{"File or Directory?"}
+    N["If File:<br>Transfer via hsi cput"]
+    O["If Directory:<br>List files, group by date,<br>bundle and create tar archives"]
+  end
+
+  subgraph "Job Submission"
+    P["Log Directory Trees"]
+    Q["Submit Job via Perlmutter"]
+    R["Update Job Status & Wait"]
+    S{"Job Successful?"}
+    T["Return True"]
+    U["Attempt Recovery & Log Error<br>Return False"]
+  end
+
+  %% Connections
+  A --> B
+  B --> C
+  C --> D
+  D --> E
+  E --> F
+  F --> G
+  G --> H
+  H --> I
+  I -- "Yes" --> J
+  I -- "No" --> K
+  J --> L
+  K --> L
+  L --> M
+  M -- "File" --> N
+  M -- "Directory" --> O
+  N --> P
+  O --> P
+  P --> Q
+  Q --> R
+  R --> S
+  S -- "Yes" --> T
+  S -- "No" --> U
+```
 
 ### Transfer to CFS Implementation
 **`orchestration/transfer_controller.py`: `HPSSToCFSTransferController()`**
