@@ -1,10 +1,15 @@
 from abc import ABC, abstractmethod
-import collections
 import builtins
-from pathlib import Path
+import collections
 import os
-
+from pathlib import Path
 import yaml
+
+from dynaconf import Dynaconf
+
+settings = Dynaconf(
+    settings_files=["config.yml"],
+)
 
 
 def get_config():
@@ -62,7 +67,8 @@ class BeamlineConfig(ABC):
         beamline_id: str
     ) -> None:
         self.beamline_id = beamline_id
-        self.config = read_config()
+        # self.config = read_config()
+        self.config = settings
         self._beam_specific_config()
 
     @abstractmethod

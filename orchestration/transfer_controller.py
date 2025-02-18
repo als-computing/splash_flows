@@ -448,139 +448,145 @@ echo "[LOG] DEST_PATH set to: $DEST_PATH"
 # Create destination directory on HPSS if it doesn't exist.
 # ------------------------------------------------------------------
 echo "[LOG] Checking if HPSS destination directory exists at $DEST_PATH."
-if hsi ls "$DEST_PATH"; then
+
+if hsi -q "ls $DEST_PATH" >/dev/null 2>&1; then
     echo "[LOG] Destination directory $DEST_PATH already exists."
 else
     echo "[LOG] Destination directory $DEST_PATH does not exist. Attempting to create it."
-    hsi mkdir "$DEST_PATH"
-    echo "[LOG] (Simulated) Created directory $DEST_PATH."
+    if hsi -q "mkdir $DEST_PATH" >/dev/null 2>&1; then
+        echo "[LOG] Created directory $DEST_PATH."
+    else
+        echo "[ERROR] Failed to create directory $DEST_PATH."
+        exit 1
+    fi
 fi
 
-# ------------------------------------------------------------------
-# Transfer Logic: Check if SOURCE_PATH is a file or directory.
-# ------------------------------------------------------------------
-echo "[LOG] Determining type of SOURCE_PATH: $SOURCE_PATH"
-if [ -f "$SOURCE_PATH" ]; then
-    # Case: Single file detected.
-    echo "[LOG] Single file detected. Transferring via hsi cput."
-    FILE_NAME=$(basename "$SOURCE_PATH")
-    echo "[LOG] File name: $FILE_NAME"
-    hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
-    echo "[LOG] (Simulated) File transfer completed for $FILE_NAME."
+# # ------------------------------------------------------------------
+# # Transfer Logic: Check if SOURCE_PATH is a file or directory.
+# # ------------------------------------------------------------------
+# echo "[LOG] Determining type of SOURCE_PATH: $SOURCE_PATH"
+# if [ -f "$SOURCE_PATH" ]; then
+#     # Case: Single file detected.
+#     echo "[LOG] Single file detected. Transferring via hsi cput."
+#     FILE_NAME=$(basename "$SOURCE_PATH")
+#     echo "[LOG] File name: $FILE_NAME"
+#     hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
+#     echo "[LOG] (Simulated) File transfer completed for $FILE_NAME."
 
-elif [ -d "$SOURCE_PATH" ]; then
-    # Case: Directory detected.
-    echo "[LOG] Directory detected. Initiating bundling process."
-    THRESHOLD=2199023255552  # 2 TB in bytes.
-    echo "[LOG] Threshold set to 2 TB (in bytes: $THRESHOLD)"
+# elif [ -d "$SOURCE_PATH" ]; then
+#     # Case: Directory detected.
+#     echo "[LOG] Directory detected. Initiating bundling process."
+#     THRESHOLD=2199023255552  # 2 TB in bytes.
+#     echo "[LOG] Threshold set to 2 TB (in bytes: $THRESHOLD)"
 
-    # ------------------------------------------------------------------
-    # Group files based on modification date.
-    # ------------------------------------------------------------------
-    echo "[LOG] Grouping files by modification date."
-    FILE_LIST=$(mktemp)
-    find "$SOURCE_PATH" -type f > "$FILE_LIST"
-    echo "[LOG] List of files stored in temporary file: $FILE_LIST"
+#     # ------------------------------------------------------------------
+#     # Group files based on modification date.
+#     # ------------------------------------------------------------------
+#     echo "[LOG] Grouping files by modification date."
+#     FILE_LIST=$(mktemp)
+#     find "$SOURCE_PATH" -type f > "$FILE_LIST"
+#     echo "[LOG] List of files stored in temporary file: $FILE_LIST"
 
-    # Declare associative arrays to hold grouped file paths and sizes.
-    declare -A group_files
-    declare -A group_sizes
+#     # Declare associative arrays to hold grouped file paths and sizes.
+#     declare -A group_files
+#     declare -A group_sizes
 
-    while IFS= read -r file; do
-        mtime=$(stat -c %Y "$file")
-        year=$(date -d @"$mtime" +%Y)
-        month=$(date -d @"$mtime" +%m | sed 's/^0*//')
-        day=$(date -d @"$mtime" +%d | sed 's/^0*//')
-        # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
-        if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ]; }}; then
-            cycle=1
-        else
-            cycle=2
-        fi
-        key="${{year}}-${{cycle}}"
-        group_files["$key"]="${{group_files["$key"]:-}} $file"
-        fsize=$(stat -c %s "$file")
-        group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
-    done < "$FILE_LIST"
-    rm "$FILE_LIST"
-    echo "[LOG] Completed grouping files."
+#     while IFS= read -r file; do
+#         mtime=$(stat -c %Y "$file")
+#         year=$(date -d @"$mtime" +%Y)
+#         month=$(date -d @"$mtime" +%m | sed 's/^0*//')
+#         day=$(date -d @"$mtime" +%d | sed 's/^0*//')
+#         # Determine cycle: Cycle 1 if month < 7 or (month == 7 and day <= 15), else Cycle 2.
+#         if [ "$month" -lt 7 ] || {{ [ "$month" -eq 7 ] && [ "$day" -le 15 ]; }}; then
+#             cycle=1
+#         else
+#             cycle=2
+#         fi
+#         key="${{year}}-${{cycle}}"
+#         group_files["$key"]="${{group_files["$key"]:-}} $file"
+#         fsize=$(stat -c %s "$file")
+#         group_sizes["$key"]=$(( ${{group_sizes["$key"]:-0}} + fsize ))
+#     done < "$FILE_LIST"
+#     rm "$FILE_LIST"
+#     echo "[LOG] Completed grouping files."
 
-    # Print the files in each group at the end
-    for key in "${{!group_files[@]}}"; do
-        echo "[LOG] Group $key contains files:"
-        for f in ${{group_files["$key"]}}; do
-            echo "    $f"
-        done
-    done
+#     # Print the files in each group at the end
+#     for key in "${{!group_files[@]}}"; do
+#         echo "[LOG] Group $key contains files:"
+#         for f in ${{group_files["$key"]}}; do
+#             echo "    $f"
+#         done
+#     done
 
-    # ------------------------------------------------------------------
-    # Bundle files into tar archives.
-    # ------------------------------------------------------------------
-    for key in "${{!group_files[@]}}"; do
-        files=(${{group_files["$key"]}})
-        total_group_size=${{group_sizes["$key"]}}
-        echo "[LOG] Processing group $key with ${{#files[@]}} files; total size: $total_group_size bytes."
+#     # ------------------------------------------------------------------
+#     # Bundle files into tar archives.
+#     # ------------------------------------------------------------------
+#     for key in "${{!group_files[@]}}"; do
+#         files=(${{group_files["$key"]}})
+#         total_group_size=${{group_sizes["$key"]}}
+#         echo "[LOG] Processing group $key with ${{#files[@]}} files; total size: $total_group_size bytes."
 
-        part=0
-        current_size=0
-        current_files=()
-        for f in "${{files[@]}}"; do
-            fsize=$(stat -c %s "$f")
-            # If adding this file exceeds the threshold, process the current bundle.
-            if (( current_size + fsize > THRESHOLD && ${{#current_files[@]}} > 0 )); then
-                if [ $part -eq 0 ]; then
-                    tar_name="${{FOLDER_NAME}}_${{key}}.tar"
-                else
-                    tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
-                fi
-                echo "[LOG] Bundle reached threshold."
-                echo "[LOG] Files in current bundle:"
-                for file in "${{current_files[@]}}"; do
-                    echo "$file"
-                done
-                echo "[LOG] Creating archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
-                htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
-                part=$((part+1))
-                echo "[DEBUG] Resetting bundle variables."
-                current_files=()
-                current_size=0
-            fi
-            current_files+=("$f")
-            current_size=$(( current_size + fsize ))
-        done
-        if [ ${{#current_files[@]}} -gt 0 ]; then
-            if [ $part -eq 0 ]; then
-                tar_name="${{FOLDER_NAME}}_${{key}}.tar"
-            else
-                tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
-            fi
-            echo "[LOG] Final bundle for group $key:"
-            echo "[LOG] Files in final bundle:"
-            for file in "${{current_files[@]}}"; do
-                echo "$file"
-            done
-            echo "[LOG] Creating final archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
-            htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
-        fi
-        echo "[LOG] Completed processing group $key."
-    done
-else
-    echo "[ERROR] $SOURCE_PATH is neither a file nor a directory. Exiting."
-    exit 1
-fi
+#         part=0
+#         current_size=0
+#         current_files=()
+#         for f in "${{files[@]}}"; do
+#             fsize=$(stat -c %s "$f")
+#             # If adding this file exceeds the threshold, process the current bundle.
+#             if (( current_size + fsize > THRESHOLD && ${{#current_files[@]}} > 0 )); then
+#                 if [ $part -eq 0 ]; then
+#                     tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+#                 else
+#                     tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+#                 fi
+#                 echo "[LOG] Bundle reached threshold."
+#                 echo "[LOG] Files in current bundle:"
+#                 for file in "${{current_files[@]}}"; do
+#                     echo "$file"
+#                 done
+#                 echo "[LOG] Creating archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
+#                 htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+#                 part=$((part+1))
+#                 echo "[DEBUG] Resetting bundle variables."
+#                 current_files=()
+#                 current_size=0
+#             fi
+#             current_files+=("$f")
+#             current_size=$(( current_size + fsize ))
+#         done
+#         if [ ${{#current_files[@]}} -gt 0 ]; then
+#             if [ $part -eq 0 ]; then
+#                 tar_name="${{FOLDER_NAME}}_${{key}}.tar"
+#             else
+#                 tar_name="${{FOLDER_NAME}}_${{key}}_part${{part}}.tar"
+#             fi
+#             echo "[LOG] Final bundle for group $key:"
+#             echo "[LOG] Files in final bundle:"
+#             for file in "${{current_files[@]}}"; do
+#                 echo "$file"
+#             done
+#             echo "[LOG] Creating final archive $tar_name with ${{#current_files[@]}} files."
+#             echo "[LOG] Bundle size: $current_size bytes."
+#             htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+#         fi
+#         echo "[LOG] Completed processing group $key."
+#     done
+# else
+#     echo "[ERROR] $SOURCE_PATH is neither a file nor a directory. Exiting."
+#     exit 1
+# fi
 
-# ------------------------------------------------------------------
-# Logging: Display directory trees for both source and destination.
-# ------------------------------------------------------------------
-echo "[LOG] Listing Source (CFS) Tree:"
-if [ -d "$SOURCE_PATH" ]; then
-    find "$SOURCE_PATH" -print
-else
-    echo "[LOG] $SOURCE_PATH is a file."
-fi
+# # ------------------------------------------------------------------
+# # Logging: Display directory trees for both source and destination.
+# # ------------------------------------------------------------------
+# echo "[LOG] Listing Source (CFS) Tree:"
+# if [ -d "$SOURCE_PATH" ]; then
+#     find "$SOURCE_PATH" -print
+# else
+#     echo "[LOG] $SOURCE_PATH is a file."
+# fi
 
-echo "[LOG] Listing Destination (HPSS) Tree:"
-hsi ls -R "$DEST_PATH" || echo "[ERROR] Failed to list HPSS tree at $DEST_PATH"
+# echo "[LOG] Listing Destination (HPSS) Tree:"
+# hsi ls -R "$DEST_PATH" || echo "[ERROR] Failed to list HPSS tree at $DEST_PATH"
 
 echo "[LOG] Job completed at: $(date)"
 """
