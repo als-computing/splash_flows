@@ -18,13 +18,13 @@ globus:
     # 7.3.3 ENDPOINTS
 
     nersc733_alsdev:
-      root_path: /global/cfs/cdirs/als/data_mover/8.3.2/
+      root_path: /global/cfs/cdirs/als/data_mover/7.3.3/
       uri: nersc.gov
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: nersc733_alsdev
 
     nersc733_alsdev_raw:
-      root_path: /global/cfs/cdirs/als/data_mover/8.3.2/raw
+      root_path: /global/cfs/cdirs/als/data_mover/7.3.3/raw
       uri: nersc.gov
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: nersc733_alsdev_raw
