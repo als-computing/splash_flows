@@ -2,6 +2,7 @@ from globus_sdk import TransferClient
 from orchestration.globus import transfer
 
 
+# TODO: Use BeamlineConfig base class (Waiting for PR #62 to be merged)
 class Config733:
     def __init__(self) -> None:
         config = transfer.get_config()
