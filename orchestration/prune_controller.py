@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import datetime
 import logging
+import os
 from typing import Generic, TypeVar, Union
 
 from prefect import flow
@@ -206,10 +207,33 @@ def prune_filesystem_files(
 
     Args:
         relative_path (str): The path of the file or directory to prune.
-        source_endpoint (GlobusEndpoint): The Globus source endpoint to prune from.
-        check_endpoint (GlobusEndpoint, optional): The Globus target endpoint to check. Defaults to None.
+        source_endpoint (FileSystemEndpoint): The Globus source endpoint to prune from.
+        check_endpoint (FileSystemEndpoint, optional): The Globus target endpoint to check. Defaults to None.
     """
-    pass
+    logger.info(f"Running flow: prune_from_{source_endpoint.name}")
+    logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
+
+    # Check if the file exists at the source endpoint
+    if not source_endpoint.exists(relative_path):
+        logger.warning(f"File {relative_path} does not exist at the source: {source_endpoint.name}.")
+        return
+
+    # Check if the file exists at the check endpoint
+    if check_endpoint is not None and check_endpoint.exists(relative_path):
+        logger.info(f"File {relative_path} exists on the check point: {check_endpoint.name}.")
+        logger.info("Safe to prune.")
+
+        # Check if it is a file or directory
+        if source_endpoint.is_dir(relative_path):
+            logger.info(f"Pruning directory {relative_path}")
+            source_endpoint.rmdir(relative_path)
+        else:
+            logger.info(f"Pruning file {relative_path}")
+            os.remove(source_endpoint.full_path(relative_path))
+    else:
+        logger.warning(f"File {relative_path} does not exist at the check point: {check_endpoint.name}.")
+        logger.warning("Not safe to prune.")
+    return
 
 
 @flow(name="prune_hpss_endpoint")
