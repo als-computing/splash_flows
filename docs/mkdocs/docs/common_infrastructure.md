@@ -16,6 +16,7 @@ Shared code is organized into modules that can be imported in beamline specific 
 - **`orchestration/prune_controller.py`**
     - This module is responsible for managing the pruning of data off of storage systems. It uses a configurable retention policy to determine when to remove files. It contains an ABC called `PruneController()` that is extended by specific implementations for `FileSystemEndpoint`, `GlobusEndpoint`, and `HPSSEndpoint`.
 - **`orchestration/sfapi.py`**: Create an SFAPI Client to launch remote jobs at NERSC.
+- **`orchestration/flows/scicat/ingest.py`**: Ingests datasets into SciCat, our metadata management system.
 
 ## Beamline Specific Implementation Patterns
 In order to balance generalizability, maintainability, and scalability of this project to multiple beamlines, we try to organize specific implementations in a similar way. We keep specific implementaqtions in the directory `orchestration/flows/bl{beamline_id}/`, which generally contains a few things:
