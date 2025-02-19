@@ -105,7 +105,8 @@ def ingest(
             file_path,
             dataset_id,
             INGEST_STORAGE_ROOT_PATH,
-            INGEST_SOURCE_ROOT_PATH)
+            INGEST_SOURCE_ROOT_PATH
+        )
 
         thumbnail_file = build_thumbnail(file["/exchange/data"][0])
         encoded_thumbnail = encode_image_2_thumbnail(thumbnail_file)
@@ -113,7 +114,8 @@ def ingest(
             scicat_client,
             encoded_thumbnail,
             dataset_id,
-            ownable)
+            ownable
+        )
 
         return dataset_id
 

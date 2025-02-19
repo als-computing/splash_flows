@@ -7,6 +7,7 @@ import yaml
 
 from dynaconf import Dynaconf
 
+# TODO: Add secrets management
 settings = Dynaconf(
     settings_files=["config.yml"],
 )

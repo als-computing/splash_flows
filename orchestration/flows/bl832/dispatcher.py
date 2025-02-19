@@ -105,7 +105,7 @@ async def run_recon_flow_async(flow_name: str, parameters: dict) -> None:
 async def dispatcher(
     file_path: Optional[str] = None,
     is_export_control: bool = False,
-    config: Optional[Union[dict, Any]] = None,
+    config: Optional[Union[dict, Any]] = None,  # TODO: Define the type of config to be BeamlineConfig
 ) -> None:
     """
     Dispatcher flow that reads decision settings and launches tasks accordingly.
