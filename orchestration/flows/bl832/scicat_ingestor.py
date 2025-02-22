@@ -77,7 +77,8 @@ class TomographyIngestorController(BeamlineIngestorController):
         """
 
         dataset = self.scicat_client.datasets_get_one(dataset_id)
-        dataset["locations"].append(location)
+        # sourceFolder can only be a single string...
+        dataset["sourceFolder"] = location
         self.scicat_client.update_dataset(dataset, dataset_id)
         logger.info(f"Added location {location} to dataset {dataset_id}")
         return
