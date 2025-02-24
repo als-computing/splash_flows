@@ -53,7 +53,7 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def ingest_new_derived_dataset(
         self,
-        file_path: str = "",
+        folder_path: str = "",
         raw_dataset_id: str = "",
     ) -> str:
         """
@@ -63,22 +63,3 @@ class TomographyIngestorController(BeamlineIngestorController):
         :return: SciCat ID of the dataset.
         """
         pass
-
-    def add_new_dataset_location(
-        self,
-        dataset_id: str,
-        location: str,
-    ) -> None:
-        """
-        Add a new location to an existing dataset in SciCat.
-
-        :param dataset_id: SciCat ID of the dataset.
-        :param location: Path to the location to add.
-        """
-
-        dataset = self.scicat_client.datasets_get_one(dataset_id)
-        # sourceFolder can only be a single string...
-        dataset["sourceFolder"] = location
-        self.scicat_client.update_dataset(dataset, dataset_id)
-        logger.info(f"Added location {location} to dataset {dataset_id}")
-        return

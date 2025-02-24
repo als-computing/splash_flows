@@ -35,9 +35,7 @@ flowchart TD
 
 In `splash_flows_globus`, we "ingest" our datasets into SciCat during our file movement workflows. In the directory `orchestration/flows/scicat/` there are two general scripts: `ingest.py` and `utils.py`. Since the data from each beamline is different, we define specific ingest implementations, such as `orchestration/flows/bl832/ingest_tomo832.py`.
 
-## SciCat Client API
-
-# API Documentation
+# SciCat Client API Documentation
 
 This document details the API provided by the `ScicatClient` class and its associated utility functions for interacting with the SciCat Catamel server.
 

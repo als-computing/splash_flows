@@ -8,10 +8,12 @@ class TransferEndpoint(ABC):
     def __init__(
         self,
         name: str,
-        root_path: str
+        root_path: str,
+        uri: str
     ) -> None:
         self.name = name
         self.root_path = root_path
+        self.uri = uri
 
     def name(self) -> str:
         """
@@ -25,6 +27,12 @@ class TransferEndpoint(ABC):
         """
         return self.root_path
 
+    def uri(self) -> str:
+        """
+        Root path or base directory for this endpoint.
+        """
+        return self.uri
+
 
 class FileSystemEndpoint(TransferEndpoint):
     """
@@ -36,9 +44,10 @@ class FileSystemEndpoint(TransferEndpoint):
     def __init__(
         self,
         name: str,
-        root_path: str
+        root_path: str,
+        uri: str
     ) -> None:
-        super().__init__(name, root_path)
+        super().__init__(name, root_path, uri)
 
     def full_path(
         self,
@@ -68,9 +77,10 @@ class HPSSEndpoint(TransferEndpoint):
     def __init__(
         self,
         name: str,
-        root_path: str
+        root_path: str,
+        uri: str
     ) -> None:
-        super().__init__(name, root_path)
+        super().__init__(name, root_path, uri)
 
     def full_path(self, path_suffix: str) -> str:
         """

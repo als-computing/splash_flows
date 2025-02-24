@@ -7,11 +7,13 @@ import uuid
 from prefect import flow, task
 from prefect.blocks.system import JSON
 
-from orchestration.flows.scicat.ingest import ingest_dataset
+# from orchestration.flows.scicat.ingest import ingest_dataset
+from orchestration.flows.bl832.scicat_ingestor import TomographyIngestorController
 from orchestration.flows.bl832.config import Config832
 from orchestration.globus.transfer import start_transfer
 from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -67,12 +69,11 @@ def process_new_832_file(
         )
 
         if nersc_transfer_success:
-            logger.info(
-                f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
-            )
+            logger.info(f"File successfully transferred from data832 to NERSC {file_path}. Task {task}")
             logger.info(f"Ingesting {file_path} with {TOMO_INGESTOR_MODULE}")
             try:
-                ingest_dataset(file_path, TOMO_INGESTOR_MODULE)
+                ingestor = TomographyIngestorController(config, config.scicat_client)
+                ingestor.ingest_new_raw_dataset(file_path)
             except Exception as e:
                 logger.error(f"SciCat ingest failed with {e}")
 

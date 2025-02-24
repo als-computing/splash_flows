@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
+from logging import getLogger
 
 from orchestration.config import BeamlineConfig
 from pyscicat.client import ScicatClient, from_credentials
+
+
+logger = getLogger(__name__)
 
 
 class BeamlineIngestorController(ABC):
@@ -56,18 +60,32 @@ class BeamlineIngestorController(ABC):
         """
         pass
 
-    @abstractmethod
     def add_new_dataset_location(
         self,
-        dataset_id: str = "",
-        destination: str = "",
+        dataset_id: str,
+        source_folder: str,
+        source_folder_host: str,
     ) -> bool:
         """
+        Add a new location to an existing dataset in SciCat.
+
+        :param dataset_id:          SciCat ID of the dataset.
+        :param source_folder:       "Absolute file path on file server containing the files of this dataset,
+                                    e.g. /some/path/to/sourcefolder. In case of a single file dataset, e.g. HDF5 data,
+                                    it contains the path up to, but excluding the filename. Trailing slashes are removed.",
+
+        :param source_folder_host: "DNS host name of file server hosting sourceFolder,
+                                    optionally including a protocol e.g. [protocol://]fileserver1.example.com",
 
         """
-        pass
+        dataset = self.scicat_client.datasets_get_one(dataset_id)
+        # sourceFolder sourceFolderHost are each a string
+        dataset["sourceFolder"] = source_folder
+        dataset["sourceFolderHost"] = source_folder_host
+        self.scicat_client.datasets_update(dataset, dataset_id)
+        logger.info(f"Added location {source_folder} to dataset {dataset_id}")
+        return dataset_id
 
-    @abstractmethod
     def remove_dataset_location(
         self,
         dataset_id: str = "",
