@@ -1,14 +1,26 @@
 import asyncio
-from pathlib import Path
+from datetime import datetime
+from dateutil.parser import isoparse
+
 from prefect import flow, task, get_run_logger
 from prefect.blocks.system import JSON
 from prefect.deployments.deployments import run_deployment
 from pydantic import BaseModel, ValidationError, Field
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 from orchestration.flows.bl832.move import process_new_832_file_task
+from orchestration.flows.bl832.config import Config832
 
 
+# ------------------------------------------------------------------------------------------------------------------------
+# Decision Flow: Dispatcher
+# ------------------------------------------------------------------------------------------------------------------------
+# This flow reads decision settings and launches tasks accordingly.
+# ------------------------------------------------------------------------------------------------------------------------
+# The dispatcher flow reads decision settings and launches tasks accordingly.
+# It first runs the new_832_file_flow/new_file_832 flow synchronously.
+# Then, it prepares the ALCF and NERSC flows to run asynchronously based on the decision settings.
+# ------------------------------------------------------------------------------------------------------------------------
 class FlowParameterMapper:
     """
     Class to define and map the parameters required for each flow.
@@ -106,7 +118,7 @@ async def run_recon_flow_async(flow_name: str, parameters: dict) -> None:
 async def dispatcher(
     file_path: Optional[str] = None,
     is_export_control: bool = False,
-    config: Optional[Union[dict, Any]] = None,  # TODO: Define the type of config to be BeamlineConfig
+    config: Optional[Union[dict, Any]] = None
 ) -> None:
     """
     Dispatcher flow that reads decision settings and launches tasks accordingly.
@@ -141,18 +153,6 @@ async def dispatcher(
         # Optionally, raise a specific ValueError
         raise ValueError("new_file_832 task Failed") from e
 
-    # TODO: Track the project name in a list of what needs to move
-        # to HPSS from NERSC CFS, for a scheduled run every 6 months.
-        # Maybe in a Prefect JSON Block?
-    try:
-        # Add project to tape archive queue, if file_path is provided
-        project_path = str(Path(file_path).parent)
-        archive_queue = TapeArchiveQueue("TAPE_ARCHIVE_QUEUE")
-        archive_queue.enqueue_project(project_path)
-        logger.info(f"Project '{project_path}' added to tape archive queue.")
-    except Exception as e:
-        logger.error(f"Failed to add project to tape archive queue: {e}")
-
     # Prepare ALCF and NERSC flows to run asynchronously, based on settings
     tasks = []
     if decision_settings.value.get("alcf_recon_flow/alcf_recon_flow"):
@@ -177,37 +177,170 @@ async def dispatcher(
 
 
 # ---------------------------------------------------------------------------
+# Tape Transfer Flow: Archive a single 832 project (raw)
+# ---------------------------------------------------------------------------
+@flow(name="archive_832_project_dispatcher")
+def archive_832_project_dispatcher(
+    config: Config832,
+    file_path: Union[str, List[str]] = None,
+) -> None:
+    """
+    Flow to archive one or more beamline 832 projects to tape.
+    Accepts a single file path (str) or a list of file paths, and for each one,
+    calls the CFStoHPSSTransferController via run_specific_flow.
+
+    Parameters
+    ----------
+    file_path : Union[str, List[str]]
+        A single file path or a list of file paths to be archived.
+    config : Config832
+        Configuration object containing endpoint details.
+    """
+
+    # Normalize file_path into a list if it's a single string.
+    if isinstance(file_path, str):
+        file_paths = [file_path]
+    else:
+        file_paths = file_path
+
+    for fp in file_paths:
+        try:
+            run_specific_flow(
+                "cfs_to_hpss_flow/cfs_to_hpss_flow",
+                {
+                    "file_path": fp,
+                    "source": config.nersc832,     # NERSC FileSystem Endpoint
+                    "destination": config.hpss_alsdev,  # HPSS Endpoint
+                    "config": config
+                }
+            )
+            logger.info(f"Scheduled tape transfer for project: {fp}")
+        except Exception as e:
+            logger.error(f"Error scheduling transfer for {fp}: {e}")
+
+
+# ---------------------------------------------------------------------------
 # Tape Transfer Flow: Process pending projects
 # ---------------------------------------------------------------------------
-# Runs every 6 months to process tape transfers for pending projects.
+# Scheduled to run every 6 months to process tape transfers.
 # ---------------------------------------------------------------------------
-@flow(name="tape_transfer_dispatcher")
-async def tape_transfer_dispatcher(config) -> None:
+@flow(name="archive_832_projects_from_previous_cycle_dispatcher")
+def archive_832_projects_from_previous_cycle_dispatcher(
+    config: Config832,
+) -> None:
+    """
+    Archives the previous cycle's projects from the NERSC / CFS / 8.3.2 / SCRATCH directory.
+
+    The schedule is as follows:
+      - On January 2: Archive projects with modification dates between January 1 and July 15 (previous year)
+      - On July 4: Archive projects with modification dates between July 16 and December 31 (previous year)
+
+    The flow lists projects via Globus Transfer's operation_ls, filters them based on modification times,
+    and then calls the cfs_to_hpss_flow for each eligible project.
+    """
+    logger = get_run_logger()
+    now = datetime.now()
+
+    # Validate that today is a scheduled trigger day and set the archive window accordingly.
+    if now.month == 1 and now.day == 2:
+        archive_start = datetime(now.year - 1, 1, 1, 0, 0, 0)
+        archive_end = datetime(now.year - 1, 7, 15, 23, 59, 59)
+        logger.info(f"Archiving Cycle 1 ({archive_start.strftime('%b %d, %Y %H:%M:%S')} - "
+                    f"{archive_end.strftime('%b %d, %Y %H:%M:%S')})")
+    elif now.month == 7 and now.day == 4:
+        archive_start = datetime(now.year - 1, 7, 16, 0, 0, 0)
+        archive_end = datetime(now.year - 1, 12, 31, 23, 59, 59)
+        logger.info(f"Archiving Cycle 2 ({archive_start.strftime('%b %d, %Y %H:%M:%S')} - "
+                    f"{archive_end.strftime('%b %d, %Y %H:%M:%S')})")
+    else:
+        logger.info("Today is not a scheduled day for archiving.")
+        return
+
+    logger.info(f"Archive window: {archive_start} to {archive_end}")
+
+    # List projects using Globus Transfer's operation_ls.
+    try:
+        # config.tc: configured Globus Transfer client.
+        # config.nersc832.endpoint_id: the NERSC endpoint ID.
+        # config.nersc832_alsdev_scratch.path: the SCRATCH directory path.
+        projects = config.tc.operation_ls(
+            endpoint_id=config.nersc832.endpoint_id,
+            path=config.nersc832_alsdev_scratch.path,
+            orderby=["name", "last_modified"],
+        ).get("DATA", [])
+    except Exception as e:
+        logger.error(f"Failed to list projects: {e}")
+        return
+
+    logger.info(f"Found {len(projects)} items in the SCRATCH directory.")
+
+    # Process each project: check its modification time and trigger transfer if within the archive window.
+    for project in projects:
+        project_name = project.get("name")
+        last_mod_str = project.get("last_modified")
+        if not project_name or not last_mod_str:
+            logger.warning(f"Skipping project due to missing name or last_modified: {project}")
+            continue
+
+        try:
+            last_mod = isoparse(last_mod_str)
+        except Exception as e:
+            logger.error(f"Error parsing modification time for project {project_name}: {e}")
+            continue
+
+        if archive_start <= last_mod <= archive_end:
+            logger.info(f"Project {project_name} last modified at {last_mod} is within the archive window.")
+            try:
+                # Call the transfer flow for this project.
+                run_specific_flow(
+                    "cfs_to_hpss_flow/cfs_to_hpss_flow",
+                    {
+                        "project": project,
+                        "source_endpoint": config.nersc832,
+                        "destination_endpoint": config.hpss_alsdev,
+                        "config": config
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Error archiving project {project_name}: {e}")
+        else:
+            logger.info(f"Project {project_name} last modified at {last_mod} is outside the archive window.")
+
+
+# ---------------------------------------------------------------------------
+# Tape Transfer Flow: Archive all 832 projects (raw)
+# ---------------------------------------------------------------------------
+@flow(name="archive_all_832_raw_projects_dispatcher")
+def archive_all_832_projects_dispatcher(
+    config: Config832,
+) -> None:
     """
     Scheduled flow to process tape transfers.
     It should call the CFStoHPSSTransferController (not shown) and, upon success, mark projects as moved.
     """
     logger = get_run_logger()
-    try:
-        block = TapeArchiveQueue.load("TAPE_ARCHIVE_QUEUE_BLOCK")
-    except Exception:
-        logger.info("No project status block found.")
-        return
 
-    for project in block.pending_projects.copy():
-        logger.info(f"Transferring project '{project}' to tape...")
+    logger.info(f"Checking for projects at {config.nersc832_alsdev_scratch.path} to archive to tape...")
 
-        # Run the CFS to HPSS transfer flow for the project
-        # params = {
-        #     "file_path": project,
-        #     "source": nersc_cfs,
-        #     "destination": hpss,
-        #     "config": Config832()
-        # }
-        # run_specific_flow("cfs_to_hpss_flow/cfs_to_hpss_flow", {"file_path": project})
-
-        TapeArchiveQueue.mark_project_as_moved(project)
-        logger.info(f"Project '{project}' marked as moved.")
+    # ARCHIVE ALL PROJECTS IN THE NERSC / CFS / 8.3.2 / SCRATCH DIRECTORY
+    for project in config.tc.operation_ls(
+        endpoint_id=config.nersc832.endpoint_id,
+        path=config.nersc832_alsdev_scratch.path,
+        orderby=["name", "last_modified"],
+    ):
+        logger.info(f"Found project: {project}")
+        try:
+            run_specific_flow(
+                "cfs_to_hpss_flow/cfs_to_hpss_flow",
+                {
+                    "file_path": project,
+                    "source": config.nersc832,  # NERSC FileSystem Endpoint (not globus)
+                    "destination": config.hpss_alsdev,  # HPSS Endpoint
+                    "config": config
+                }
+            )
+        except Exception as e:
+            logger.error(e)
 
 
 if __name__ == "__main__":

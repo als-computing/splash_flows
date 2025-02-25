@@ -8,7 +8,7 @@ import io
 import json
 import logging
 import re
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -71,6 +71,35 @@ def build_thumbnail(
     auto_contrast_image.save(file, format="png")
     file.seek(0)
     return file
+
+
+def calculate_access_controls(
+    username,
+    beamline,
+    proposal
+) -> Dict:
+    """Calculate access controls for a dataset."""
+
+    # make an access group list that includes the name of the proposal and the name of the beamline
+    access_groups = []
+    # sometimes the beamline name is super dirty  " '8.3.2', "" '8.3.2', "
+    beamline = beamline.replace(" '", "").replace("', ", "") if beamline else None
+    # set owner_group to username so that at least someone has access in case no proposal number is found
+    owner_group = username
+    if beamline:
+        access_groups.append(beamline)
+        # username lets the user see the Dataset in order to ingest objects after the Dataset
+        access_groups.append(username)
+        # temporary mapping while beamline controls process request to match beamline name with what comes
+        # from ALSHub
+        if beamline == "bl832" and "8.3.2" not in access_groups:
+            access_groups.append("8.3.2")
+
+    if proposal and proposal != "None":
+        owner_group = proposal
+
+    # this is a bit of a kludge. Add 8.3.2 into the access groups so that staff will be able to see it
+    return {"owner_group": owner_group, "access_groups": access_groups}
 
 
 def clean_email(email: str):

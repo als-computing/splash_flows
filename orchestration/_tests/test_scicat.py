@@ -60,6 +60,8 @@ def test_np_encoder():
 
     test_dict = {"dont_panic": np.full((1, 1), np.inf)}
     encoded_np = json.loads(json.dumps(test_dict, cls=NPArrayEncoder))
+    # requests doesn't allow strings  that have np.inf or np.nan
+    # so the NPArrayEncoder needs to return both as None
     assert json.dumps(encoded_np, allow_nan=False)
 
 

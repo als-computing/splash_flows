@@ -118,7 +118,8 @@ def mock_file_system_endpoint(transfer_controller_module):
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
     endpoint = FileSystemEndpoint(
         name="mock_filesystem_endpoint",
-        root_path="/mock_fs_root"
+        root_path="/mock_fs_root",
+        uri="mock_uri"
     )
     return endpoint
 
@@ -380,8 +381,8 @@ def test_cfs_to_hpss_transfer_controller_success(mock_config832, transfer_contro
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
 
     # Create mock endpoints for source (CFS) and destination (HPSS)
-    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source")
-    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest")
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source", "mock.uri")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest", "mock.uri")
 
     # Create a fake job object that simulates successful completion.
     fake_job = MagicMock()
@@ -416,8 +417,8 @@ def test_cfs_to_hpss_transfer_controller_failure(mock_config832, transfer_contro
     HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
 
-    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source")
-    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest")
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source", "mock.uri")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest", "mock.uri")
 
     # Create a fake client whose compute().submit_job raises an exception.
     fake_client = MagicMock()
@@ -448,8 +449,8 @@ def test_hpss_to_cfs_transfer_controller_success(mock_config832, transfer_contro
     HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
 
-    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
-    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
 
     # Create a fake job object for a successful transfer.
     fake_job = MagicMock()
@@ -495,8 +496,8 @@ def test_hpss_to_cfs_transfer_controller_job_failure(mock_config832, transfer_co
     HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
 
-    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
-    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
 
     fake_job = MagicMock()
     fake_job.jobid = "67891"
@@ -529,8 +530,8 @@ def test_hpss_to_cfs_transfer_controller_recovery(mock_config832, transfer_contr
     HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
 
-    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source")
-    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest")
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
 
     # Fake job that fails initially with a "Job not found:" error.
     fake_job_initial = MagicMock()
