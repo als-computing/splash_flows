@@ -10,7 +10,7 @@ logger = getLogger(__name__)
 
 class BeamlineIngestorController(ABC):
     """
-    Abstract class for beamline ingestors.
+    Abstract class for beamline SciCat ingestors.
     Provides interface methods for ingesting data.
     """
 

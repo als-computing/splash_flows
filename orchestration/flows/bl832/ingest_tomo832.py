@@ -184,7 +184,7 @@ def upload_data_block(
     source_root_path: str
 ) -> Datablock:
     "Creates a datablock of files"
-    # calcularte the path where the file will as known to SciCat
+    # calculate the path where the file will as known to SciCat
     storage_path = str(file_path).replace(source_root_path, storage_root_path)
     datafiles = create_data_files(file_path, storage_path)
 
