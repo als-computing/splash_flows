@@ -184,8 +184,8 @@ Most of the time we expect transfers to occur from CFS to HPSS on a scheduled ba
          * Cycle 2: Jul 16 - Dec 31
          * If a group exceeds 2 TB, it is partitioned into multiple tar archives.
          * Archive names:
-              [proposal_name]_[year]-[cycle].tar
-              [proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.
+              `[proposal_name]_[year]-[cycle].tar`
+              `[proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.`
 
 
 **`orchestration/hpss.py`:**
