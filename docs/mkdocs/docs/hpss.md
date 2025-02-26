@@ -171,6 +171,23 @@ Most of the time we expect transfers to occur from CFS to HPSS on a scheduled ba
 **`orchestration/transfer_controller.py`:**
   - **`CFSToHPSSTransferController()`**: This controller uses a Slurm Job Script and SFAPI to launch the tape transfer job. The Slurm script handles the specific logic for handling single and multiple files, on a project by project basis. It reads the files sizes, and creates bundles that are <= 2TB. The groups within each tar archive are saved in a log on NERSC CFS for posterity.
 
+  Here is a high level overview of the steps taken within the SFAPI Slurm Job:
+   1. Define the source (CFS) and destination (HPSS) paths.
+   2. Create the destination directory on HPSS if it doesn't exist.
+      - Recursively check each part of the incoming file path if the folder exists
+      - If the folder does not exist, use `hsi mkdir`
+      - Repeat until the file path is built
+   3. Determine if the source is a file or a directory.
+      - If a file, transfer it using 'hsi cput'.
+      - If a directory, group files by beam cycle and archive them.
+         * Cycle 1: Jan 1 - Jul 15
+         * Cycle 2: Jul 16 - Dec 31
+         * If a group exceeds 2 TB, it is partitioned into multiple tar archives.
+         * Archive names:
+              [proposal_name]_[year]-[cycle].tar
+              [proposal_name]_[year]-[cycle]_part0.tar, _part1.tar, etc.
+
+
 **`orchestration/hpss.py`:**
 - **`cfs_to_hpss_flow()`** This Prefect Flow sets up the CFSToHPSSTransferController() and calls the copy command. By registering this Flow, the HPSS transfers can be easily scheduled.
 
