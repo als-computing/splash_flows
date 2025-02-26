@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 API_KEY = os.getenv("API_KEY")
-TOMO_INGESTOR_MODULE = "orchestration.flows.bl832.ingest_tomo832"
 
 
 @flow(name="new_832_file_flow")
@@ -70,7 +69,6 @@ def process_new_832_file(
 
         if nersc_transfer_success:
             logger.info(f"File successfully transferred from data832 to NERSC {file_path}. Task {task}")
-            logger.info(f"Ingesting {file_path} with {TOMO_INGESTOR_MODULE}")
             try:
                 ingestor = TomographyIngestorController(config, config.scicat_client)
                 ingestor.ingest_new_raw_dataset(file_path)

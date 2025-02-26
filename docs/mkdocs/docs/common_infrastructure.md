@@ -17,6 +17,8 @@ Shared code is organized into modules that can be imported in beamline specific 
     - This module is responsible for managing the pruning of data off of storage systems. It uses a configurable retention policy to determine when to remove files. It contains an ABC called `PruneController()` that is extended by specific implementations for `FileSystemEndpoint`, `GlobusEndpoint`, and `HPSSEndpoint`.
 - **`orchestration/sfapi.py`**: Create an SFAPI Client to launch remote jobs at NERSC.
 - **`orchestration/flows/scicat/ingest.py`**: Ingests datasets into SciCat, our metadata management system.
+- **`orchestration/hpss.py`**: Schedule a Prefect Flow to copy data between NERSC CFS and HPSS. These call the relevant TransferControllers for HPSS, which handle the underlying tape-safe logic.
+
 
 ## Beamline Specific Implementation Patterns
 In order to balance generalizability, maintainability, and scalability of this project to multiple beamlines, we try to organize specific implementations in a similar way. We keep specific implementaqtions in the directory `orchestration/flows/bl{beamline_id}/`, which generally contains a few things:
@@ -30,8 +32,6 @@ In order to balance generalizability, maintainability, and scalability of this p
     - For beamlines that trigger remote analysis workflows, the `JobController()` ABC allows us to define HPC or machine specific implementations, which may differ in how code can be deployed. For example, it can be extended to define how to run tomography reconstruction at ALCF and NERSC.
 - **`{hpc}.py`**
     - We separate HPC implementations for `JobController()` in their own files.
-- **`hpss.py`**
-    - We define HPSS transfers for each beamline individually, as we provide different scheduling strategies based on the data throughput of each endstation.
 - **`ingest.py`**
     - This is where we define SciCat implementations for each beamline, as each technique will have specific metadata fields that are important to capture.
 

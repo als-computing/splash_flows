@@ -7,7 +7,6 @@ from typing import List, Optional, Union
 from prefect import flow
 
 from orchestration.config import BeamlineConfig
-from orchestration.flows.bl832.config import Config832
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint
 
@@ -23,7 +22,7 @@ def cfs_to_hpss_flow(
     config: BeamlineConfig = None
 ) -> bool:
     """
-    The CFS to HPSS flow for BL832.
+    The CFS to HPSS flow.
 
     Parameters
     ----------
@@ -68,10 +67,10 @@ def hpss_to_cfs_flow(
     source: HPSSEndpoint = None,
     destination: FileSystemEndpoint = None,
     files_to_extract: Optional[List[str]] = None,
-    config: BeamlineConfig = Config832()
+    config: BeamlineConfig = None
 ) -> bool:
     """
-    The HPSS to CFS flow for BL832.
+    The HPSS to CFS flow.
 
     Parameters
     ----------
@@ -83,10 +82,16 @@ def hpss_to_cfs_flow(
         The destination endpoint.
     """
 
+    logger.info("Running hpss_to_cfs_flow")
+    logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
+
+    logger.info("Configuring transfer controller for HPSS_TO_CFS.")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.HPSS_TO_CFS,
         config=config
     )
+
+    logger.info("HPSSToCFSTransferController selected. Initiating transfer for all file paths.")
 
     result = transfer_controller.copy(
         file_path=file_path,
@@ -99,7 +104,7 @@ def hpss_to_cfs_flow(
 
 
 if __name__ == "__main__":
-
+    from orchestration.flows.bl832.config import Config832
     config = Config832()
     project_name = "ALS-11193_nbalsara"
     source = FileSystemEndpoint(

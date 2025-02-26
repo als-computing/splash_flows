@@ -2,11 +2,18 @@
 
 HPSS is the tape-based data storage system we use for long term storage of experimental data at the ALS. Tape storage, while it may seem antiquated, is still a very economical and secure medium for infrequently accessed data as tape does not need to be powered except for reading and writing. This requires certain considerations when working with this system.
 
+## Overview
+
+**Purpose:** Archive and retrieve large experimental datasets using HPSS.
+**Approach:** Use HPSS tools (hsi and htar) within a structured transfer framework orchestrated via SFAPI and SLURM jobs.
+**Key Considerations:** File sizes should typically be between 100 GB and 2 TB. Larger projects are segmented into multiple archives.
+
+
 In `orchestration/transfer_controller.py` we have included two transfer classes for moving data from CFS to HPSS and vice versa (HPSS to CFS). We are following the [HPSS best practices](https://docs.nersc.gov/filesystems/HPSS-best-practices/) outlined in the NERSC documentation.
 
 HPSS is intended for long-term storage of data that is not frequently accessed, and users should aim for file sizes between 100 GB and 2 TB. Since HPSS is a tape system, we need to ensure storage and retrieval commands are done efficiently, as it is a mechanical process to load in a tape and then scroll to the correct region on the tape.
 
-While there are Globus endpoints for HPSS, the NERSC documentation recommends against it as there are certain conditions (i.e. network disconnection) that are not as robust as their recommended HPSS tools `hsi` and `htar`, which they say is the fastest approach. Together, these tools allow us to work with the HPSS filesystem and carefully bundle our projects into `tar` archives that are built directly on HPSS.
+While there are Globus endpoints for HPSS, the NERSC documentation recommends against it as there are certain conditions (i.e. network disconnection) that are not as robust as their recommended HPSS tools `hsi` and `htar`, which they say is the fastest approach. Together, these tools allow us to work with the HPSS filesystem and carefully bundle our projects into `tar` archives that are built directly on HPSS. Another couple of drawbacks to using Globus here is 1) if you have small files, you need to tar them regardless before transferring, and 2) HPSS does not support collab accounts (i.e. alsdev). 
 
 ## Working with `hsi`
 
@@ -161,9 +168,14 @@ htar -xvf als_user_project_folder.tar cool_scan1.h5
 Most of the time we expect transfers to occur from CFS to HPSS on a scheduled basis, after users have completed scanning during their alotted beamtime.
 
 ### Transfer to HPSS Implementation
-**`orchestration/transfer_controller.py`: `CFSToHPSSTransferController()`**
+**`orchestration/transfer_controller.py`:**
+  - **`CFSToHPSSTransferController()`**: This controller uses a Slurm Job Script and SFAPI to launch the tape transfer job. The Slurm script handles the specific logic for handling single and multiple files, on a project by project basis. It reads the files sizes, and creates bundles that are <= 2TB. The groups within each tar archive are saved in a log on NERSC CFS for posterity.
+
+**`orchestration/hpss.py`:**
+- **`cfs_to_hpss_flow()`** This Prefect Flow sets up the CFSToHPSSTransferController() and calls the copy command. By registering this Flow, the HPSS transfers can be easily scheduled.
 
 
+**HPSS SFAPI/Slurm Job Logic**:
 ```mermaid
 
 flowchart TD
@@ -223,13 +235,42 @@ flowchart TD
 ```
 
 ### Transfer to CFS Implementation
-**`orchestration/transfer_controller.py`: `HPSSToCFSTransferController()`**
 
-Input
-Output
+**`orchestration/transfer_controller.py`:**
+  - **`CFSToHPSSTransferController()`**: This controller uses a Slurm Job Script and SFAPI to copy data from tape to NERSC CFS. The Slurm script handles the specific logic for handling single and multiple files, on a project by project basis. Based on the file path, the Slurm job determines whether a single file or a tar archive has been requested (or even specific files within a tar archive), and run the correct routine to copy the data to CFS.
+  
+**`orchestration/hpss.py`:**
+- **`cfs_to_hpss_flow()`** This Prefect Flow sets up the HPSSToCFSTransferController() and calls the copy command. By registering this Flow, the HPSS transfers to CFS can be easily scheduled. While copying from CFS to HPSS is likely not going to be automated, it is still helpful to have this as a Prefect Flow to simplify data access in low-code manner.
+
 
 ## Update SciCat with HPSS file paths
 
-TBD
+`BeamlineIngestorController()` in `orchestration/flows/scicat/ingestor_controller.py` contains a method `add_new_dataset_location()` that can be used to update the source folder and host metadata in SciCat with new HPSS location:
 
+```python
+  def add_new_dataset_location(
+      self,
+      dataset_id: str,
+      source_folder: str,
+      source_folder_host: str,
+  ) -> bool:
+      """
+      Add a new location to an existing dataset in SciCat.
 
+      :param dataset_id:          SciCat ID of the dataset.
+      :param source_folder:       "Absolute file path on file server containing the files of this dataset,
+                                  e.g. /some/path/to/sourcefolder. In case of a single file dataset, e.g. HDF5 data,
+                                  it contains the path up to, but excluding the filename. Trailing slashes are removed.",
+
+      :param source_folder_host: "DNS host name of file server hosting sourceFolder,
+                                  optionally including a protocol e.g. [protocol://]fileserver1.example.com",
+
+      """
+      dataset = self.scicat_client.datasets_get_one(dataset_id)
+      # sourceFolder sourceFolderHost are each a string
+      dataset["sourceFolder"] = source_folder
+      dataset["sourceFolderHost"] = source_folder_host
+      self.scicat_client.datasets_update(dataset, dataset_id)
+      logger.info(f"Added location {source_folder} to dataset {dataset_id}")
+      return dataset_id
+```
