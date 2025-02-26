@@ -445,21 +445,38 @@ DEST_PATH="${{DEST_ROOT}}/${{FOLDER_NAME}}"
 echo "[LOG] DEST_PATH set to: $DEST_PATH"
 
 # ------------------------------------------------------------------
-# Create destination directory on HPSS if it doesn't exist.
+# Create destination directory on HPSS recursively using hsi mkdir.
 # ------------------------------------------------------------------
 echo "[LOG] Checking if HPSS destination directory exists at $DEST_PATH."
-
 if hsi -q "ls $DEST_PATH" >/dev/null 2>&1; then
     echo "[LOG] Destination directory $DEST_PATH already exists."
 else
-    echo "[LOG] Destination directory $DEST_PATH does not exist. Attempting to create it."
-    if hsi -q "mkdir $DEST_PATH" >/dev/null 2>&1; then
-        echo "[LOG] Created directory $DEST_PATH."
-    else
-        echo "[ERROR] Failed to create directory $DEST_PATH."
-        exit 1
-    fi
+    echo "[LOG] Destination directory $DEST_PATH does not exist. Attempting to create it recursively."
+    current=""
+    # Split the DEST_PATH on '/' and iterate over each directory component.
+    IFS='/' read -ra parts <<< "$DEST_PATH"
+    for part in "${{parts[@]}}"; do
+         if [ -z "$part" ]; then
+             continue
+         fi
+         current="$current/$part"
+         if ! hsi -q "ls $current" >/dev/null 2>&1; then
+              if hsi "mkdir $current" >/dev/null 2>&1; then
+                  echo "[LOG] Created directory $current."
+              else
+                  echo "[ERROR] Failed to create directory $current."
+                  exit 1
+              fi
+         else
+              echo "[LOG] Directory $current already exists."
+         fi
+    done
 fi
+
+# List the final HPSS directory tree for logging purposes.
+# For some reason this gets logged in the project.err file, not the .out file.
+hsi ls $DEST_PATH
+echo "[LOG] Job completed at: $(date)"
 
 # # ------------------------------------------------------------------
 # # Transfer Logic: Check if SOURCE_PATH is a file or directory.

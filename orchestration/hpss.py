@@ -109,11 +109,13 @@ if __name__ == "__main__":
     project_name = "ALS-11193_nbalsara"
     source = FileSystemEndpoint(
         name="CFS",
-        root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/"
+        root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/",
+        uri="nersc.gov"
     )
     destination = HPSSEndpoint(
         name="HPSS",
-        root_path=config.hpss_alsdev["root_path"]
+        root_path=config.hpss_alsdev["root_path"],
+        uri=config.hpss_alsdev["uri"]
     )
     cfs_to_hpss_flow(
         file_path=f"{project_name}",

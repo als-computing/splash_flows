@@ -40,7 +40,7 @@ class TomographyIngestorController(BeamlineIngestorController):
     Ingestor for Tomo832 beamline.
     """
     DEFAULT_USER = "8.3.2"  # In case there's not proposal number
-    INGEST_SPEC = "als832_dx_3"
+    INGEST_SPEC = "als832_dx_3"  # Where is this spec defined?
 
     DATA_SAMPLE_KEYS = [
         "/measurement/instrument/sample_motor_stack/setup/axis1pos",
