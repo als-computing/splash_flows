@@ -11,7 +11,7 @@ from prefect.blocks.system import JSON
 from orchestration.config import BeamlineConfig
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
-from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint, TransferEndpoint
+from orchestration.transfer_endpoints import FileSystemEndpoint, TransferEndpoint
 
 
 logger = logging.getLogger(__name__)
@@ -189,56 +189,6 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         )
 
 
-class HPSSPruneController(PruneController[HPSSEndpoint]):
-    def __init__(
-        self,
-        config: BeamlineConfig,
-    ) -> None:
-        super().__init__(config)
-
-    def prune(
-        self,
-        file_path: str = None,
-        source_endpoint: HPSSEndpoint = None,
-        check_endpoint: FileSystemEndpoint = None,
-        days_from_now: datetime.timedelta = 0
-    ) -> bool:
-        flow_name = f"prune_from_{source_endpoint.name}"
-        logger.info(f"Running flow: {flow_name}")
-        logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
-        schedule_prefect_flow(
-            "prune_hpss_endpoint/prune_hpss_endpoint",
-            flow_name,
-            {
-                "relative_path": file_path,
-                "source_endpoint": source_endpoint,
-                "check_endpoint": check_endpoint,
-                "config": self.config
-            },
-
-            datetime.timedelta(days=days_from_now),
-        )
-        return True
-
-    @flow(name="prune_hpss_endpoint")
-    def _prune_hpss_endpoint(
-        relative_path: str,
-        source_endpoint: HPSSEndpoint,
-        check_endpoint: Union[FileSystemEndpoint, None] = None,
-        config: BeamlineConfig = None
-    ):
-        """
-        Prune files from HPSS.
-
-        Args:
-            relative_path (str): The path of the file or directory to prune.
-            source_endpoint (HPSSEndpoint): The Globus source endpoint to prune from.
-            check_endpoint (FileSystemEndpoint, optional): The Globus target endpoint to check. Defaults to None.
-        """
-        # TODO: Implement HPSS pruning
-        pass
-
-
 class PruneMethod(Enum):
     """
     Enum representing different prune methods.
@@ -267,7 +217,8 @@ def get_prune_controller(
         return GlobusPruneController(config)
     elif prune_type == PruneMethod.SIMPLE:
         return FileSystemPruneController(config)
-    elif prune_type == PruneMethod.CFS_TO_HPSS:
+    elif prune_type == PruneMethod.HPSS:
+        from orchestration.prune_controller import HPSSPruneController
         from orchestration.sfapi import create_sfapi_client
         return HPSSPruneController(
             client=create_sfapi_client(),
