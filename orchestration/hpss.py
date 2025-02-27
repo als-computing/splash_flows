@@ -104,22 +104,60 @@ def hpss_to_cfs_flow(
 
 
 if __name__ == "__main__":
-    from orchestration.flows.bl832.config import Config832
-    config = Config832()
-    project_name = "ALS-11193_nbalsara"
-    source = FileSystemEndpoint(
-        name="CFS",
-        root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/",
-        uri="nersc.gov"
-    )
-    destination = HPSSEndpoint(
-        name="HPSS",
-        root_path=config.hpss_alsdev["root_path"],
-        uri=config.hpss_alsdev["uri"]
-    )
-    cfs_to_hpss_flow(
-        file_path=f"{project_name}",
-        source=source,
-        destination=destination,
-        config=config
-    )
+    TEST_CFS_TO_HPSS = False
+    TEST_HPSS_TO_CFS = True
+
+    # ------------------------------------------------------
+    # Test transfer from CFS to HPSS
+    # ------------------------------------------------------
+    if TEST_CFS_TO_HPSS:
+        from orchestration.flows.bl832.config import Config832
+        config = Config832()
+        project_name = "ALS-11193_nbalsara"
+        source = FileSystemEndpoint(
+            name="CFS",
+            root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/",
+            uri="nersc.gov"
+        )
+        destination = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],
+            uri=config.hpss_alsdev["uri"]
+        )
+        cfs_to_hpss_flow(
+            file_path=f"{project_name}",
+            source=source,
+            destination=destination,
+            config=config
+        )
+
+    # ------------------------------------------------------
+    # Test transfer from HPSS to CFS
+    # ------------------------------------------------------
+    if TEST_HPSS_TO_CFS:
+        from orchestration.flows.bl832.config import Config832
+        config = Config832()
+        relative_file_path = f"{config.beamline_id}/raw/ALS-11193_nbalsara/ALS-11193_nbalsara_2022-2.tar"
+        source = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],  # root_path: /home/a/alsdev/data_mover
+            uri=config.hpss_alsdev["uri"]
+        )
+        destination = FileSystemEndpoint(
+            name="CFS",
+            root_path="/global/cfs/cdirs/als/data_mover/8.3.2/retrieved_from_tape",
+            uri="nersc.gov"
+        )
+
+        files_to_extract = [
+            "/global/cfs/cdirs/als/data_mover/8.3.2/raw/ALS-11193_nbalsara/20221109_012020_MSB_Book1_Proj33_Cell5_2pFEC_LiR2_6C_Rest3.h5",
+            "/global/cfs/cdirs/als/data_mover/8.3.2/raw/ALS-11193_nbalsara/20221012_172023_DTH_100722_LiT_r01_cell3_10x_0_19_CP2.h5",
+        ]
+
+        hpss_to_cfs_flow(
+            file_path=f"{relative_file_path}",
+            source=source,
+            destination=destination,
+            files_to_extract=files_to_extract,
+            config=config
+        )

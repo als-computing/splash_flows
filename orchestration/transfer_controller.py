@@ -371,6 +371,17 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
         source: FileSystemEndpoint = None,
         destination: HPSSEndpoint = None
     ) -> bool:
+        """
+        Copy a file or directory from a CFS source endpoint to an HPSS destination endpoint.
+
+        Args:
+            file_path (str): Path to the file or directory on CFS.
+            source (FileSystemEndpoint): The CFS source endpoint.
+            destination (HPSSEndpoint): The HPSS destination endpoint.
+
+        Returns:
+            bool: True if the transfer job completes successfully, False otherwise.
+        """
         logger.info("Transferring data from CFS to HPSS")
         if not file_path or not source or not destination:
             logger.error("Missing required parameters for CFSToHPSSTransferController.")
@@ -414,9 +425,9 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
 #SBATCH -A als                            # Specify the account.
 #SBATCH -C cron                           # Use the 'cron' constraint.
 #SBATCH --time=12:00:00                   # Maximum runtime of 12 hours.
-#SBATCH --job-name=transfer_to_HPSS_{file_path}  # Set a descriptive job name.
-#SBATCH --output={logs_path}/{file_path}_%j.out       # Standard output log file.
-#SBATCH --error={logs_path}/{file_path}_%j.err        # Standard error log file.
+#SBATCH --job-name=transfer_to_HPSS_{proposal_name}  # Set a descriptive job name.
+#SBATCH --output={logs_path}/{proposal_name}_to_hpss_%j.out       # Standard output log file.
+#SBATCH --error={logs_path}/{proposal_name}_to_hpss_%j.err        # Standard error log file.
 #SBATCH --licenses=SCRATCH                # Request the SCRATCH license.
 #SBATCH --mem=20GB                        # Request #GB of memory. Default 2GB.
 
@@ -666,25 +677,16 @@ echo "[LOG] Job completed at: $(date)"
 
 class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
     """
-    Use SFAPI to move data between HPSS and CFS at NERSC.
+    Use SFAPI, Slurm, hsi and htar to move data between HPSS and CFS at NERSC.
 
     This controller retrieves data from an HPSS source endpoint and places it on a CFS destination endpoint.
-    It supports:
-      - Single file retrieval via hsi get.
-      - Full tar archive extraction via htar -xvf.
-      - Partial extraction from a tar archive: if a list of files is provided (via files_to_extract),
+    It supports the following modes:
+      - "single": Single file retrieval via hsi get.
+      - "tar": Full tar archive extraction via htar -xvf.
+      - "partial": Partial extraction from a tar archive: if a list of files is provided (via files_to_extract),
         only the specified files will be extracted.
 
     A single SLURM job script is generated that branches based on the mode.
-    Args:
-        file_path (str): Path to the file or tar archive on HPSS.
-        source (HPSSEndpoint): The HPSS source endpoint.
-        destination (FileSystemEndpoint): The CFS destination endpoint.
-        files_to_extract (List[str], optional): Specific files to extract from the tar archive.
-            If provided (and file_path ends with '.tar'), only these files will be extracted.
-
-    Returns:
-        bool: True if the transfer job completes successfully, False otherwise.
     """
 
     def __init__(
@@ -702,18 +704,34 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         destination: FileSystemEndpoint = None,
         files_to_extract: Optional[List[str]] = None,
     ) -> bool:
+        """
+        Copy a file from an HPSS source endpoint to a CFS destination endpoint.
+
+        Args:
+            file_path (str): Path to the file or tar archive on HPSS.
+            source (HPSSEndpoint): The HPSS source endpoint.
+            destination (FileSystemEndpoint): The CFS destination endpoint.
+            files_to_extract (List[str], optional): Specific files to extract from the tar archive.
+                If provided (and file_path ends with '.tar'), only these files will be extracted.
+                If not provided, the entire tar archive will be extracted.
+                If file_path is a single file, this parameter is ignored.
+
+        Returns:
+            bool: True if the transfer job completes successfully, False otherwise.
+        """
         logger.info("Starting HPSS to CFS transfer.")
         if not file_path or not source or not destination:
             logger.error("Missing required parameters: file_path, source, or destination.")
             return False
 
-        # Set the job name suffix based on the file name (or archive stem)
-        job_name_suffix = Path(file_path).stem
-
         # Compute the full HPSS path from the source endpoint.
         hpss_path = source.full_path(file_path)
         dest_root = destination.root_path
-        logs_path = "/global/cfs/cdirs/als/data_mover/hpss_transfer_logs"
+
+        # Get the beamline_id from the configuration.
+        beamline_id = self.config.beamline_id
+
+        logs_path = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}"
 
         # If files_to_extract is provided, join them as a space‐separated string.
         files_to_extract_str = " ".join(files_to_extract) if files_to_extract else ""
@@ -724,26 +742,56 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         #     else MODE is "tar".
         #   - Otherwise, MODE is "single" and hsi get is used.
         job_script = fr"""#!/bin/bash
-#SBATCH -q xfer
-#SBATCH -A als
-#SBATCH -C cron
-#SBATCH --time=12:00:00
-#SBATCH --job-name=transfer_from_HPSS_{job_name_suffix}
-#SBATCH --output={logs_path}/%j.out
-#SBATCH --error={logs_path}/%j.err
-#SBATCH --licenses=SCRATCH
-#SBATCH --mem=100GB
+#SBATCH -q xfer                                             # Specify the SLURM queue to u
+#SBATCH -A als                                              # Specify the account.
+#SBATCH -C cron                                             # Use the 'cron' constraint.
+#SBATCH --time=12:00:00                                     # Maximum runtime of 12 hours.
+#SBATCH --job-name=transfer_from_HPSS_{file_path}           # Set a descriptive job name.
+#SBATCH --output={logs_path}/{file_path}_from_hpss_%j.out   # Standard output log file.
+#SBATCH --error={logs_path}/{file_path}_from_hpss_%j.err    # Standard error log file.
+#SBATCH --licenses=SCRATCH                                  # Request the SCRATCH license.
+#SBATCH --mem=20GB                                          # Request #GB of memory. Default 2GB.
+set -euo pipefail                                           # Enable strict error checking.
+echo "[LOG] Job started at: $(date)"
 
-set -euo pipefail
-date
+# -------------------------------------------------------------------
+# Define source and destination variables.
+# -------------------------------------------------------------------
 
-# Environment variables provided by Python.
-HPSS_PATH="{hpss_path}"
+echo "[LOG] Defining source and destination paths."
+
+# SOURCE_PATH: Full path of the file or directory on HPSS.
+SOURCE_PATH="{hpss_path}"
+echo "[LOG] SOURCE_PATH set to: $SOURCE_PATH"
+
+# DEST_ROOT: Root destination on CFS built from configuration.
 DEST_ROOT="{dest_root}"
-FILES_TO_EXTRACT="{files_to_extract_str}"
+echo "[LOG] DEST_ROOT set to: $DEST_ROOT"
 
-# Determine the transfer mode in bash.
-if [[ "$HPSS_PATH" =~ \.tar$ ]]; then
+# FILES_TO_EXTRACT: Specific files to extract from the tar archive, if any.
+# If not provided, this will be empty.
+FILES_TO_EXTRACT="{files_to_extract_str}"
+echo "[LOG] FILES_TO_EXTRACT set to: $FILES_TO_EXTRACT"
+
+# -------------------------------------------------------------------
+# Verify that SOURCE_PATH exists on HPSS using hsi ls.
+# -------------------------------------------------------------------
+
+echo "[LOG] Verifying file existence with hsi ls."
+if ! hsi ls "$SOURCE_PATH" >/dev/null 2>&1; then
+    echo "[ERROR] File not found on HPSS: $SOURCE_PATH"
+    exit 1
+fi
+
+# -------------------------------------------------------------------
+# Determine the transfer mode based on the type (file vs tar).
+# -------------------------------------------------------------------
+
+echo "[LOG] Determining transfer mode based on the type (file vs tar)."
+
+# Check if SOURCE_PATH ends with .tar
+if [[ "$SOURCE_PATH" =~ \.tar$ ]]; then
+    # If FILES_TO_EXTRACT is nonempty, MODE becomes "partial", else MODE is "tar".
     if [ -n "${{FILES_TO_EXTRACT}}" ]; then
          MODE="partial"
     else
@@ -754,27 +802,52 @@ else
 fi
 
 echo "Transfer mode: $MODE"
+
+# -------------------------------------------------------------------
+# Transfer Logic: Based on the mode, perform the appropriate transfer.
+# -------------------------------------------------------------------
+
 if [ "$MODE" = "single" ]; then
-    echo "Single file detected. Using hsi get."
-    mkdir -p "$DEST_ROOT"
-    hsi get "$HPSS_PATH" "$DEST_ROOT/"
+    echo "[LOG] Single file detected. Using hsi get."
+    # mkdir -p "$DEST_ROOT"
+    # hsi get "$SOURCE_PATH" "$DEST_ROOT/"
 elif [ "$MODE" = "tar" ]; then
-    echo "Tar archive detected. Extracting entire archive using htar."
-    ARCHIVE_BASENAME=$(basename "$HPSS_PATH")
+    echo "[LOG] Tar archive detected. Extracting entire archive using htar."
+    ARCHIVE_BASENAME=$(basename "$SOURCE_PATH")
     ARCHIVE_NAME="${{ARCHIVE_BASENAME%.tar}}"
     DEST_PATH="${{DEST_ROOT}}/${{ARCHIVE_NAME}}"
-    mkdir -p "$DEST_PATH"
-    htar -xvf "$HPSS_PATH" -C "$DEST_PATH"
+    echo "[LOG] Extracting to: $DEST_PATH"
+    # mkdir -p "$DEST_PATH"
+    # htar -xvf "$SOURCE_PATH" -C "$DEST_PATH"
 elif [ "$MODE" = "partial" ]; then
-    echo "Partial extraction detected. Extracting selected files using htar."
-    ARCHIVE_BASENAME=$(basename "$HPSS_PATH")
+    echo "[LOG] Partial extraction detected. Extracting selected files using htar."
+    ARCHIVE_BASENAME=$(basename "$SOURCE_PATH")
     ARCHIVE_NAME="${{ARCHIVE_BASENAME%.tar}}"
     DEST_PATH="${{DEST_ROOT}}/${{ARCHIVE_NAME}}"
+
+    # Verify that each requested file exists in the tar archive.
+    echo "[LOG] Verifying requested files are in the tar archive."
+    ARCHIVE_CONTENTS=$(htar -tvf "$SOURCE_PATH")
+    echo "[LOG] List: $ARCHIVE_CONTENTS"
+    for file in $FILES_TO_EXTRACT; do
+        echo "[LOG] Checking for file: $file"
+        if ! echo "$ARCHIVE_CONTENTS" | grep -q "$file"; then
+            echo "[ERROR] Requested file '$file' not found in archive $SOURCE_PATH"
+            exit 1
+        else
+            echo "[LOG] File '$file' found in archive."
+        fi
+    done
+
+    echo "[LOG] All requested files verified. Proceeding with extraction."
     mkdir -p "$DEST_PATH"
-    echo "Files to extract: $FILES_TO_EXTRACT"
-    htar -xvf "$HPSS_PATH" -C "$DEST_PATH" $FILES_TO_EXTRACT
+    (cd "$DEST_PATH" && htar -xvf "$SOURCE_PATH" -Hnostage $FILES_TO_EXTRACT)
+
+    echo "[LOG] Extraction complete. Listing contents of $DEST_PATH:"
+    ls -l "$DEST_PATH"
+
 else
-    echo "Error: Unknown mode: $MODE"
+    echo "[ERROR]: Unknown mode: $MODE"
     exit 1
 fi
 
