@@ -120,6 +120,12 @@ def hpss_to_cfs_flow(
 # ----------------------------------
 
 class HPSSPruneController(PruneController[HPSSEndpoint]):
+    """
+    Use SFAPI, Slurm, and hsi to prune data from HPSS at NERSC.
+    This controller requires the source to be an HPSSEndpoint and the
+    optional destination to be a FileSystemEndpoint. It uses "hsi rm" to prune
+    files from HPSS.
+    """
     def __init__(
         self,
         client: Client,

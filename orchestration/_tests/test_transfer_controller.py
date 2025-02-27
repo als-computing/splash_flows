@@ -54,11 +54,13 @@ def transfer_controller_module():
         FileSystemEndpoint,
         GlobusTransferController,
         SimpleTransferController,
+        get_transfer_controller,
+        CopyMethod,
+    )
+    from orchestration.hpss import (
         CFSToHPSSTransferController,
         HPSSToCFSTransferController,
         HPSSEndpoint,
-        get_transfer_controller,
-        CopyMethod,
     )
     return {
         "FileSystemEndpoint": FileSystemEndpoint,
