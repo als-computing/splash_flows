@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from logging import getLogger
+from typing import Optional
 
 from orchestration.config import BeamlineConfig
 from pyscicat.client import ScicatClient, from_credentials
@@ -62,10 +63,12 @@ class BeamlineIngestorController(ABC):
 
     def add_new_dataset_location(
         self,
-        dataset_id: str,
-        source_folder: str,
-        source_folder_host: str,
-    ) -> bool:
+        dataset_id: Optional[str] = None,
+        proposal_id: Optional[str] = None,
+        file_name: Optional[str] = None,
+        source_folder: str = None,
+        source_folder_host: str = None
+    ) -> str:
         """
         Add a new location to an existing dataset in SciCat.
 
@@ -78,7 +81,13 @@ class BeamlineIngestorController(ABC):
                                     optionally including a protocol e.g. [protocol://]fileserver1.example.com",
 
         """
+        # If dataset_id is not provided, we need to find it using proposal_id and file_name.
+        # Otherwise, we use the provided dataset_id directly.
+        if dataset_id is None and proposal_id and file_name:
+            dataset_id = self._find_dataset(proposal_id=proposal_id, file_name=file_name)
+
         dataset = self.scicat_client.datasets_get_one(dataset_id)
+
         # sourceFolder sourceFolderHost are each a string
         dataset["sourceFolder"] = source_folder
         dataset["sourceFolderHost"] = source_folder_host
@@ -95,3 +104,54 @@ class BeamlineIngestorController(ABC):
 
         """
         pass
+
+    def _find_dataset(
+        self,
+        proposal_id: Optional[str] = None,  # The ALS proposal ID, not the SciCat ID
+        file_name: Optional[str] = None
+    ) -> str:
+        """
+        Find a dataset in SciCat and return the ID based on proposal ID and file name.
+        This method is used when a dataset ID is not provided.
+        If more than one dataset is found, an error is raised, and the user is advised to check the logs.
+        If no dataset is found, an error is raised.
+        If exactly one dataset is found, its ID is returned.
+        This method is intended to be used internally within the class.
+
+        Parameters:
+            self,
+            proposal_id (Optional[str]): The proposal identifier used in ingestion.
+            file_name (Optional[str]): The dataset name (derived from file name).
+
+        Raises:
+            ValueError: If insufficient search parameters are provided,
+                        no dataset is found, or multiple datasets match.
+        """
+        # Require both search terms if no dataset_id is given.
+        if not (proposal_id and file_name):
+            raise ValueError("Either a dataset ID must be provided or both proposal_id and file_name must be given.")
+
+        query_fields = {
+            "proposalId": proposal_id,
+            "datasetName": file_name
+        }
+        results = self.scicat_client.datasets_find(query_fields=query_fields)
+        count = results.get("count", 0)
+
+        if count == 0:
+            raise ValueError(f"No dataset found for proposal '{proposal_id}' with name '{file_name}'.")
+        elif count > 1:
+            # Log all found dataset IDs for human review.
+            dataset_ids = [d.get("pid", "N/A") for d in results["data"]]
+            logger.error(
+                f"Multiple datasets found for proposal '{proposal_id}' with name '{file_name}': {dataset_ids}. Please verify."
+            )
+            raise ValueError(
+                f"Multiple datasets found for proposal '{proposal_id}' with name '{file_name}'. See log for details."
+            )
+        dataset = results["data"][0]
+        dataset_id = dataset.get("pid")
+        if not dataset_id:
+            raise ValueError("The dataset returned does not have a valid 'pid' field.")
+
+        return dataset_id
