@@ -447,7 +447,6 @@ if [ -f "$SOURCE_PATH" ]; then
     echo "[LOG] File name: $FILE_NAME"
     hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
     echo "[LOG] (Simulated) File transfer completed for $FILE_NAME."
-
 elif [ -d "$SOURCE_PATH" ]; then
     # Case: Directory detected.
     echo "[LOG] Directory detected. Initiating bundling process."
@@ -487,6 +486,7 @@ elif [ -d "$SOURCE_PATH" ]; then
     # Group files by modification date.
     # ------------------------------------------------------------------
 
+    cd "$SOURCE_PATH" && \
     while IFS= read -r file; do
         mtime=$(stat -c %Y "$file")
         year=$(date -d @"$mtime" +%Y)
@@ -540,7 +540,7 @@ elif [ -d "$SOURCE_PATH" ]; then
                     echo "$file"
                 done
                 echo "[LOG] Creating archive $tar_name with ${{#current_files[@]}} files; bundle size: $current_size bytes."
-                (cd "$SOURCE_PATH" && htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+                (cd "$SOURCE_PATH" && htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}"))
                 part=$((part+1))
                 echo "[DEBUG] Resetting bundle variables."
                 current_files=()
@@ -562,7 +562,7 @@ elif [ -d "$SOURCE_PATH" ]; then
             done
             echo "[LOG] Creating final archive $tar_name with ${{#current_files[@]}} files."
             echo "[LOG] Bundle size: $current_size bytes."
-            (cd "$SOURCE_PATH" && htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}")
+            (cd "$SOURCE_PATH" && htar -cvf "${{DEST_PATH}}/${{tar_name}}" $(printf "%s " "${{current_files[@]}}"))
         fi
         echo "[LOG] Completed processing group $key."
     done
@@ -839,7 +839,7 @@ date
 
 
 if __name__ == "__main__":
-    TEST_HPSS_PRUNE = True
+    TEST_HPSS_PRUNE = False
     TEST_CFS_TO_HPSS = False
     TEST_HPSS_TO_CFS = False
 
@@ -911,8 +911,8 @@ if __name__ == "__main__":
         )
 
         files_to_extract = [
-            "ALS-11193_nbalsara/20221109_012020_MSB_Book1_Proj33_Cell5_2pFEC_LiR2_6C_Rest3.h5",
-            "ALS-11193_nbalsara/20221012_172023_DTH_100722_LiT_r01_cell3_10x_0_19_CP2.h5",
+            "20221109_012020_MSB_Book1_Proj33_Cell5_2pFEC_LiR2_6C_Rest3.h5",
+            "20221012_172023_DTH_100722_LiT_r01_cell3_10x_0_19_CP2.h5",
         ]
 
         hpss_to_cfs_flow(
