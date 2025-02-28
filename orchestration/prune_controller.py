@@ -218,7 +218,7 @@ def get_prune_controller(
     elif prune_type == PruneMethod.SIMPLE:
         return FileSystemPruneController(config)
     elif prune_type == PruneMethod.HPSS:
-        from orchestration.prune_controller import HPSSPruneController
+        from orchestration.hpss import HPSSPruneController
         from orchestration.sfapi import create_sfapi_client
         return HPSSPruneController(
             client=create_sfapi_client(),

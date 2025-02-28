@@ -349,7 +349,7 @@ def get_transfer_controller(
 
     Args:
         transfer_type (str): The type of transfer to perform.
-        config (Config832): The configuration object.
+        config (BeamlineConfig): The configuration object.
 
     Returns:
         TransferController: The transfer controller object.

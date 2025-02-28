@@ -14,7 +14,7 @@ from sfapi_client.compute import Machine
 
 from orchestration.config import BeamlineConfig
 from orchestration.prefect import schedule_prefect_flow
-from orchestration.prune_controller import PruneController
+from orchestration.prune_controller import get_prune_controller, PruneController, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod, TransferController
 from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint
 
@@ -138,24 +138,31 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         self,
         file_path: str = None,
         source_endpoint: HPSSEndpoint = None,
-        check_endpoint: FileSystemEndpoint = None,
+        check_endpoint: Optional[FileSystemEndpoint] = None,
         days_from_now: datetime.timedelta = 0
     ) -> bool:
         flow_name = f"prune_from_{source_endpoint.name}"
         logger.info(f"Running flow: {flow_name}")
         logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
-        schedule_prefect_flow(
-            "prune_hpss_endpoint/prune_hpss_endpoint",
-            flow_name,
-            {
-                "relative_path": file_path,
-                "source_endpoint": source_endpoint,
-                "check_endpoint": check_endpoint,
-                "config": self.config
-            },
 
-            datetime.timedelta(days=days_from_now),
+        self._prune_hpss_endpoint(
+            self,
+            relative_path=file_path,
+            source_endpoint=source_endpoint,
+            check_endpoint=check_endpoint,
         )
+        # Uncomment the following lines to schedule the flow with Prefect.
+        # schedule_prefect_flow(
+        #     deployment_name="prune_hpss_endpoint/prune_hpss_endpoint",
+        #     flow_run_name=flow_name,
+        #     parameters={
+        #         "relative_path": file_path,
+        #         "source_endpoint": source_endpoint,
+        #         "check_endpoint": check_endpoint,
+        #         "config": self.config
+        #     },
+        #     duration_from_now=days_from_now
+        # )
         return True
 
     @flow(name="prune_hpss_endpoint")
@@ -163,19 +170,20 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         self,
         relative_path: str,
         source_endpoint: HPSSEndpoint,
-        check_endpoint: Union[FileSystemEndpoint, None] = None,
-        config: BeamlineConfig = None
+        check_endpoint: Optional[Union[FileSystemEndpoint, None]] = None,
     ) -> None:
         """
         Prune files from HPSS.
 
         Args:
-            relative_path (str): The path of the file or directory to prune.
+            relative_path (str): The HPSS path of the file or directory to prune.
             source_endpoint (HPSSEndpoint): The Globus source endpoint to prune from.
             check_endpoint (FileSystemEndpoint, optional): The Globus target endpoint to check. Defaults to None.
         """
+        logger.info("Pruning files from HPSS")
+        logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
 
-        beamline_id = config.beamline_id
+        beamline_id = self.config.beamline_id
         logs_path = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}"
 
         job_script = rf"""#!/bin/bash
@@ -197,14 +205,17 @@ set -euo pipefail                        # Enable strict error checking.
 echo "[LOG] Job started at: $(date)"
 
 # Check if the file exists on HPSS
-if hsi -c "ls {source_endpoint.full_path(relative_path)}" &> /dev/null; then
+if hsi "ls {source_endpoint.full_path(relative_path)}" &> /dev/null; then
     echo "[LOG] File {relative_path} exists on HPSS. Proceeding to prune."
     # Prune the file from HPSS
-    hsi -c "rm {source_endpoint.full_path(relative_path)}"
+    hsi "rm {source_endpoint.full_path(relative_path)}"
     echo "[LOG] File {relative_path} has been pruned from HPSS."
+    hsi ls -R {source_endpoint.full_path(relative_path)}
+else
+    echo "[LOG] Could not find File {relative_path} does not on HPSS. Check your file path again."
+    exit 0
 fi
 echo "[LOG] Job completed at: $(date)"
-
 """
         try:
             logger.info("Submitting HPSS transfer job to Perlmutter.")
@@ -284,7 +295,8 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
         self,
         file_path: str = None,
         source: FileSystemEndpoint = None,
-        destination: HPSSEndpoint = None
+        destination: HPSSEndpoint = None,
+        days_from_now: datetime.timedelta = 0
     ) -> bool:
         """
         Copy a file or directory from a CFS source endpoint to an HPSS destination endpoint.
@@ -827,9 +839,35 @@ date
 
 
 if __name__ == "__main__":
+    TEST_HPSS_PRUNE = True
     TEST_CFS_TO_HPSS = False
-    TEST_HPSS_TO_CFS = True
+    TEST_HPSS_TO_CFS = False
 
+    # ------------------------------------------------------
+    # Test pruning from HPSS
+    # ------------------------------------------------------
+    if TEST_HPSS_PRUNE:
+        from orchestration.flows.bl832.config import Config832
+        config = Config832()
+        file_name = "8.3.2/raw/ALS-11193_nbalsara/ALS-11193_nbalsara_2022-2.tar"
+        source = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],
+            uri=config.hpss_alsdev["uri"]
+        )
+
+        days_from_now = datetime.timedelta(days=0)  # Prune immediately
+
+        prune_controller = get_prune_controller(
+            prune_type=PruneMethod.HPSS,
+            config=config
+        )
+        prune_controller.prune(
+            file_path=f"{file_name}",
+            source_endpoint=source,
+            check_endpoint=None,
+            days_from_now=days_from_now
+        )
     # ------------------------------------------------------
     # Test transfer from CFS to HPSS
     # ------------------------------------------------------
