@@ -145,24 +145,25 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         logger.info(f"Running flow: {flow_name}")
         logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
 
-        self._prune_hpss_endpoint(
-            self,
-            relative_path=file_path,
-            source_endpoint=source_endpoint,
-            check_endpoint=check_endpoint,
-        )
-        # Uncomment the following lines to schedule the flow with Prefect.
-        # schedule_prefect_flow(
-        #     deployment_name="prune_hpss_endpoint/prune_hpss_endpoint",
-        #     flow_run_name=flow_name,
-        #     parameters={
-        #         "relative_path": file_path,
-        #         "source_endpoint": source_endpoint,
-        #         "check_endpoint": check_endpoint,
-        #         "config": self.config
-        #     },
-        #     duration_from_now=days_from_now
-        # )
+        if days_from_now == 0:
+            self._prune_hpss_endpoint(
+                self,
+                relative_path=file_path,
+                source_endpoint=source_endpoint,
+                check_endpoint=check_endpoint,
+            )
+        else:
+            schedule_prefect_flow(
+                deployment_name="prune_hpss_endpoint/prune_hpss_endpoint",
+                flow_run_name=flow_name,
+                parameters={
+                    "relative_path": file_path,
+                    "source_endpoint": source_endpoint,
+                    "check_endpoint": check_endpoint,
+                    "config": self.config
+                },
+                duration_from_now=days_from_now
+            )
         return True
 
     @flow(name="prune_hpss_endpoint")

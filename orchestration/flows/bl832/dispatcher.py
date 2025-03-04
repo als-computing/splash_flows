@@ -10,6 +10,7 @@ from typing import Any, List, Optional, Union
 
 from orchestration.flows.bl832.move import process_new_832_file_task
 from orchestration.flows.bl832.config import Config832
+from orchestration.flows.bl832.scicat_ingestor import TomographyIngestorController
 
 
 # ------------------------------------------------------------------------------------------------------------------------
@@ -215,6 +216,7 @@ def archive_832_project_dispatcher(
                 }
             )
             logger.info(f"Scheduled tape transfer for project: {fp}")
+
         except Exception as e:
             logger.error(f"Error scheduling transfer for {fp}: {e}")
 
@@ -301,8 +303,27 @@ def archive_832_projects_from_previous_cycle_dispatcher(
                         "config": config
                     }
                 )
+
             except Exception as e:
                 logger.error(f"Error archiving project {project_name}: {e}")
+            try:
+                # Ingest the project into SciCat.
+                logger.info("Ingesting new file path into SciCat...")
+                ingestor = TomographyIngestorController(
+                    config=config,
+                    scicat_client=config.scicat
+                )
+                scicat_id = ingestor._find_dataset(
+                    proposal_id="proposal_id",
+                    file_name="file_name"
+                )
+                ingestor.add_new_dataset_location(
+                    dataset_id=scicat_id,
+                    source_folder="source_folder",
+                    source_folder_host="source_folder_host"
+                )
+            except Exception as e:
+                logger.error(f"Error ingesting project {project_name} into SciCat: {e}")
         else:
             logger.info(f"Project {project_name} last modified at {last_mod} is outside the archive window.")
 
@@ -339,6 +360,26 @@ def archive_all_832_projects_dispatcher(
                     "config": config
                 }
             )
+
+            try:
+                # Ingest the project into SciCat.
+                logger.info("Ingesting new file path into SciCat...")
+                ingestor = TomographyIngestorController(
+                    config=config,
+                    scicat_client=config.scicat
+                )
+                scicat_id = ingestor._find_dataset(
+                    proposal_id="proposal_id",
+                    file_name="file_name"
+                )
+                ingestor.add_new_dataset_location(
+                    dataset_id=scicat_id,
+                    source_folder="source_folder",
+                    source_folder_host="source_folder_host"
+                )
+            except Exception as e:
+                logger.error(f"Error ingesting project {project} into SciCat: {e}")
+
         except Exception as e:
             logger.error(e)
 
