@@ -1,6 +1,18 @@
 """
-This module contains HPSS related functions and classes.
+HPSS Module - Handling transfers to and from NERSC's High Performance Storage System (HPSS).
+
+This module provides functionality for transferring data between NERSC's Community File System (CFS)
+and the High Performance Storage System (HPSS) tape archive. It includes:
+
+1. Prefect flows for initiating transfers in both directions
+2. Transfer controllers for CFS to HPSS and HPSS to CFS operations
+3. HPSS-specific pruning controller for managing data lifecycle
+4. Slurm job scripts for executing HPSS operations via SFAPI
+
+The module follows tape-safe practices as recommended in NERSC documentation:
+https://docs.nersc.gov/filesystems/HPSS-best-practices/
 """
+
 import datetime
 import logging
 from pathlib import Path
@@ -34,43 +46,70 @@ def cfs_to_hpss_flow(
     config: BeamlineConfig = None
 ) -> bool:
     """
-    The CFS to HPSS flow.
+    Prefect flow for transferring data from CFS to HPSS tape archive.
 
-    Parameters
-    ----------
-    file_path : Union[str, List[str]]
-        A single file path or a list of file paths to transfer.
-    source : FileSystemEndpoint
-        The source endpoint.
-    destination : HPSSEndpoints
-        The destination endpoint.
-    config : BeamlineConfig
-        The beamline configuration.
+    This flow handles the transfer of files or directories from NERSC's Community
+    File System (CFS) to the High Performance Storage System (HPSS) tape archive.
+    For directories, files are bundled into tar archives based on time periods.
 
-    Returns
-    -------
-    bool
-        True if all transfers succeeded, False otherwise.
+    Args:
+        file_path (Union[str, List[str]]): A single file path or a list of file paths to transfer
+        source (FileSystemEndpoint): The CFS source endpoint
+        destination (HPSSEndpoint): The HPSS destination endpoint
+        config (BeamlineConfig): The beamline configuration containing endpoints and credentials
+
+    Returns:
+        bool: True if all transfers succeeded, False otherwise
     """
-
     logger.info("Running cfs_to_hpss_flow")
-    logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
 
+    if not file_path:
+        logger.error("No file path provided for CFS to HPSS transfer")
+        return False
+
+    if not source or not destination:
+        logger.error("Source or destination endpoint not provided for CFS to HPSS transfer")
+        return False
+
+    if not config:
+        logger.error("No configuration provided for CFS to HPSS transfer")
+        return False
+
+    # Log detailed information about the transfer
+    if isinstance(file_path, list):
+        logger.info(f"Transferring {len(file_path)} files/directories from {source.name} to {destination.name}")
+        for path in file_path:
+            logger.debug(f"  - {path}")
+    else:
+        logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
+
+    # Configure the transfer controller for CFS to HPSS
     logger.info("Configuring transfer controller for CFS_TO_HPSS.")
-    transfer_controller = get_transfer_controller(
-        transfer_type=CopyMethod.CFS_TO_HPSS,
-        config=config
-    )
+    try:
+        transfer_controller = get_transfer_controller(
+            transfer_type=CopyMethod.CFS_TO_HPSS,
+            config=config
+        )
+    except Exception as e:
+        logger.error(f"Failed to initialize CFS to HPSS transfer controller: {str(e)}", exc_info=True)
+        return False
 
     logger.info("CFSToHPSSTransferController selected. Initiating transfer for all file paths.")
 
-    result = transfer_controller.copy(
-        file_path=file_path,
-        source=source,
-        destination=destination
-    )
-
-    return result
+    try:
+        result = transfer_controller.copy(
+            file_path=file_path,
+            source=source,
+            destination=destination
+        )
+        if result:
+            logger.info("CFS to HPSS transfer completed successfully")
+        else:
+            logger.error("CFS to HPSS transfer failed")
+        return result
+    except Exception as e:
+        logger.error(f"Error during CFS to HPSS transfer: {str(e)}", exc_info=True)
+        return False
 
 
 @flow(name="hpss_to_cfs_flow")
@@ -82,37 +121,76 @@ def hpss_to_cfs_flow(
     config: BeamlineConfig = None
 ) -> bool:
     """
-    The HPSS to CFS flow.
+    Prefect flow for retrieving data from HPSS tape archive to CFS.
 
-    Parameters
-    ----------
-    file_path : str
-        The path of the file to transfer.
-    source_endpoint : HPSSEndpoint
-        The source endpoint.
-    destination_endpoint : FileSystemEndpoint
-        The destination endpoint.
+    This flow handles the retrieval of files or tar archives from NERSC's High
+    Performance Storage System (HPSS) to the Community File System (CFS).
+    For tar archives, you can optionally specify specific files to extract.
+
+    Args:
+        file_path (str): The path of the file or tar archive on HPSS
+        source (HPSSEndpoint): The HPSS source endpoint
+        destination (FileSystemEndpoint): The CFS destination endpoint
+        files_to_extract (Optional[List[str]]): Specific files to extract from the tar archive
+        config (BeamlineConfig): The beamline configuration containing endpoints and credentials
+
+    Returns:
+        bool: True if the transfer succeeded, False otherwise
     """
-
     logger.info("Running hpss_to_cfs_flow")
+
+    if not file_path:
+        logger.error("No file path provided for HPSS to CFS transfer")
+        return False
+
+    if not source or not destination:
+        logger.error("Source or destination endpoint not provided for HPSS to CFS transfer")
+        return False
+
+    if not config:
+        logger.error("No configuration provided for HPSS to CFS transfer")
+        return False
+
     logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
 
+    # Log detailed information about the transfer
+    if files_to_extract:
+        logger.info(f"Extracting {len(files_to_extract)} specific files from tar archive:")
+        for file in files_to_extract:
+            logger.debug(f"  - {file}")
+
+    # Configure transfer controller for HPSS_TO_CFS
     logger.info("Configuring transfer controller for HPSS_TO_CFS.")
-    transfer_controller = get_transfer_controller(
-        transfer_type=CopyMethod.HPSS_TO_CFS,
-        config=config
-    )
+    try:
+        transfer_controller = get_transfer_controller(
+            transfer_type=CopyMethod.HPSS_TO_CFS,
+            config=config
+        )
+    except Exception as e:
+        logger.error(f"Failed to initialize HPSS to CFS transfer controller: {str(e)}", exc_info=True)
+        return False
 
     logger.info("HPSSToCFSTransferController selected. Initiating transfer for all file paths.")
 
-    result = transfer_controller.copy(
-        file_path=file_path,
-        source=source,
-        destination=destination,
-        files_to_extract=files_to_extract,
-    )
+    # Initiate transfer
+    logger.info("HPSSToCFSTransferController selected. Initiating transfer.")
+    try:
+        result = transfer_controller.copy(
+            file_path=file_path,
+            source=source,
+            destination=destination,
+            files_to_extract=files_to_extract,
+        )
 
-    return result
+        if result:
+            logger.info("HPSS to CFS transfer completed successfully")
+        else:
+            logger.error("HPSS to CFS transfer failed")
+
+        return result
+    except Exception as e:
+        logger.error(f"Error during HPSS to CFS transfer: {str(e)}", exc_info=True)
+        return False
 
 
 # ----------------------------------
@@ -121,18 +199,31 @@ def hpss_to_cfs_flow(
 
 class HPSSPruneController(PruneController[HPSSEndpoint]):
     """
-    Use SFAPI, Slurm, and hsi to prune data from HPSS at NERSC.
-    This controller requires the source to be an HPSSEndpoint and the
-    optional destination to be a FileSystemEndpoint. It uses "hsi rm" to prune
-    files from HPSS.
+    Controller for pruning files from HPSS tape archive.
+
+    This controller uses SFAPI, Slurm, and hsi to prune data from HPSS at NERSC.
+    It requires the source to be an HPSSEndpoint and the optional destination to
+    be a FileSystemEndpoint. It uses "hsi rm" to prune files from HPSS.
+
+    Args:
+        client (Client): The SFAPI client for submitting jobs to NERSC
+        config (BeamlineConfig): Configuration object containing endpoints and credentials
     """
     def __init__(
         self,
         client: Client,
         config: BeamlineConfig,
     ) -> None:
+        """
+        Initialize the HPSS prune controller.
+
+        Args:
+            client (Client): The SFAPI client for submitting jobs to NERSC
+            config (BeamlineConfig): Configuration object containing endpoints and credentials
+        """
         super().__init__(config)
         self.client = client
+        logger.debug(f"Initialized HPSSPruneController with client for beamline {config.beamline_id}")
 
     def prune(
         self,
@@ -141,30 +232,62 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         check_endpoint: Optional[FileSystemEndpoint] = None,
         days_from_now: datetime.timedelta = 0
     ) -> bool:
-        flow_name = f"prune_from_{source_endpoint.name}"
-        logger.info(f"Running flow: {flow_name}")
-        logger.info(f"Pruning {file_path} from source endpoint: {source_endpoint.name}")
+        """
+        Prune (delete) data from HPSS tape archive.
 
-        if days_from_now == 0:
+        If days_from_now is 0, executes pruning immediately.
+        Otherwise, schedules pruning for future execution using Prefect.
+
+        Args:
+            file_path (str): The path to the file or directory to prune on HPSS
+            source_endpoint (HPSSEndpoint): The HPSS endpoint containing the data
+            check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
+            days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
+
+        Returns:
+            bool: True if pruning was successful or scheduled successfully, False otherwise
+        """
+        if not file_path:
+            logger.error("No file_path provided for HPSS pruning operation")
+            return False
+
+        if not source_endpoint:
+            logger.error("No source_endpoint provided for HPSS pruning operation")
+            return False
+
+        flow_name = f"prune_from_{source_endpoint.name}"
+        logger.info(f"Setting up pruning of '{file_path}' from HPSS endpoint '{source_endpoint.name}'")
+
+        # If days_from_now is 0, prune immediately
+        if days_from_now.total_seconds() == 0:
             self._prune_hpss_endpoint(
                 self,
                 relative_path=file_path,
                 source_endpoint=source_endpoint,
                 check_endpoint=check_endpoint,
             )
+        # Otherwise, schedule pruning for future execution
         else:
-            schedule_prefect_flow(
-                deployment_name="prune_hpss_endpoint/prune_hpss_endpoint",
-                flow_run_name=flow_name,
-                parameters={
-                    "relative_path": file_path,
-                    "source_endpoint": source_endpoint,
-                    "check_endpoint": check_endpoint,
-                    "config": self.config
-                },
-                duration_from_now=days_from_now
-            )
-        return True
+            logger.info(f"Scheduling pruning of '{file_path}' from '{source_endpoint.name}' "
+                        f"in {days_from_now.total_seconds()/86400:.1f} days")
+
+            try:
+                schedule_prefect_flow(
+                    deployment_name="prune_hpss_endpoint/prune_hpss_endpoint",
+                    flow_run_name=flow_name,
+                    parameters={
+                        "relative_path": file_path,
+                        "source_endpoint": source_endpoint,
+                        "check_endpoint": check_endpoint,
+                        "config": self.config
+                    },
+                    duration_from_now=days_from_now
+                )
+                logger.info(f"Successfully scheduled HPSS pruning task in {days_from_now.total_seconds()/86400:.1f} days")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to schedule HPSS pruning task: {str(e)}", exc_info=True)
+                return False
 
     @flow(name="prune_hpss_endpoint")
     def _prune_hpss_endpoint(
@@ -174,12 +297,12 @@ class HPSSPruneController(PruneController[HPSSEndpoint]):
         check_endpoint: Optional[Union[FileSystemEndpoint, None]] = None,
     ) -> None:
         """
-        Prune files from HPSS.
+        Prefect flow that performs the actual HPSS pruning operation.
 
         Args:
-            relative_path (str): The HPSS path of the file or directory to prune.
-            source_endpoint (HPSSEndpoint): The Globus source endpoint to prune from.
-            check_endpoint (FileSystemEndpoint, optional): The Globus target endpoint to check. Defaults to None.
+            relative_path (str): The HPSS path of the file or directory to prune
+            source_endpoint (HPSSEndpoint): The HPSS endpoint to prune from
+            check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
         """
         logger.info("Pruning files from HPSS")
         logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
