@@ -70,7 +70,9 @@ def process_new_832_file(
         if nersc_transfer_success:
             logger.info(f"File successfully transferred from data832 to NERSC {file_path}. Task {task}")
             try:
-                ingestor = TomographyIngestorController(config, config.scicat_client)
+                ingestor = TomographyIngestorController(config)
+                # login_to_scicat assumes that the environment variables are set in the environment
+                ingestor.login_to_scicat()
                 ingestor.ingest_new_raw_dataset(file_path)
             except Exception as e:
                 logger.error(f"SciCat ingest failed with {e}")

@@ -231,7 +231,9 @@ class TomographyIngestorController(BeamlineIngestorController):
         beamline,
         proposal
     ) -> Dict:
-        """Calculate access controls for a dataset."""
+        """
+        Calculate access controls for a dataset.
+        """
 
         # make an access group list that includes the name of the proposal and the name of the beamline
         access_groups = []

@@ -1,11 +1,16 @@
 from abc import ABC, abstractmethod
+import logging
 from logging import getLogger
+import os
+import requests
 from typing import Optional
 
-from orchestration.config import BeamlineConfig
 from pyscicat.client import ScicatClient, from_credentials
 
+from orchestration.config import BeamlineConfig
 
+
+logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
 
@@ -18,23 +23,72 @@ class BeamlineIngestorController(ABC):
     def __init__(
         self,
         config: BeamlineConfig,
-        scicat_client: ScicatClient
+        scicat_client: Optional[ScicatClient] = None
     ) -> None:
         self.config = config
         self.scicat_client = scicat_client
 
-    def _login_to_scicat(
+    def login_to_scicat(
         self,
-        scicat_base_url: str,
-        scicat_user: str,
-        scicat_password: str
+        scicat_base_url: Optional[str] = None,
+        scicat_user: Optional[str] = None,
+        scicat_password: Optional[str] = None
     ) -> ScicatClient:
-        scicat_client = from_credentials(
-            base_url=scicat_base_url,
-            username=scicat_user,
-            password=scicat_password
-        )
-        return scicat_client
+        """
+        Log in to SciCat using the provided credentials.
+
+        :param scicat_base_url: Base URL of the SciCat instance. Defaults to the environment variable 'SCICAT_API_URL'.
+        :param scicat_user: Username for the SciCat instance. Defaults to the environment variable 'SCICAT_INGEST_USER'.
+        :param scicat_password: Password for the SciCat instance. Defaults to the environment variable 'SCICAT_INGEST_PASSWORD'
+        :return: An instance of ScicatClient with an authenticated session.
+        :raises ValueError: If any required credentials are missing.
+        """
+        # Use environment variables as defaults if parameters are not provided.
+        scicat_base_url = scicat_base_url or os.getenv("SCICAT_API_URL")
+        scicat_user = scicat_user or os.getenv("SCICAT_INGEST_USER")
+        scicat_password = scicat_password or os.getenv("SCICAT_INGEST_PASSWORD")
+
+        # Ensure that all required credentials are provided.
+        if not (scicat_base_url and scicat_user and scicat_password):
+            raise ValueError(
+                "Missing required SciCat credentials. Provide scicat_base_url, scicat_user, "
+                "and scicat_password as parameters or set them in the environment variables: "
+                "SCICAT_API_URL, SCICAT_INGEST_USER, SCICAT_INGEST_PASSWORD."
+            )
+
+        # Try to log in using the pyscicat client first.
+        # This method seems deprecated, but leaving it here for backwards compatability
+        # https://github.com/SciCatProject/pyscicat/issues/61
+        try:
+            self.scicat_client = from_credentials(
+                base_url=scicat_base_url,
+                username=scicat_user,
+                password=scicat_password
+            )
+            logger.info("Logged in to SciCat.")
+            return self.scicat_client
+        except Exception as e:
+            logger.error(f"Failed to log in to SciCat: {e}, trying alternative method.")
+
+        # This method works for scicatlive 3.2.5
+        try:
+            response = requests.post(
+                url=scicat_base_url,
+                json={"username": scicat_user, "password": scicat_password},
+                stream=False,
+                verify=True,
+            )
+            self.scicat_client = ScicatClient(scicat_base_url, response.json()["access_token"])
+            logger.info("Logged in to SciCat.")
+            # logger.info(f"SciCat token: {response.json()['access_token']}")
+            return self.scicat_client
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to log in to SciCat: {e}")
+            raise e
+        except Exception as e:
+            logger.error(f"Failed to log in to SciCat: {e}")
+            raise e
 
     @abstractmethod
     def ingest_new_raw_dataset(
@@ -155,3 +209,24 @@ class BeamlineIngestorController(ABC):
             raise ValueError("The dataset returned does not have a valid 'pid' field.")
 
         return dataset_id
+
+
+# Concrete implementation for testing and instantiation.
+class ConcreteBeamlineIngestorController(BeamlineIngestorController):
+    def ingest_new_raw_dataset(self, file_path: str = "") -> str:
+        # Dummy implementation for testing.
+        return "raw_dataset_id_dummy"
+
+    def ingest_new_derived_dataset(self, file_path: str = "", raw_dataset_id: str = "") -> str:
+        # Dummy implementation for testing.
+        return "derived_dataset_id_dummy"
+
+
+if __name__ == "__main__":
+    logger.info("Testing SciCat ingestor controller")
+    test_ingestor = ConcreteBeamlineIngestorController(BeamlineConfig)
+    test_ingestor.login_to_scicat(
+        scicat_base_url="http://localhost:3000/api/v3/auth/login",
+        scicat_user="ingestor",
+        scicat_password="aman"
+    )
