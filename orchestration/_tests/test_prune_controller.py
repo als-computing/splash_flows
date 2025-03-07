@@ -22,9 +22,10 @@ class DummyPruneController(PruneController):
       - prune_files(retention): deletes files older than the given retention period.
     """
     def __init__(self, base_dir: Path):
-        # Create a dummy configuration object (the real config isn’t used in these tests)
+        # Create a dummy configuration object with a default beamline_id.
         dummy_config = type("DummyConfig", (), {})()
         dummy_config.tc = None
+        dummy_config.beamline_id = "dummy"  # Add a default beamline_id for testing
         super().__init__(dummy_config)
         self.base_dir = base_dir
 

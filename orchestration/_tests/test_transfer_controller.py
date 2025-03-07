@@ -321,52 +321,52 @@ def test_simple_transfer_controller_copy_success(
     mock_config832, mock_file_system_endpoint, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", return_value=0) as mock_os_system:
-        controller = SimpleTransferController(mock_config832)
-        result = controller.copy(
-            file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
-        )
-
-        assert result is True, "Expected True when os.system returns 0."
-        mock_os_system.assert_called_once()
-        command_called = mock_os_system.call_args[0][0]
-        assert "cp -r" in command_called, "Expected cp command in os.system call."
+    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # patch in module namespace
+        with patch("orchestration.transfer_controller.os.system", return_value=0) as mock_os_system:
+            controller = SimpleTransferController(mock_config832)
+            result = controller.copy(
+                file_path="some_dir/test_file.txt",
+                source=mock_file_system_endpoint,
+                destination=mock_file_system_endpoint,
+            )
+            assert result is True, "Expected True when os.system returns 0."
+            mock_os_system.assert_called_once()
+            command_called = mock_os_system.call_args[0][0]
+            assert "cp -r" in command_called, "Expected cp command in os.system call."
 
 
 def test_simple_transfer_controller_copy_failure(
     mock_config832, mock_file_system_endpoint, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", return_value=1) as mock_os_system:
-        controller = SimpleTransferController(mock_config832)
-        result = controller.copy(
-            file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
-        )
-
-        assert result is False, "Expected False when os.system returns non-zero."
-        mock_os_system.assert_called_once()
-        command_called = mock_os_system.call_args[0][0]
-        assert "cp -r" in command_called, "Expected cp command in os.system call."
+    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # ensure source file exists
+        with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
+            controller = SimpleTransferController(mock_config832)
+            result = controller.copy(
+                file_path="some_dir/test_file.txt",
+                source=mock_file_system_endpoint,
+                destination=mock_file_system_endpoint,
+            )
+            assert result is False, "Expected False when os.system returns non-zero."
+            mock_os_system.assert_called_once()
+            command_called = mock_os_system.call_args[0][0]
+            assert "cp -r" in command_called, "Expected cp command in os.system call."
 
 
 def test_simple_transfer_controller_copy_exception(
     mock_config832, mock_file_system_endpoint, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
-        controller = SimpleTransferController(mock_config832)
-        result = controller.copy(
-            file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
-        )
-
-        assert result is False, "Expected False when an exception is raised during copy."
-        mock_os_system.assert_called_once()
+    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):
+        with patch("orchestration.transfer_controller.os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
+            controller = SimpleTransferController(mock_config832)
+            result = controller.copy(
+                file_path="some_dir/test_file.txt",
+                source=mock_file_system_endpoint,
+                destination=mock_file_system_endpoint,
+            )
+            assert result is False, "Expected False when an exception is raised during copy."
+            mock_os_system.assert_called_once()
 
 
 # --------------------------------------------------------------------------

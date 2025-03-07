@@ -417,6 +417,12 @@ def get_transfer_controller(
     Raises:
         ValueError: If an invalid transfer type is provided
     """
+    # Add explicit type checking to handle non-enum inputs
+    if not isinstance(transfer_type, CopyMethod):
+        error_msg = f"Invalid transfer type: {transfer_type}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
     logger.debug(f"Creating transfer controller of type: {transfer_type.name}")
 
     if transfer_type == CopyMethod.GLOBUS:
