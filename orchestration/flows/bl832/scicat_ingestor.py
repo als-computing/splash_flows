@@ -425,7 +425,7 @@ if __name__ == "__main__":
     file_path = "/Users/david/Documents/data/tomo/raw/20241216_153047_ddd.h5"
     ingestor = TomographyIngestorController(config)
     # login_to_scicat assumes that the environment variables are set in the environment
-    # in this test, just using the scicatlive backend defaults to the admin user
+    # in this test, just using the scicatlive backend defaults (admin user)
     ingestor.login_to_scicat(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="admin",
