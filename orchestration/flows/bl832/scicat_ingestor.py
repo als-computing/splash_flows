@@ -3,7 +3,7 @@ import json
 from logging import getLogger
 import os
 from pathlib import Path
-from typing import Any, Dict, List  # Optional, Union
+from typing import Any, Dict, List, Optional
 
 import h5py
 from pyscicat.client import ScicatClient
@@ -119,7 +119,7 @@ class TomographyIngestorController(BeamlineIngestorController):
     def __init__(
         self,
         config: Config832,
-        scicat_client: ScicatClient
+        scicat_client: Optional[ScicatClient] = None
     ) -> None:
         super().__init__(config, scicat_client)
 
@@ -227,6 +227,7 @@ class TomographyIngestorController(BeamlineIngestorController):
         pass
 
     def _calculate_access_controls(
+        self,
         username,
         beamline,
         proposal
@@ -417,3 +418,21 @@ class TomographyIngestorController(BeamlineIngestorController):
         logger.debug(f"dataset: {dataset}")
         dataset_id = self.scicat_client.upload_new_dataset(dataset)
         return dataset_id
+
+
+if __name__ == "__main__":
+    config = Config832()
+    file_path = "/Users/david/Documents/data/tomo/raw/20241216_153047_ddd.h5"
+    ingestor = TomographyIngestorController(config)
+    # login_to_scicat assumes that the environment variables are set in the environment
+    # in this test, just using the scicatlive backend defaults to the admin user
+    ingestor.login_to_scicat(
+        scicat_base_url="http://localhost:3000/api/v3/",
+        scicat_user="admin",
+        scicat_password="2jf70TPNZsS"
+    )
+    # INGEST_STORAGE_ROOT_PATH and INGEST_SOURCE_ROOT_PATH must be set
+    os.environ["INGEST_STORAGE_ROOT_PATH"] = "/global/cfs/cdirs/als/data_mover/8.3.2"
+    os.environ["INGEST_SOURCE_ROOT_PATH"] = "/data832-raw"
+
+    ingestor.ingest_new_raw_dataset(file_path)

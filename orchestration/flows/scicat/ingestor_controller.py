@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
 import logging
-from logging import getLogger
 import os
 import requests
 from typing import Optional
+from urllib.parse import urljoin
 
 from pyscicat.client import ScicatClient, from_credentials
 
 from orchestration.config import BeamlineConfig
 
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class BeamlineIngestorController(ABC):
@@ -48,6 +48,8 @@ class BeamlineIngestorController(ABC):
         scicat_user = scicat_user or os.getenv("SCICAT_INGEST_USER")
         scicat_password = scicat_password or os.getenv("SCICAT_INGEST_PASSWORD")
 
+        logger.info(f"Logging in to SciCat at {scicat_base_url} as {scicat_user}.")
+
         # Ensure that all required credentials are provided.
         if not (scicat_base_url and scicat_user and scicat_password):
             raise ValueError(
@@ -72,12 +74,15 @@ class BeamlineIngestorController(ABC):
 
         # This method works for scicatlive 3.2.5
         try:
+            url = urljoin(scicat_base_url, "auth/login")
+            logger.info(url)
             response = requests.post(
-                url=scicat_base_url,
+                url=url,
                 json={"username": scicat_user, "password": scicat_password},
                 stream=False,
                 verify=True,
             )
+            logger.info(f"Login response: {response.json()}")
             self.scicat_client = ScicatClient(scicat_base_url, response.json()["access_token"])
             logger.info("Logged in to SciCat.")
             # logger.info(f"SciCat token: {response.json()['access_token']}")
@@ -226,7 +231,7 @@ if __name__ == "__main__":
     logger.info("Testing SciCat ingestor controller")
     test_ingestor = ConcreteBeamlineIngestorController(BeamlineConfig)
     test_ingestor.login_to_scicat(
-        scicat_base_url="http://localhost:3000/api/v3/auth/login",
+        scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="ingestor",
         scicat_password="aman"
     )
