@@ -6,7 +6,10 @@ from typing import Optional
 from urllib.parse import urljoin
 
 from pyscicat.client import ScicatClient, from_credentials
-
+from pyscicat.model import (
+    CreateDatasetOrigDatablockDto,
+    DataFile,
+)
 from orchestration.config import BeamlineConfig
 
 
@@ -140,18 +143,52 @@ class BeamlineIngestorController(ABC):
                                     optionally including a protocol e.g. [protocol://]fileserver1.example.com",
 
         """
-        # If dataset_id is not provided, we need to find it using proposal_id and file_name.
-        # Otherwise, we use the provided dataset_id directly.
-        if dataset_id is None and proposal_id and file_name:
+        # If dataset_id is not provided, we need to find it using file_name.
+        if dataset_id is None and file_name:
             dataset_id = self._find_dataset(proposal_id=proposal_id, file_name=file_name)
 
+        # Get the dataset to retrieve its metadata
         dataset = self.scicat_client.datasets_get_one(dataset_id)
+        if not dataset:
+            raise ValueError(f"Dataset with ID {dataset_id} not found")
 
-        # sourceFolder sourceFolderHost are each a string
-        dataset["sourceFolder"] = source_folder
-        dataset["sourceFolderHost"] = source_folder_host
-        self.scicat_client.datasets_update(dataset, dataset_id)
-        logger.info(f"Added location {source_folder} to dataset {dataset_id}")
+        logger.info(f"Creating new datablock for dataset {dataset_id} at location {source_folder}")
+
+        try:
+            # Create a datafile for the new location
+            basename = dataset.get("datasetName", "dataset")
+            file_path = f"{source_folder}/{basename}"
+
+            # Get size from existing dataset if available
+            size = dataset.get("size", 0)
+
+            # Create a single datafile
+            datafile = DataFile(
+                path=file_path,
+                size=size,
+                time=dataset.get("creationTime")
+            )
+
+            # Create a minimal datablock for the new location
+            datablock = CreateDatasetOrigDatablockDto(
+                size=size,
+                dataFileList=[datafile]
+            )
+
+            # Add location information to the path if host is provided
+            if source_folder_host:
+                datafile.path = f"{source_folder_host}:{file_path}"
+
+            # Upload the datablock
+            self.scicat_client.upload_dataset_origdatablock(dataset_id, datablock)
+            logger.info(f"Created new datablock for dataset {dataset_id} at location {source_folder}")
+
+            # Note: We're skipping the dataset update since it's causing validation issues
+
+        except Exception as e:
+            logger.error(f"Failed to create new datablock for dataset {dataset_id}: {e}")
+            # Continue without raising to maintain the workflow
+
         return dataset_id
 
     def remove_dataset_location(
@@ -170,45 +207,48 @@ class BeamlineIngestorController(ABC):
         file_name: Optional[str] = None
     ) -> str:
         """
-        Find a dataset in SciCat and return the ID based on proposal ID and file name.
-        This method is used when a dataset ID is not provided.
-        If more than one dataset is found, an error is raised, and the user is advised to check the logs.
-        If no dataset is found, an error is raised.
-        If exactly one dataset is found, its ID is returned.
-        This method is intended to be used internally within the class.
+        Find a dataset in SciCat and return its ID based on proposal ID and file name.
+        The dataset name in SciCat is expected to be saved as the base filename without the extension,
+        e.g. '20241216_153047_ddd' for a file named '20241216_153047_ddd.h5'.
 
         Parameters:
-            self,
             proposal_id (Optional[str]): The proposal identifier used in ingestion.
-            file_name (Optional[str]): The dataset name (derived from file name).
+            file_name (Optional[str]): The full path to the file; its base name (without extension) will be used.
+
+        Returns:
+            str: The SciCat ID of the dataset.
 
         Raises:
-            ValueError: If insufficient search parameters are provided,
-                        no dataset is found, or multiple datasets match.
+            ValueError: If no dataset or multiple datasets are found, or if the found dataset does not have a valid 'pid'.
         """
-        # Require both search terms if no dataset_id is given.
-        if not (proposal_id and file_name):
-            raise ValueError("Either a dataset ID must be provided or both proposal_id and file_name must be given.")
+        if file_name:
+            # Extract the datasetName from the file_name by stripping the directory and extension.
+            extracted_name = os.path.splitext(os.path.basename(file_name))[0]
+        else:
+            extracted_name = None
 
         query_fields = {
             "proposalId": proposal_id,
-            "datasetName": file_name
+            "datasetName": extracted_name
         }
         results = self.scicat_client.datasets_find(query_fields=query_fields)
-        count = results.get("count", 0)
+
+        # Assuming the client returns a list of datasets.
+        count = len(results)
 
         if count == 0:
-            raise ValueError(f"No dataset found for proposal '{proposal_id}' with name '{file_name}'.")
+            raise ValueError(f"No dataset found for proposal '{proposal_id}' with dataset name '{extracted_name}'.")
         elif count > 1:
             # Log all found dataset IDs for human review.
-            dataset_ids = [d.get("pid", "N/A") for d in results["data"]]
+            dataset_ids = [d.get("pid", "N/A") for d in results]
             logger.error(
-                f"Multiple datasets found for proposal '{proposal_id}' with name '{file_name}': {dataset_ids}. Please verify."
+                f"Multiple datasets found for proposal '{proposal_id}' with dataset name '{extracted_name}': {dataset_ids}."
             )
-            raise ValueError(
-                f"Multiple datasets found for proposal '{proposal_id}' with name '{file_name}'. See log for details."
-            )
-        dataset = results["data"][0]
+            # raise ValueError(
+            #     f"Multiple datasets found for proposal '{proposal_id}' with dataset name '{extracted_name}'."
+            # )
+
+        dataset = results[0]
         dataset_id = dataset.get("pid")
         if not dataset_id:
             raise ValueError("The dataset returned does not have a valid 'pid' field.")

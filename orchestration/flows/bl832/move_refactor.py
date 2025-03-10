@@ -144,3 +144,21 @@ def test_transfers_832(file_path: str = "/raw/transfer_tests/test.txt"):
     )
     logger.info(f"File successfully transferred from data832 to NERSC {new_file}. Success: {nersc_success}")
     pass
+
+
+if __name__ == "__main__":
+    config = Config832()
+    file_path = "/Users/david/Documents/data/tomo/raw/20241216_153047_ddd.h5"
+    ingestor = TomographyIngestorController(config)
+    # login_to_scicat assumes that the environment variables are set in the environment
+    # in this test, just using the scicatlive backend defaults (admin user)
+    ingestor.login_to_scicat(
+        scicat_base_url="http://localhost:3000/api/v3/",
+        scicat_user="admin",
+        scicat_password="2jf70TPNZsS"
+    )
+    # INGEST_STORAGE_ROOT_PATH and INGEST_SOURCE_ROOT_PATH must be set
+    os.environ["INGEST_STORAGE_ROOT_PATH"] = "/global/cfs/cdirs/als/data_mover/8.3.2"
+    os.environ["INGEST_SOURCE_ROOT_PATH"] = "/data832-raw"
+
+    ingestor.ingest_new_raw_dataset(file_path)

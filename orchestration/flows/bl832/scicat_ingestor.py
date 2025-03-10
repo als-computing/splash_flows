@@ -262,7 +262,9 @@ class TomographyIngestorController(BeamlineIngestorController):
         file_path: Path,
         storage_path: str
     ) -> List[DataFile]:
-        "Collects all fits files"
+        """
+        Collects all fits files
+        """
         datafiles = []
         datafile = DataFile(
             path=storage_path,
@@ -343,7 +345,9 @@ class TomographyIngestorController(BeamlineIngestorController):
         storage_root_path: str,
         source_root_path: str
     ) -> Datablock:
-        "Creates a datablock of files"
+        """
+        Creates a datablock of files
+        """
         # calculate the path where the file will as known to SciCat
         storage_path = str(file_path).replace(source_root_path, storage_root_path)
         datafiles = self._create_data_files(file_path, storage_path)
@@ -421,18 +425,51 @@ class TomographyIngestorController(BeamlineIngestorController):
 
 
 if __name__ == "__main__":
+
     config = Config832()
     file_path = "/Users/david/Documents/data/tomo/raw/20241216_153047_ddd.h5"
+    proposal_id = "test832"
     ingestor = TomographyIngestorController(config)
+
     # login_to_scicat assumes that the environment variables are set in the environment
-    # in this test, just using the scicatlive backend defaults (admin user)
+    # in this test, just using the scicatlive (3.2.5) backend defaults (admin user)
+
+    logger.info("Setting up metadata SciCat ingestion")
+
     ingestor.login_to_scicat(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="admin",
         scicat_password="2jf70TPNZsS"
     )
+
     # INGEST_STORAGE_ROOT_PATH and INGEST_SOURCE_ROOT_PATH must be set
     os.environ["INGEST_STORAGE_ROOT_PATH"] = "/global/cfs/cdirs/als/data_mover/8.3.2"
     os.environ["INGEST_SOURCE_ROOT_PATH"] = "/data832-raw"
 
-    ingestor.ingest_new_raw_dataset(file_path)
+    logger.info(f"Ingesting {file_path}")
+    id = ingestor.ingest_new_raw_dataset(file_path)
+    logger.info(f"Ingested with SciCat ID: {id}")
+
+    # logger.info(f"Testing SciCat ID lookup after ingestion based on {file_path}")
+    # try:
+    #     # Test lookup based on filename after ingestion
+    #     id = ingestor._find_dataset(file_name=file_path)
+    #     logger.info(f"Found dataset id {id}")
+    # except Exception as e:
+    #     logger.error(f"Failed to find dataset {e}")
+
+    # Pretend we moved to tape:
+    # /home/a/alsdev/data_mover/[beamline]/raw/[proposal_name]/[proposal_name]_[year]-[cycle].tar
+    ingestor.add_new_dataset_location(
+        dataset_id=id,
+        proposal_id=proposal_id,
+        file_name="20241216_153047_ddd.h5",
+        source_folder=f"/home/a/alsdev/data_mover/{config.beamline_id}/raw/{proposal_id}/{proposal_id}_2024-12.tar",
+        source_folder_host="HPSS",
+    )
+
+    # ingestor needs to add the derived dataset ingestion method
+
+    # ingestor needs to add new "origdatablock" method for raw data on different filesystems
+    # ingestor needs to add new "datablock" method for raw data on HPSS system
+    # same for derived data
