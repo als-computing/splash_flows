@@ -383,17 +383,12 @@ class TomographyIngestorController(BeamlineIngestorController):
         # Try to generate and upload a thumbnail if possible
         try:
             if is_zarr:
-                # For Zarr, we could extract a central slice or create a representative image
-                zarr_thumbnail_path = self._generate_zarr_thumbnail(folder_path_obj)
-                if zarr_thumbnail_path:
-                    with open(zarr_thumbnail_path, 'rb') as thumb_file:
-                        encoded_thumbnail = encode_image_2_thumbnail(thumb_file)
-                        self._upload_attachment(
-                            encoded_thumbnail,
-                            dataset_id,
-                            ownable,
-                        )
-                        logger.info("Uploaded thumbnail for Zarr dataset")
+                # For Zarr, generate the thumbnail in memory
+                thumb_buffer = self._generate_zarr_thumbnail(folder_path_obj)
+                if thumb_buffer:
+                    encoded_thumbnail = encode_image_2_thumbnail(thumb_buffer)
+                    self._upload_attachment(encoded_thumbnail, dataset_id, ownable)
+                    logger.info("Uploaded thumbnail for Zarr dataset")
             elif main_file and main_file.suffix.lower() == ".h5":
                 with h5py.File(main_file, "r") as file:
                     # Try to find a suitable dataset for thumbnail
@@ -416,11 +411,25 @@ class TomographyIngestorController(BeamlineIngestorController):
                     middle_slice = tiff_files[len(tiff_files) // 2]
                     from PIL import Image
                     import io
+                    import numpy as np
                     image = Image.open(middle_slice)
-                    if image.mode == "F":
-                        image = image.convert("L")
+                    # Convert image to a numpy array
+                    arr = np.array(image, dtype=np.float32)
+
+                    # Compute min and max; if they are equal, use a default scaling to avoid division by zero.
+                    arr_min = np.min(arr)
+                    arr_max = np.max(arr)
+                    if arr_max == arr_min:
+                        # In case of no contrast, simply use a zeros array or leave the image unchanged.
+                        arr_scaled = np.zeros(arr.shape, dtype=np.uint8)
+                    else:
+                        # Normalize the array to 0-255
+                        arr_scaled = ((arr - arr_min) / (arr_max - arr_min) * 255).astype(np.uint8)
+
+                    # Create a new image from the scaled array
+                    scaled_image = Image.fromarray(arr_scaled)
                     thumbnail_buffer = io.BytesIO()
-                    image.save(thumbnail_buffer, format="PNG")
+                    scaled_image.save(thumbnail_buffer, format="PNG")
                     thumbnail_buffer.seek(0)
                     encoded_thumbnail = encode_image_2_thumbnail(thumbnail_buffer)
                     self._upload_attachment(encoded_thumbnail, dataset_id, ownable)
@@ -438,71 +447,51 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _generate_zarr_thumbnail(self, zarr_path: Path):
         """
-        Generate a thumbnail image from a Zarr dataset.
-        This implementation extracts a middle slice and converts it to a PNG.
+        Generate a thumbnail image from an NGFF Zarr dataset using ngff_zarr.
+        This implementation extracts a mid-slice and returns a BytesIO buffer.
+
+        :param zarr_path: Path to the Zarr directory.
+        :return: A BytesIO object containing the PNG image data, or None on failure.
         """
         try:
-            # Ensure the zarr module is available
-            import zarr
-        except ImportError:
-            logger.warning("Zarr package is not installed. Install it with `pip install zarr`.")
-            return None
-
-        try:
-            import numpy as np
+            import ngff_zarr as nz
             from PIL import Image
-            import tempfile
+            import numpy as np
+            import io
 
-            # Open the Zarr dataset
-            z = zarr.open(str(zarr_path), mode='r')
+            # Load the multiscale image from the Zarr store
+            multiscales = nz.from_ngff_zarr(str(zarr_path))
+            # Here we assume a specific scale index (e.g. 3) and take the mid-slice along the first dimension
+            # Adjust this index as needed for your dataset.
+            image = multiscales.images[3].data
+            middle_index = image.shape[0] // 2
+            mid_slice = image[middle_index, :, :]
+            # Ensure we have a NumPy array
+            mid_slice = mid_slice.compute() if hasattr(mid_slice, "compute") else np.array(mid_slice)
 
-            # Find the main data array - typically at the highest resolution
-            if hasattr(z, 'keys'):
-                if '0' in z:
-                    data = z['0']
-                else:
-                    # Find the first array-like object
-                    for key in z.keys():
-                        if isinstance(z[key], zarr.core.Array):
-                            data = z[key]
-                            break
-                    else:
-                        return None
-            elif isinstance(z, zarr.core.Array):
-                data = z
+            # Normalize the image to 8-bit
+            mid_slice = mid_slice.astype(np.float32)
+            dmin, dmax = np.min(mid_slice), np.max(mid_slice)
+            if dmax != dmin:
+                norm_array = ((mid_slice - dmin) / (dmax - dmin) * 255).astype(np.uint8)
             else:
-                return None
+                norm_array = np.zeros_like(mid_slice, dtype=np.uint8)
 
-            # Extract a slice from the middle of the volume
-            if data.ndim == 3:
-                middle_idx = data.shape[1] // 2
-                slice_data = data[0, middle_idx, :]
-            elif data.ndim == 4:
-                middle_idx = data.shape[2] // 2
-                slice_data = data[0, 0, middle_idx, :]
-            else:
-                if data.shape[0] > 0:
-                    slice_data = data[0]
-                else:
-                    return None
-
-            # Normalize the data for visualization
-            slice_data = slice_data.astype(np.float32)
-            slice_data = (slice_data - np.min(slice_data)) / (np.max(slice_data) - np.min(slice_data) + 1e-8)
-            slice_data = (slice_data * 255).astype(np.uint8)
-
-            # Create an image and convert if necessary
-            img = Image.fromarray(slice_data)
+            # Create a PIL image from the normalized array
+            img = Image.fromarray(norm_array)
             if img.mode == "F":
                 img = img.convert("L")
 
-            # Save to a temporary file
-            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
-            img.save(temp_file.name)
-            temp_file.close()
-            return temp_file.name
+            # Save the image to an in-memory bytes buffer
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            buffer.seek(0)
+            return buffer
+        except ImportError:
+            logger.warning("ngff_zarr package is not installed. Install it with `pip install ngff_zarr`.")
+            return None
         except Exception as e:
-            logger.warning(f"Failed to generate Zarr thumbnail: {e}")
+            logger.warning(f"Failed to generate Zarr thumbnail using ngff_zarr: {e}")
             return None
 
     def _calculate_access_controls(
@@ -754,7 +743,8 @@ if __name__ == "__main__":
     # same for derived data
 
     ingestor.ingest_new_derived_dataset(
-        folder_path="/Users/david/Documents/data/tomo/scratch/rec20230606_152011_jong-seto_fungal-mycelia_flat-AQ_fungi2_fast.zarr",
+        folder_path="/Users/david/Documents/data/tomo/scratch/"
+        "rec20230606_152011_jong-seto_fungal-mycelia_flat-AQ_fungi2_fast.zarr",
         raw_dataset_id=id
     )
     ingestor.ingest_new_derived_dataset(
