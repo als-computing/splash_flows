@@ -19,6 +19,7 @@ from pyscicat.model import (
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
+from pyscicat.model import DerivedDataset
 from orchestration.flows.scicat.utils import (
     build_search_terms,
     build_thumbnail,
@@ -221,10 +222,288 @@ class TomographyIngestorController(BeamlineIngestorController):
         """
         Ingest a new derived dataset from the Tomo832 beamline.
 
-        :param file_path: Path to the file to ingest.
-        :return: SciCat ID of the dataset.
+        This method handles ingestion of derived datasets generated during tomography reconstruction:
+        1. A directory of TIFF slices
+        2. A Zarr directory (derived from the TIFFs)
+
+        :param folder_path: Path to the folder containing the derived data.
+        :param raw_dataset_id: ID of the raw dataset this derived data is based on.
+        :return: SciCat ID of the derived dataset.
+        :raises ValueError: If required environment variables are missing.
+        :raises Exception: If any issues are encountered during ingestion.
         """
-        pass
+        issues: List[Issue] = []
+        logger.setLevel("INFO")
+
+        logger.info(f"Ingesting derived dataset from folder: {folder_path}")
+        # Retrieve required environment variables for storage paths
+        INGEST_STORAGE_ROOT_PATH = os.getenv("INGEST_STORAGE_ROOT_PATH")
+        INGEST_SOURCE_ROOT_PATH = os.getenv("INGEST_SOURCE_ROOT_PATH")
+        if not INGEST_STORAGE_ROOT_PATH or not INGEST_SOURCE_ROOT_PATH:
+            raise ValueError(
+                "INGEST_STORAGE_ROOT_PATH and INGEST_SOURCE_ROOT_PATH must be set"
+            )
+
+        logger.info("Getting raw dataset from SciCat to link to")
+        # Get the raw dataset to link to
+        try:
+            raw_dataset = self.scicat_client.datasets_get_one(raw_dataset_id)
+            logger.info(f"Found raw dataset to link: {raw_dataset_id}")
+        except Exception as e:
+            raise ValueError(f"Failed to find raw dataset with ID {raw_dataset_id}: {e}")
+
+        folder_path_obj = Path(folder_path)
+        if not folder_path_obj.exists():
+            raise ValueError(f"Folder path does not exist: {folder_path}")
+
+        logger.info(raw_dataset)
+        # Calculate access controls - use the same as the raw dataset
+        access_controls = {
+            "owner_group": raw_dataset["ownerGroup"],
+            "access_groups": raw_dataset["accessGroups"]
+        }
+        logger.info(f"Using access controls from raw dataset: {access_controls}")
+
+        ownable = Ownable(
+            ownerGroup=access_controls["owner_group"],
+            accessGroups=access_controls["access_groups"],
+        )
+
+        # Get main HDF5 file if exists, otherwise use first file
+        main_file = None
+        for file in folder_path_obj.glob("*.h5"):
+            main_file = file
+            break
+
+        if not main_file:
+            # If no HDF5 file, use the first file in the directory
+            for file in folder_path_obj.iterdir():
+                if file.is_file():
+                    main_file = file
+                    break
+            if not main_file:
+                raise ValueError(f"No files found in directory: {folder_path}")
+
+        # Extract scientific metadata
+        scientific_metadata = {
+            "derived_from": raw_dataset_id,
+            "processing_date": get_file_mod_time(main_file),
+        }
+
+        # Try to extract metadata from HDF5 file if available
+        if main_file and main_file.suffix.lower() == ".h5":
+            try:
+                with h5py.File(main_file, "r") as file:
+                    scientific_metadata.update(
+                        self._extract_fields(file, self.SCIENTIFIC_METADATA_KEYS, issues)
+                    )
+            except Exception as e:
+                logger.warning(f"Could not extract metadata from HDF5 file: {e}")
+
+        # Encode scientific metadata using NPArrayEncoder
+        encoded_scientific_metadata = json.loads(
+            json.dumps(scientific_metadata, cls=NPArrayEncoder)
+        )
+
+        # Create and upload the derived dataset
+
+        # Use folder name as dataset name if nothing better
+        dataset_name = folder_path_obj.name
+
+        # Determine if this is a TIFF directory or a Zarr directory
+        is_zarr = dataset_name.endswith('.zarr')
+        data_format = "Zarr" if is_zarr else "TIFF"
+
+        # Build description/keywords from the folder name
+        description = build_search_terms(dataset_name)
+        keywords = description.split()
+
+        # Add additional descriptive information
+        if is_zarr:
+            description = f"Multi-resolution Zarr dataset derived from reconstructed tomography slices: {description}"
+            keywords.extend(["zarr", "multi-resolution", "volume"])
+        else:
+            description = f"Reconstructed tomography slices: {description}"
+            keywords.extend(["tiff", "slices", "reconstruction"])
+
+        # Create the derived dataset
+        dataset = DerivedDataset(
+            owner=raw_dataset.get("owner"),
+            contactEmail=raw_dataset.get("contactEmail"),
+            creationLocation=raw_dataset.get("creationLocation"),
+            datasetName=dataset_name,
+            type=DatasetType.derived,
+            proposalId=raw_dataset.get("proposalId"),
+            dataFormat=data_format,
+            principalInvestigator=raw_dataset.get("principalInvestigator"),
+            sourceFolder=str(folder_path_obj),
+            size=sum(f.stat().st_size for f in folder_path_obj.glob("**/*") if f.is_file()),
+            scientificMetadata=encoded_scientific_metadata,
+            sampleId=description,
+            isPublished=False,
+            description=description,
+            keywords=keywords,
+            creationTime=get_file_mod_time(folder_path_obj),
+            investigator=raw_dataset.get("owner"),
+            inputDatasets=[raw_dataset_id],
+            usedSoftware=["TomoPy", "Zarr"] if is_zarr else ["TomoPy"],
+            jobParameters={"source_folder": str(folder_path_obj)},
+            **ownable.dict(),
+        )
+        # Upload the derived dataset
+        dataset_id = self.scicat_client.upload_new_dataset(dataset)
+        logger.info(f"Created derived dataset with ID: {dataset_id}")
+
+        # Upload datablock for all files in the directory
+        total_size = 0
+        datafiles = []
+
+        for file_path in folder_path_obj.glob("**/*"):
+            if file_path.is_file():
+                storage_path = str(file_path).replace(INGEST_SOURCE_ROOT_PATH, INGEST_STORAGE_ROOT_PATH)
+                datafile = DataFile(
+                    path=storage_path,
+                    size=get_file_size(file_path),
+                    time=get_file_mod_time(file_path),
+                    type="DerivedDatasets",
+                )
+                datafiles.append(datafile)
+                total_size += datafile.size
+
+        # Upload the datablock
+        datablock = CreateDatasetOrigDatablockDto(
+            size=total_size,
+            dataFileList=datafiles,
+            datasetId=dataset_id,
+            **ownable.dict(),
+        )
+        self.scicat_client.upload_dataset_origdatablock(dataset_id, datablock)
+        logger.info(f"Uploaded datablock with {len(datafiles)} files")
+
+        # Try to generate and upload a thumbnail if possible
+        try:
+            if is_zarr:
+                # For Zarr, we could extract a central slice or create a representative image
+                zarr_thumbnail_path = self._generate_zarr_thumbnail(folder_path_obj)
+                if zarr_thumbnail_path:
+                    with open(zarr_thumbnail_path, 'rb') as thumb_file:
+                        encoded_thumbnail = encode_image_2_thumbnail(thumb_file)
+                        self._upload_attachment(
+                            encoded_thumbnail,
+                            dataset_id,
+                            ownable,
+                        )
+                        logger.info("Uploaded thumbnail for Zarr dataset")
+            elif main_file and main_file.suffix.lower() == ".h5":
+                with h5py.File(main_file, "r") as file:
+                    # Try to find a suitable dataset for thumbnail
+                    for key in ["/exchange/data", "/data", "/reconstruction"]:
+                        if key in file:
+                            thumbnail_file = build_thumbnail(file[key][0])
+                            encoded_thumbnail = encode_image_2_thumbnail(thumbnail_file)
+                            self._upload_attachment(
+                                encoded_thumbnail,
+                                dataset_id,
+                                ownable,
+                            )
+                            logger.info("Uploaded thumbnail for derived dataset")
+                            break
+            else:
+                # For TIFF files, use a middle slice as thumbnail
+                tiff_files = sorted(list(folder_path_obj.glob("*.tiff"))) + sorted(list(folder_path_obj.glob("*.tif")))
+                if tiff_files:
+                    # Use a slice from the middle of the volume for the thumbnail
+                    middle_slice = tiff_files[len(tiff_files) // 2]
+                    from PIL import Image
+                    import io
+                    image = Image.open(middle_slice)
+                    if image.mode == "F":
+                        image = image.convert("L")
+                    thumbnail_buffer = io.BytesIO()
+                    image.save(thumbnail_buffer, format="PNG")
+                    thumbnail_buffer.seek(0)
+                    encoded_thumbnail = encode_image_2_thumbnail(thumbnail_buffer)
+                    self._upload_attachment(encoded_thumbnail, dataset_id, ownable)
+
+                    logger.info("Uploaded thumbnail from TIFF slice")
+        except Exception as e:
+            logger.warning(f"Failed to generate thumbnail: {e}")
+
+        if issues:
+            for issue in issues:
+                logger.error(issue)
+            raise Exception(f"SciCat derived dataset ingest failed with {len(issues)} issues")
+
+        return dataset_id
+
+    def _generate_zarr_thumbnail(self, zarr_path: Path):
+        """
+        Generate a thumbnail image from a Zarr dataset.
+        This implementation extracts a middle slice and converts it to a PNG.
+        """
+        try:
+            # Ensure the zarr module is available
+            import zarr
+        except ImportError:
+            logger.warning("Zarr package is not installed. Install it with `pip install zarr`.")
+            return None
+
+        try:
+            import numpy as np
+            from PIL import Image
+            import tempfile
+
+            # Open the Zarr dataset
+            z = zarr.open(str(zarr_path), mode='r')
+
+            # Find the main data array - typically at the highest resolution
+            if hasattr(z, 'keys'):
+                if '0' in z:
+                    data = z['0']
+                else:
+                    # Find the first array-like object
+                    for key in z.keys():
+                        if isinstance(z[key], zarr.core.Array):
+                            data = z[key]
+                            break
+                    else:
+                        return None
+            elif isinstance(z, zarr.core.Array):
+                data = z
+            else:
+                return None
+
+            # Extract a slice from the middle of the volume
+            if data.ndim == 3:
+                middle_idx = data.shape[1] // 2
+                slice_data = data[0, middle_idx, :]
+            elif data.ndim == 4:
+                middle_idx = data.shape[2] // 2
+                slice_data = data[0, 0, middle_idx, :]
+            else:
+                if data.shape[0] > 0:
+                    slice_data = data[0]
+                else:
+                    return None
+
+            # Normalize the data for visualization
+            slice_data = slice_data.astype(np.float32)
+            slice_data = (slice_data - np.min(slice_data)) / (np.max(slice_data) - np.min(slice_data) + 1e-8)
+            slice_data = (slice_data * 255).astype(np.uint8)
+
+            # Create an image and convert if necessary
+            img = Image.fromarray(slice_data)
+            if img.mode == "F":
+                img = img.convert("L")
+
+            # Save to a temporary file
+            temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+            img.save(temp_file.name)
+            temp_file.close()
+            return temp_file.name
+        except Exception as e:
+            logger.warning(f"Failed to generate Zarr thumbnail: {e}")
+            return None
 
     def _calculate_access_controls(
         self,
@@ -473,3 +752,12 @@ if __name__ == "__main__":
     # ingestor needs to add new "origdatablock" method for raw data on different filesystems
     # ingestor needs to add new "datablock" method for raw data on HPSS system
     # same for derived data
+
+    ingestor.ingest_new_derived_dataset(
+        folder_path="/Users/david/Documents/data/tomo/scratch/rec20230606_152011_jong-seto_fungal-mycelia_flat-AQ_fungi2_fast.zarr",
+        raw_dataset_id=id
+    )
+    ingestor.ingest_new_derived_dataset(
+        folder_path="/Users/david/Documents/data/tomo/scratch/rec20230224_132553_sea_shell",
+        raw_dataset_id=id
+    )
