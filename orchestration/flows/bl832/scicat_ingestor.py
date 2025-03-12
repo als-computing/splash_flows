@@ -751,3 +751,14 @@ if __name__ == "__main__":
         folder_path="/Users/david/Documents/data/tomo/scratch/rec20230224_132553_sea_shell",
         raw_dataset_id=id
     )
+
+    admin_ingestor = TomographyIngestorController(config)
+    admin_ingestor.login_to_scicat(
+        scicat_base_url="http://localhost:3000/api/v3/",
+        scicat_user="archiveManager",
+        scicat_password="aman"
+    )
+    admin_ingestor.remove_dataset_location(
+        dataset_id=id,
+        source_folder_host="HPSS",
+    )

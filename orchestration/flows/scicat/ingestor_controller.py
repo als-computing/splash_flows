@@ -194,12 +194,63 @@ class BeamlineIngestorController(ABC):
     def remove_dataset_location(
         self,
         dataset_id: str = "",
-        source: str = "",
+        source_folder_host: str = "",
     ) -> bool:
         """
-
+        Remove a location from an existing dataset in SciCat.
         """
-        pass
+        logger.info(f"Removing location with host {source_folder_host} from dataset {dataset_id}")
+
+        try:
+            # Get the datablocks directly
+            datablocks = self.scicat_client.datasets_origdatablocks_get_one(dataset_id)
+            if not datablocks:
+                logger.warning(f"No datablocks found for dataset {dataset_id}")
+                return False
+
+            # Find datablock matching the specified source_folder_host
+            matching_datablock = None
+            for datablock in datablocks:
+                for datafile in datablock.get("dataFileList", []):
+                    file_path = datafile.get("path", "")
+                    if source_folder_host in file_path or (
+                        "sourceFolderHost" in datablock and
+                        datablock["sourceFolderHost"] == source_folder_host
+                    ):
+                        matching_datablock = datablock
+                        break
+                if matching_datablock:
+                    break
+
+            if not matching_datablock:
+                logger.warning(
+                    f"No datablock found for dataset {dataset_id} with source folder host {source_folder_host}"
+                )
+                return False
+
+            # Delete the datablock using its ID
+            datablock_id = matching_datablock.get("id")
+            if not datablock_id:
+                logger.error(f"Datablock found but has no ID for dataset {dataset_id}")
+                return False
+
+            # Delete the datablock using the appropriate endpoint
+            response = self.scicat_client.datasets_delete(datablock_id)
+            if response:
+                logger.info(f"Successfully removed datablock {datablock_id} from dataset {dataset_id}")
+                return True
+            else:
+                logger.error(f"Failed to delete datablock {datablock_id} from dataset {dataset_id}")
+                return False
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 403:
+                logger.error(f"Forbidden: You do not have permission to delete the datablock {datablock_id}")
+            else:
+                logger.error(f"HTTP error occurred: {e}")
+        except Exception as e:
+            logger.error(f"Failed to remove datablock from dataset {dataset_id}: {e}")
+        return False
 
     def _find_dataset(
         self,
