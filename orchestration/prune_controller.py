@@ -179,27 +179,34 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
         logger.info(f"Running flow: prune_from_{source_endpoint.name}")
         logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
 
-        # Check if the file exists at the source endpoint
-        if not source_endpoint.exists(relative_path):
+        # Check if the file exists at the source endpoint using os.path
+        source_full_path = source_endpoint.full_path(relative_path)
+        if not os.path.exists(source_full_path):
             logger.warning(f"File {relative_path} does not exist at the source: {source_endpoint.name}.")
-            return
+            return False
 
-        # Check if the file exists at the check endpoint
-        if check_endpoint is not None and check_endpoint.exists(relative_path):
-            logger.info(f"File {relative_path} exists on the check point: {check_endpoint.name}.")
-            logger.info("Safe to prune.")
-
-            # Check if it is a file or directory
-            if source_endpoint.is_dir(relative_path):
-                logger.info(f"Pruning directory {relative_path}")
-                source_endpoint.rmdir(relative_path)
+        # If check_endpoint is provided, verify file exists there before pruning
+        if check_endpoint is not None:
+            check_full_path = check_endpoint.full_path(relative_path)
+            if os.path.exists(check_full_path):
+                logger.info(f"File {relative_path} exists on the check point: {check_endpoint.name}.")
+                logger.info("Safe to prune.")
             else:
-                logger.info(f"Pruning file {relative_path}")
-                os.remove(source_endpoint.full_path(relative_path))
+                logger.warning(f"File {relative_path} does not exist at the check point: {check_endpoint.name}.")
+                logger.warning("Not safe to prune.")
+                return False
+
+        # Now perform the pruning operation
+        if os.path.isdir(source_full_path):
+            logger.info(f"Pruning directory {relative_path}")
+            import shutil
+            shutil.rmtree(source_full_path)
         else:
-            logger.warning(f"File {relative_path} does not exist at the check point: {check_endpoint.name}.")
-            logger.warning("Not safe to prune.")
-        return
+            logger.info(f"Pruning file {relative_path}")
+            os.remove(source_full_path)
+
+        logger.info(f"Successfully pruned {relative_path} from {source_endpoint.name}")
+        return True
 
 
 class GlobusPruneController(PruneController[GlobusEndpoint]):
@@ -263,7 +270,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         # If days_from_now is 0, prune immediately
         if days_from_now.total_seconds() == 0:
             logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
-            return self._prune_filesystem_endpoint(
+            return self._prune_globus_endpoint(
                 relative_path=file_path,
                 source_endpoint=source_endpoint,
                 check_endpoint=check_endpoint,

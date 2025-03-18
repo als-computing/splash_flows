@@ -73,7 +73,7 @@ class BeamlineIngestorController(ABC):
             logger.info("Logged in to SciCat.")
             return self.scicat_client
         except Exception as e:
-            logger.error(f"Failed to log in to SciCat: {e}, trying alternative method.")
+            logger.warning(f"Failed to log in to SciCat: {e}, trying alternative method.")
 
         # This method works for scicatlive 3.2.5
         try:

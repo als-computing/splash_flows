@@ -12,6 +12,7 @@ from pyscicat.model import (
     CreateDatasetOrigDatablockDto,
     Datablock,
     DataFile,
+    DerivedDataset,
     RawDataset,
     DatasetType,
     Ownable,
@@ -19,7 +20,6 @@ from pyscicat.model import (
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
-from pyscicat.model import DerivedDataset
 from orchestration.flows.scicat.utils import (
     build_search_terms,
     build_thumbnail,
