@@ -14,13 +14,13 @@ from pyscicat.client import ScicatClient
 
 from orchestration.config import BeamlineConfig
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
+from orchestration.globus import flows, transfer
 from orchestration.globus.transfer import GlobusEndpoint
 from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.transfer_endpoints import FileSystemEndpoint
 from globus_sdk import TransferClient
 
-from orchestration.globus import flows, transfer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
