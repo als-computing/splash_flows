@@ -114,7 +114,7 @@ class BeamlineIngestorController(ABC):
     def ingest_new_derived_dataset(
         self,
         file_path: str = "",
-        raw_dataset_id: str = "",
+        raw_dataset_id: Optional[str] = "",
     ) -> str:
         """Ingest data from the beamline.
 
@@ -125,9 +125,7 @@ class BeamlineIngestorController(ABC):
 
     def add_new_dataset_location(
         self,
-        dataset_id: Optional[str] = None,
-        proposal_id: Optional[str] = None,
-        file_name: Optional[str] = None,
+        dataset_id: str = None,
         source_folder: str = None,
         source_folder_host: str = None
     ) -> str:
@@ -143,10 +141,6 @@ class BeamlineIngestorController(ABC):
                                     optionally including a protocol e.g. [protocol://]fileserver1.example.com",
 
         """
-        # If dataset_id is not provided, we need to find it using file_name.
-        if dataset_id is None and file_name:
-            dataset_id = self._find_dataset(proposal_id=proposal_id, file_name=file_name)
-
         # Get the dataset to retrieve its metadata
         dataset = self.scicat_client.datasets_get_one(dataset_id)
         if not dataset:

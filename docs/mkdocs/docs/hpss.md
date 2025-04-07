@@ -2,11 +2,35 @@
 
 HPSS is the tape-based data storage system we use for long term storage of experimental data at the ALS. Tape storage, while it may seem antiquated, is still a very economical and secure medium for infrequently accessed data as tape does not need to be powered except for reading and writing. This requires certain considerations when working with this system.
 
+
+
 ## Overview
 
 **Purpose:** Archive and retrieve large experimental datasets using HPSS.
 **Approach:** Use HPSS tools (hsi and htar) within a structured transfer framework orchestrated via SFAPI and SLURM jobs.
 **Key Considerations:** File sizes should typically be between 100 GB and 2 TB. Larger projects are segmented into multiple archives.
+
+### "User" in this context
+
+It is important to clarify who users are when we talk about transferring to tape. In terms of the flows we support, that includes beamline scientists, visiting users, and computing staff. In this context, it's important to differentiate between who is collecting the data and who is doing the work of moving to and from tape. 
+
+**NERSC Users**
+  - Can move data to and from HPSS via `htar` and `hsi` commands on Perlmutter in a terminal, in Jupyter, or in a script via SFAPI as outlined below.
+  - There are limitations and caveats to interacting with the tape system that users should be aware of.
+
+**ALS Users**
+  - Generate data!
+  - Sometimes they are also NERSC users, and can move data to HPSS if they want.
+  - Either way, we support the long term storage of data that they collect by archiving it on HPSS.
+
+**Splash Flows Globus Users**
+  - Can use the Prefect Flows and Slurm scripts provided to help perform transfers to HPSS in an automated way.
+  - Have transparent and reproducible knowledge on where data is stored on tape.
+  - Perform transfers that bundle data in a way that is optimized for tape storage and retrieval.
+  - Apply it across different beamlines.
+
+**Service Users**
+  - We use use a service account at NERSC for automating our transfers. This "service" user can perform the same sets of tasks as other NERSC users, but has wider access to data systems. ALS Users benefit from, but do not directly interact with this account.
 
 
 In `orchestration/transfer_controller.py` we have included two transfer classes for moving data from CFS to HPSS and vice versa (HPSS to CFS). We are following the [HPSS best practices](https://docs.nersc.gov/filesystems/HPSS-best-practices/) outlined in the NERSC documentation.

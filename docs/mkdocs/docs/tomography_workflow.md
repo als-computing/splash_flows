@@ -16,6 +16,7 @@ flowchart LR
         n20["data832"]
         n21["NERSC CFS"]
         n22@{ label: "SciCat<br style=\"--tw-scale-x:\">[Metadata Database]" }
+        n46["spot832"]
   end
  subgraph s3["NERSC Reconstruction [Prefect Flow]"]
         n28["NERSC CFS"]
@@ -36,7 +37,6 @@ flowchart LR
   end
     n17 -- Raw Data [Globus Transfer] --> n18
     n23["spot832"] -- File Watcher --> n24["Dispatcher<br>[Prefect Worker]"]
-    n23 -- "<span style=color:>Raw Data [Globus Transfer]</span>" --> n20
     n25["Detector"] -- Raw Data --> n23
     n24 --> s2 & s1 & s3 & s4
     n20 -- Raw Data [Globus Transfer] --> n21
@@ -60,11 +60,13 @@ flowchart LR
     n43 -- Recon Data --> n44
     n43 -- Metadata [SciCat Ingestion] --> n45
     n45 -- Hyperlink --> n44
+    n46 -- "<span style=color:>Raw Data [Globus Transfer]</span>" --> n20
     n17@{ shape: internal-storage}
     n18@{ shape: disk}
     n20@{ shape: internal-storage}
     n21@{ shape: disk}
     n22@{ shape: db}
+    n46@{ shape: internal-storage}
     n28@{ shape: disk}
     n29@{ shape: disk}
     n42@{ shape: internal-storage}
@@ -90,6 +92,9 @@ flowchart LR
      n20:::Peach
      n21:::Sky
      n22:::Sky
+     n46:::collection
+     n46:::storage
+     n46:::Peach
      n28:::Sky
      n29:::storage
      n29:::Sky
@@ -126,4 +131,5 @@ flowchart LR
     style s3 stroke:#757575
     style s4 stroke:#757575
     style s5 stroke:#757575
+
 ```
