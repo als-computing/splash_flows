@@ -15,10 +15,11 @@ https://docs.nersc.gov/filesystems/HPSS-best-practices/
 
 import datetime
 import logging
+import os
 from pathlib import Path
 import re
 import time
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from prefect import flow
 from sfapi_client import Client
@@ -796,6 +797,18 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
             logger.error("Missing required parameters: file_path, source, or destination.")
             return False
 
+        # Sanitize the file_path for the log file names.
+        # Build a small ord→char map
+        translate_dict: Dict[int, str] = {
+            ord("/"): "_",      # always replace forward slash
+            ord(" "): "_",      # replace spaces
+            ord(os.sep): "_",   # replace primary separator
+            ord("\\"): "_"      # In case of Windows
+        }
+
+        # One-pass replacement
+        sanitized_path = file_path.translate(translate_dict)
+
         # Compute the full HPSS path from the source endpoint.
         hpss_path = source.full_path(file_path)
         dest_root = destination.root_path
@@ -814,13 +827,13 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         #     else MODE is "tar".
         #   - Otherwise, MODE is "single" and hsi get is used.
         job_script = fr"""#!/bin/bash
-#SBATCH -q xfer                                             # Specify the SLURM queue to u
+#SBATCH -q xfer                                             # Specify the SLURM queue
 #SBATCH -A als                                              # Specify the account.
 #SBATCH -C cron                                             # Use the 'cron' constraint.
 #SBATCH --time=12:00:00                                     # Maximum runtime of 12 hours.
 #SBATCH --job-name=transfer_from_HPSS_{file_path}           # Set a descriptive job name.
-#SBATCH --output={logs_path}/{file_path}_from_hpss_%j.out   # Standard output log file.
-#SBATCH --error={logs_path}/{file_path}_from_hpss_%j.err    # Standard error log file.
+#SBATCH --output={logs_path}/{sanitized_path}_from_hpss_%j.out   # Standard output log file.
+#SBATCH --error={logs_path}/{sanitized_path}_from_hpss_%j.err    # Standard error log file.
 #SBATCH --licenses=SCRATCH                                  # Request the SCRATCH license.
 #SBATCH --mem=20GB                                          # Request #GB of memory. Default 2GB.
 set -euo pipefail                                           # Enable strict error checking.
@@ -881,16 +894,16 @@ echo "Transfer mode: $MODE"
 
 if [ "$MODE" = "single" ]; then
     echo "[LOG] Single file detected. Using hsi get."
-    # mkdir -p "$DEST_ROOT"
-    # hsi get "$SOURCE_PATH" "$DEST_ROOT/"
+    mkdir -p "$DEST_ROOT"
+    hsi get "$SOURCE_PATH" "$DEST_ROOT/"
 elif [ "$MODE" = "tar" ]; then
     echo "[LOG] Tar archive detected. Extracting entire archive using htar."
     ARCHIVE_BASENAME=$(basename "$SOURCE_PATH")
     ARCHIVE_NAME="${{ARCHIVE_BASENAME%.tar}}"
     DEST_PATH="${{DEST_ROOT}}/${{ARCHIVE_NAME}}"
     echo "[LOG] Extracting to: $DEST_PATH"
-    # mkdir -p "$DEST_PATH"
-    # htar -xvf "$SOURCE_PATH" -C "$DEST_PATH"
+    mkdir -p "$DEST_PATH"
+    htar -xvf "$SOURCE_PATH" -C "$DEST_PATH"
 elif [ "$MODE" = "partial" ]; then
     echo "[LOG] Partial extraction detected. Extracting selected files using htar."
     ARCHIVE_BASENAME=$(basename "$SOURCE_PATH")
