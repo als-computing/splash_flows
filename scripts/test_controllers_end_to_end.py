@@ -16,9 +16,10 @@ from orchestration.config import BeamlineConfig
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
 from orchestration.globus import flows, transfer
 from orchestration.globus.transfer import GlobusEndpoint
+from orchestration.hpss import cfs_to_hpss_flow, hpss_to_cfs_flow
 from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
-from orchestration.transfer_endpoints import FileSystemEndpoint
+from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint
 from globus_sdk import TransferClient
 
 
@@ -53,6 +54,8 @@ def check_required_envvars() -> bool:
     for var in scicat_vars:
         if not os.getenv(var):
             missing_vars.append(var)
+
+    # TODO: Add SFAPI Keys check
 
     if missing_vars:
         logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -239,6 +242,8 @@ class TestIngestorController(BeamlineIngestorController):
             logger.error(f"Error creating derived dataset: {e}")
             raise e
 
+    # TODO: Add methods to add and remove dataset locations
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # End-to-end Tests
@@ -310,7 +315,7 @@ def test_transfer_controllers(
 
         # Configure the source and destination endpoints
 
-        # Create temporary directories for testing
+        # Create temporary directories for testing in current working directory
         base_test_dir = os.path.join(os.getcwd(), "orchestration_test_dir")
         source_dir = os.path.join(base_test_dir, "source")
         dest_dir = os.path.join(base_test_dir, "destination")
@@ -355,13 +360,54 @@ def test_transfer_controllers(
         assert os.path.exists(dest_file_path), "File wasn't copied to destination"
 
     if test_hpss:
-        hpss_transfer_controller = get_transfer_controller(
-            transfer_type=CopyMethod.CFS_TO_HPSS,
+        from orchestration.flows.bl832.config import Config832
+
+        config = Config832()
+        project_name = "BLS-00520_dyparkinson"
+        source = FileSystemEndpoint(
+            name="CFS",
+            root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/",
+            uri="nersc.gov"
+        )
+        destination = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],
+            uri=config.hpss_alsdev["uri"]
+        )
+        success = cfs_to_hpss_flow(
+            file_path=project_name,
+            source=source,
+            destination=destination,
             config=config
         )
+        logger.info(f"Transfer success: {success}")
+        config = Config832()
+        relative_file_path = f"{config.beamline_id}/raw/BLS-00520_dyparkinson/BLS-00520_dyparkinson_2022-2.tar"
+        source = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],  # root_path: /home/a/alsdev/data_mover
+            uri=config.hpss_alsdev["uri"]
+        )
+        destination = FileSystemEndpoint(
+            name="CFS",
+            root_path="/global/cfs/cdirs/als/data_mover/8.3.2/retrieved_from_tape",
+            uri="nersc.gov"
+        )
 
-        hpss_transfer_controller.copy()
-        # TODO: Finish this test
+        files_to_extract = [
+            "20221028_101514_arun_JSC-1.h5",
+            "20220923_160531_ethan_robin_climbing-vine_x00y05.h5",
+            "20221222_082548_strangpresse_20pCFABS_800rpm_Non-vacuum.h5",
+            "20220923_160531_ethan_robin_climbing-vine_x00y04.h5"
+        ]
+
+        hpss_to_cfs_flow(
+            file_path=f"{relative_file_path}",
+            source=source,
+            destination=destination,
+            files_to_extract=files_to_extract,
+            config=config
+        )
 
 
 def test_prune_controllers(
@@ -398,6 +444,7 @@ def test_prune_controllers(
             config=config
         )
 
+        # PRUNE FROM SOURCE ENDPOINT
         # Configure the source and destination endpoints
         # Use the NERSC alsdev endpoint with root_path: /global/homes/a/alsdev/test_directory/source/ as the source
         # source_endpoint = GlobusEndpoint(
@@ -407,15 +454,6 @@ def test_prune_controllers(
         #     name="source_endpoint"
         # )
 
-        # Use the NERSC alsdev endpoint with root_path: /global/homes/a/alsdev/test_directory/destination/ as the destination
-        destination_endpoint = GlobusEndpoint(
-            uuid=config.nersc_alsdev.uuid,
-            uri=config.nersc_alsdev.uri,
-            root_path=config.nersc_alsdev.root_path + "destination/",
-            name="destination_endpoint"
-        )
-        # Assume files were created and transferred in the previous test
-
         # Prune the source endpoint
         # globus_prune_controller.prune(
         #     file_path=file_path,
@@ -424,6 +462,16 @@ def test_prune_controllers(
         #     days_from_now=timedelta(days=0)
         # )
 
+        # PRUNE FROM DESTINATION ENDPOINT
+        # Use the NERSC alsdev endpoint with root_path: /global/homes/a/alsdev/test_directory/destination/ as the destination
+        destination_endpoint = GlobusEndpoint(
+            uuid=config.nersc_alsdev.uuid,
+            uri=config.nersc_alsdev.uri,
+            root_path=config.nersc_alsdev.root_path + "destination/",
+            name="destination_endpoint"
+        )
+
+        # Assume files were created and transferred in the previous test
         # Prune the destination endpoint
         globus_prune_controller.prune(
             file_path=file_path,
@@ -527,7 +575,6 @@ def test_scicat_ingest(
     )
 
     test_ingestor.add_new_dataset_location(
-        file_name=file_path,
         dataset_id=raw_id,
         source_folder="test_folder",
         source_folder_host="test_host"
@@ -544,7 +591,7 @@ def test_it_all(
     test_globus: bool = True,
     test_filesystem: bool = False,
     test_hpss: bool = False,
-    test_scicat: bool = True
+    test_scicat: bool = False
 ) -> None:
     """
     Run end-to-end tests for transfer and prune controllers."
@@ -572,6 +619,15 @@ def test_it_all(
         logger.error(f"Error running transfer controller tests: {e}")
         return
 
+    if test_scicat:
+        try:
+            test_scicat_ingest(
+                file_path="test.txt"
+            )
+        except Exception as e:
+            logger.error(f"Error running SciCat ingestor tests: {e}")
+            return
+
     try:
         test_prune_controllers(
             file_path="test.txt",
@@ -585,15 +641,6 @@ def test_it_all(
         logger.error(f"Error running prune controller tests: {e}")
         return
 
-    if test_scicat:
-        try:
-            test_scicat_ingest(
-                file_path="test.txt"
-            )
-        except Exception as e:
-            logger.error(f"Error running SciCat ingestor tests: {e}")
-            return
-
     logger.info("All tests passed. Cleaning up...")
     base_test_dir = os.path.join(os.getcwd(), "orchestration_test_dir")
     if os.path.exists(base_test_dir):
@@ -601,4 +648,9 @@ def test_it_all(
 
 
 if __name__ == "__main__":
-    test_it_all()
+    test_it_all(
+        test_globus=False,
+        test_filesystem=False,
+        test_hpss=True,
+        test_scicat=False
+    )
