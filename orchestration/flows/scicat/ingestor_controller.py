@@ -16,6 +16,8 @@ from orchestration.config import BeamlineConfig
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# NOTE: This BeamlineIngestorController will be relocated to https://github.com/als-computing/scicat_beamline soon.
+
 
 class BeamlineIngestorController(ABC):
     """
