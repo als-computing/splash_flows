@@ -452,8 +452,10 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
         if not proposal_name or proposal_name == ".":  # if file_path is in the root directory
             proposal_name = file_path
 
-        logs_path = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}"
+        logger.info(f"Proposal name derived from file path: {proposal_name}")
 
+        logs_path = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}"
+        logger.info(f"Logs will be saved to: {logs_path}")
         # Build the SLURM job script with detailed inline comments for clarity.
         job_script = rf"""#!/bin/bash
 # ------------------------------------------------------------------
@@ -489,6 +491,7 @@ echo "[LOG] Job started at: $(date)"
 # ------------------------------------------------------------------
 # Define source and destination variables.
 # ------------------------------------------------------------------
+
 echo "[LOG] Defining source and destination paths."
 
 # SOURCE_PATH: Full path of the file or directory on CFS.
@@ -564,6 +567,7 @@ hsi ls $DEST_PATH
 # ------------------------------------------------------------------
 # Transfer Logic: Check if SOURCE_PATH is a file or directory.
 # ------------------------------------------------------------------
+
 echo "[LOG] Determining type of SOURCE_PATH: $SOURCE_PATH"
 if [ -f "$SOURCE_PATH" ]; then
     # Case: Single file detected.
@@ -575,8 +579,17 @@ if [ -f "$SOURCE_PATH" ]; then
 elif [ -d "$SOURCE_PATH" ]; then
     # Case: Directory detected.
     echo "[LOG] Directory detected. Initiating bundling process."
+
+    # ------------------------------------------------------------------
+    # Define thresholds
+    #    - THRESHOLD: maximum total size per HTAR archive (2 TB).
+    #    - MEMBER_LIMIT: maximum size per member file in an HTAR (set to 65 GB).
+    # ------------------------------------------------------------------
+
     THRESHOLD=2199023255552  # 2 TB in bytes.
-    echo "[LOG] Threshold set to 2 TB (in bytes: $THRESHOLD)"
+    MEMBER_LIMIT=$((65*1024**3))  # 65 GB in bytes. 68 GB is the htar limit. Move files >65 GB than this using hsi cput.
+    echo "[LOG] Threshold set to 2 TB (bytes): $THRESHOLD"
+    echo "[LOG] Threshold for individual file transfer (bytes): $MEMBER_LIMIT"
 
     # ------------------------------------------------------------------
     # Generate a list of relative file paths in the project directory.
@@ -596,12 +609,69 @@ elif [ -d "$SOURCE_PATH" ]; then
     #
     # 3. The output is then redirected into the temporary file specified by FILE_LIST.
     # ------------------------------------------------------------------
+
     echo "[LOG] Grouping files by modification date."
 
     FILE_LIST=$(mktemp)
     (cd "$SOURCE_PATH" && find . -type f | sed 's|^\./||') > "$FILE_LIST"
 
     echo "[LOG] List of files stored in temporary file: $FILE_LIST"
+
+    # ------------------------------------------------------------------
+    # Filter out oversized files (>65GB) for immediate transfer
+    #    - For each file:
+    #        • If fsize > MEMBER_LIMIT: transfer via hsi cput.
+    #        • Else: add path to new list for bundling.
+    # ------------------------------------------------------------------
+
+    echo "[LOG] Beginning oversized-file filtering (> $MEMBER_LIMIT bytes)"
+    FILTERED_LIST=$(mktemp)
+    echo "[LOG] Writing remaining file paths to $FILTERED_LIST"
+
+    while IFS= read -r f; do
+        # Absolute local path and size
+        full_local="$SOURCE_PATH/$f"
+        fsize=$(stat -c %s "$full_local")
+
+        if (( fsize > MEMBER_LIMIT )); then
+            # Relative subdirectory and filename
+            rel_dir=$(dirname "$f")
+            fname=$(basename "$f")
+
+            # Compute HPSS directory under project (create if needed)
+            if [ "$rel_dir" = "." ]; then
+                dest_dir="$DEST_PATH"
+            else
+                dest_dir="$DEST_PATH/$rel_dir"
+            fi
+
+            if ! hsi -q "ls $dest_dir" >/dev/null 2>&1; then
+                echo "[LOG] Creating HPSS directory $dest_dir"
+                hsi mkdir "$dest_dir"
+            fi
+
+            # Full remote file path (directory + filename)
+            remote_file="$dest_dir/$fname"
+
+            # Transfer via conditional put
+            echo "[LOG] Transferring oversized file '$f' ($fsize bytes) to HPSS path $remote_file"
+            echo "[DEBUG] hsi cput \"$full_local\" : \"$remote_file\""
+            hsi cput "$full_local" : "$remote_file"
+            echo "[LOG] Completed hsi cput for '$f'."
+        else
+            # Keep for bundling later
+            echo "$f" >> "$FILTERED_LIST"
+        fi
+    done < "$FILE_LIST"
+
+    # Swap in the filtered list and report
+    mv "$FILTERED_LIST" "$FILE_LIST"
+    remaining=$(wc -l < "$FILE_LIST")
+    echo "[LOG] Oversized-file transfer done. Remaining for bundling: $remaining files."
+
+    # ------------------------------------------------------------------
+    # Cycle-based grouping & tar-bundling logic (unchanged).
+    # ------------------------------------------------------------------
 
     # Declare associative arrays to hold grouped file paths and sizes.
     declare -A group_files
