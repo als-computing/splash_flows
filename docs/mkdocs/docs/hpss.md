@@ -1,7 +1,8 @@
-# Working with The High Performance Storage System (HPSS) at NERSC
+
+
+# Developing for the High Performance Storage System (HPSS) at NERSC
 
 HPSS is the tape-based data storage system we use for long term storage of experimental data at the ALS. Tape storage, while it may seem antiquated, is still a very economical and secure medium for infrequently accessed data as tape does not need to be powered except for reading and writing. This requires certain considerations when working with this system.
-
 
 
 ## Overview
@@ -39,7 +40,99 @@ HPSS is intended for long-term storage of data that is not frequently accessed, 
 
 While there are Globus endpoints for HPSS, the NERSC documentation recommends against it as there are certain conditions (i.e. network disconnection) that are not as robust as their recommended HPSS tools `hsi` and `htar`, which they say is the fastest approach. Together, these tools allow us to work with the HPSS filesystem and carefully bundle our projects into `tar` archives that are built directly on HPSS. Another couple of drawbacks to using Globus here is 1) if you have small files, you need to tar them regardless before transferring, and 2) HPSS does not support collab accounts (i.e. alsdev). 
 
-## Working with `hsi`
+### Storing and Retrieving from Tape
+#### Important note about retrieval
+
+In production, we are using the `alsdev` collab account. To run these commands, you must have a valid SFAPI client/key pair from Iris at NERSC in your environment.
+
+**Files are stored on HPC in the following location:**
+- `/home/a/alsdev/data_mover`
+
+**Data retrieved from tape will be found here on NERSC CFS:**
+- `/global/cfs/cdirs/als/data_mover/8.3.2/retrieved_from_tape`
+
+**Logs about data transfers to/from tape are organized here on CFS:**
+- `/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}`
+- Find details about whether files were stored via hsi or htar
+
+-----------------------
+
+
+In `orchestraiton/hpss.py` there are two Prefect flows, which utilize two special TransferController classes for interacting with HPSS:
+
+#### `cfs_to_hpss_flow`
+    Prefect flow for transferring data from CFS to HPSS tape archive.
+
+    This flow handles the transfer of files or directories from NERSC's Community
+    File System (CFS) to the High Performance Storage System (HPSS) tape archive.
+    For directories, files are bundled into tar archives based on time periods.
+
+    Args:
+        file_path (Union[str, List[str]]): A single file path or a list of file paths to transfer
+        source (FileSystemEndpoint): The CFS source endpoint
+        destination (HPSSEndpoint): The HPSS destination endpoint
+        config (BeamlineConfig): The beamline configuration containing endpoints and credentials
+
+    Returns:
+        bool: True if all transfers succeeded, False otherwise
+
+#### `hpss_to_cfs_flow`
+    Prefect flow for retrieving data from HPSS tape archive to CFS.
+
+    This flow handles the retrieval of files or tar archives from NERSC's High
+    Performance Storage System (HPSS) to the Community File System (CFS).
+    For tar archives, you can optionally specify specific files to extract.
+
+    Args:
+        file_path (str): The path of the file or tar archive on HPSS
+        source (HPSSEndpoint): The HPSS source endpoint
+        destination (FileSystemEndpoint): The CFS destination endpoint
+        files_to_extract (Optional[List[str]]): Specific files to extract from the tar archive
+        config (BeamlineConfig): The beamline configuration containing endpoints and credentials
+
+    Returns:
+        bool: True if the transfer succeeded, False otherwise
+
+#### `CFSToHPSSTransferController`
+    Use SFAPI, Slurm, hsi, and htar to move data from CFS to HPSS at NERSC.
+
+    This controller requires the source to be a FileSystemEndpoint on CFS and the
+    destination to be an HPSSEndpoint. For a single file, the transfer is done using hsi (via hsi cput).
+    For a directory, the transfer is performed with htar. In this updated version, if the source is a
+    directory then the files are bundled into tar archives based on their modification dates as follows:
+      - Files with modification dates between Jan 1 and Jul 15 (inclusive) are grouped together
+        (Cycle 1 for that year).
+      - Files with modification dates between Jul 16 and Dec 31 are grouped together (Cycle 2).
+
+    Within each group, if the total size exceeds 2 TB the files are partitioned into multiple tar bundles.
+    The resulting naming convention on HPSS is:
+
+        /home/a/alsdev/data_mover/[beamline]/raw/[proposal_name]/
+           [proposal_name]_[year]-[cycle].tar
+           [proposal_name]_[year]-[cycle]_part0.tar
+           [proposal_name]_[year]-[cycle]_part1.tar
+           ...
+
+    At the end of the SLURM script, the directory tree for both the source (CFS) and destination (HPSS)
+    is echoed for logging purposes.
+
+#### `HPSSToCFSTransferController`
+    Use SFAPI, Slurm, hsi and htar to move data between HPSS and CFS at NERSC.
+
+    This controller retrieves data from an HPSS source endpoint and places it on a CFS destination endpoint.
+    It supports the following modes:
+      - "single": Single file retrieval via hsi get.
+      - "tar": Full tar archive extraction via htar -xvf.
+      - "partial": Partial extraction from a tar archive: if a list of files is provided (via files_to_extract),
+        only the specified files will be extracted.
+
+    A single SLURM job script is generated that branches based on the mode.
+
+
+
+## Developer Notes about HPSS
+
+### Working with `hsi`
 
 We use `hsi` for handling individual files on HPSS. [Here is the official NERSC documentation for `hsi`.](https://docs.nersc.gov/filesystems/hsi/)
 
@@ -72,7 +165,7 @@ Find files that are more than 20 days old and redirects the output to the file t
 hsi -q "find . -ctime 20" > temp.txt 2>&1
 ```
 
-## Working with `htar`
+### Working with `htar`
 
 We can use `htar` to efficiently work with groups of files on HPSS. The basic syntax of `htar` is similar to the standard `tar` utility:
 
@@ -125,11 +218,11 @@ If your `htar` files are >100GB, and you only want to extract one or two small m
 htar -Hnostage -xvf archive.tar project_directory/cool_scan4
 ```
 
-## Transferring Data from CFS to HPSS
+### Transferring Data from CFS to HPSS
 
 NERSC provides a special `xfer` QOS ("Quality of Service") for interacting with HPSS, which we can use with our SFAPI Slurm job scripts.
 
-### Single Files
+#### Single Files
 
 We can transfer single files over to HPSS using `hsi put` in a Slurm script:
 
@@ -152,7 +245,7 @@ Notes:
 - NERSC users are at most allowed 15 concurrent `xfer` sessions, which can be used strategically for parallel transfers and reads.
 
 
-### Multiple Files
+#### Multiple Files
 
 NERSC recommends that when serving many files smaller than 100 GB we use `htar` to bundle them together before archiving. Since individual scans within a project may not be this large, we try to archive all of the scans in a project into a single `tar` file. If projects end up being larger than 2 TB, we can create multiple `tar` files.
 
@@ -171,7 +264,7 @@ One great part about `htar` is that it builds the archive directly on `HPSS`, so
 htar -cvf als_user_project.tar /global/cfs/cdirs/als/data_mover/8.3.2/raw/als_user_project_folder
 ```
 
-## Transferring Data from HPSS to CFS
+### Transferring Data from HPSS to CFS
 
 At some point you may want to access data from HPSS. An important thing to consider is whether you need to access single or multiple files.
 
@@ -187,11 +280,11 @@ Or maybe a single file
 htar -xvf als_user_project_folder.tar cool_scan1.h5
 ```
 
-## Prefect Flows for HPSS Transfers
+### Prefect Flows for HPSS Transfers
 
 Most of the time we expect transfers to occur from CFS to HPSS on a scheduled basis, after users have completed scanning during their alotted beamtime.
 
-### Transfer to HPSS Implementation
+#### Transfer to HPSS Implementation
 **`orchestration/transfer_controller.py`:**
   - **`CFSToHPSSTransferController()`**: This controller uses a Slurm Job Script and SFAPI to launch the tape transfer job. The Slurm script handles the specific logic for handling single and multiple files, on a project by project basis. It reads the files sizes, and creates bundles that are <= 2TB. The groups within each tar archive are saved in a log on NERSC CFS for posterity.
 
@@ -275,7 +368,7 @@ flowchart TD
   S -- "No" --> U
 ```
 
-### Transfer to CFS Implementation
+#### Transfer to CFS Implementation
 
 **`orchestration/transfer_controller.py`:**
   - **`CFSToHPSSTransferController()`**: This controller uses a Slurm Job Script and SFAPI to copy data from tape to NERSC CFS. The Slurm script handles the specific logic for handling single and multiple files, on a project by project basis. Based on the file path, the Slurm job determines whether a single file or a tar archive has been requested (or even specific files within a tar archive), and run the correct routine to copy the data to CFS.
@@ -284,7 +377,7 @@ flowchart TD
 - **`cfs_to_hpss_flow()`** This Prefect Flow sets up the HPSSToCFSTransferController() and calls the copy command. By registering this Flow, the HPSS transfers to CFS can be easily scheduled. While copying from CFS to HPSS is likely not going to be automated, it is still helpful to have this as a Prefect Flow to simplify data access in low-code manner.
 
 
-## Update SciCat with HPSS file paths
+### Update SciCat with HPSS file paths
 
 `BeamlineIngestorController()` in `orchestration/flows/scicat/ingestor_controller.py` contains a method `add_new_dataset_location()` that can be used to update the source folder and host metadata in SciCat with new HPSS location:
 
