@@ -53,7 +53,7 @@ In production, we are using the `alsdev` collab account. To run these commands, 
 
 **Logs about data transfers to/from tape are organized here on CFS:**
 - `/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}`
-- Find details about whether files were stored via hsi or htar
+- Find details about whether files were stored via hsi or htar, and what the path is on HPSS, etc.
 
 -----------------------
 
