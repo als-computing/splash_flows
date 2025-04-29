@@ -195,8 +195,90 @@ def hpss_to_cfs_flow(
 
 
 # ----------------------------------
+# HPSS ls Function
+# ----------------------------------
+
+def list_hpss_slurm(
+    client: Client,
+    endpoint: HPSSEndpoint,
+    remote_path: str,
+    recursive: bool = True
+) -> str:
+    """
+    Schedule and run a Slurm job on Perlmutter to list contents on HPSS,
+    then read back the result from the Slurm output file.
+
+    If `remote_path` ends with '.tar', uses `htar -tvf` to list tar members;
+    otherwise uses `hsi ls [-R]` to list directory contents.
+
+    Args:
+        client (Client): SFAPI client with compute permissions.
+        endpoint (HPSSEndpoint): HPSS endpoint (knows root_path & URI).
+        remote_path (str): Path relative to endpoint.root_path on HPSS.
+        recursive (bool): Recursively list directories (ignored for .tar).
+
+    Returns:
+        .
+
+    Raises:
+        RuntimeError: If job submission or output retrieval fails.
+    """
+    logger = logging.getLogger(__name__)
+    # Build logs directory on CFS
+    beamline_id = remote_path.split("/")[0]
+    logs_dir = f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{beamline_id}/ls"
+
+    # Sanitize remote_path for filenames
+    safe_name = re.sub(r'[^A-Za-z0-9_]', '_', remote_path)
+    job_name = f"ls_hpss_{safe_name}"
+    out_pattern = f"{logs_dir}/{safe_name}_%j.out"
+    err_pattern = f"{logs_dir}/{safe_name}_%j.err"
+
+    full_hpss = endpoint.full_path(remote_path)
+
+    # for tar: list contents & then show .idx; otherwise do an hsi ls
+    if remote_path.lower().endswith(".tar"):
+        cmd = (
+            f'echo "[LOG] TAR contents:" && htar -tvf "{full_hpss}"'
+        )
+    else:
+        ls_flag = "-R" if recursive else ""
+        cmd = f'hsi ls {ls_flag} "{full_hpss}"'
+
+    job_script = rf"""#!/bin/bash
+#SBATCH -q xfer
+#SBATCH -A als
+#SBATCH -C cron
+#SBATCH --time=00:10:00
+#SBATCH --job-name={job_name}
+#SBATCH --output={out_pattern}
+#SBATCH --error={err_pattern}
+
+set -euo pipefail
+
+echo "[LOG] Listing HPSS path: {full_hpss}"
+{cmd}
+"""
+
+    # submit & wait
+    perlmutter = client.compute(Machine.perlmutter)
+    job = perlmutter.submit_job(job_script)
+    try:
+        job.update()
+    except Exception:
+        logger.debug("Initial job.update() failed, proceeding to wait")
+    job.complete()
+
+    # print where you can find the actual log
+    out_file = out_pattern.replace("%j", str(job.jobid))
+    print(f"HPSS listing complete. See Slurm output at: {out_file}")
+
+    return out_file
+
+# ----------------------------------
 # HPSS Prune Controller
 # ----------------------------------
+
 
 class HPSSPruneController(PruneController[HPSSEndpoint]):
     """
@@ -415,6 +497,30 @@ class CFSToHPSSTransferController(TransferController[HPSSEndpoint]):
     ) -> None:
         super().__init__(config)
         self.client = client
+
+    def list_hpss(
+        self,
+        endpoint: HPSSEndpoint,
+        remote_path: str,
+        recursive: bool = True
+    ) -> List[str]:
+        """
+        Schedule and run a Slurm job to list contents on HPSS.
+
+        Args:
+            endpoint (HPSSEndpoint): HPSS endpoint (knows root_path & URI).
+            remote_path (str): Path under endpoint.root_path to list.
+            recursive (bool): If True, pass -R to `hsi ls` (ignored for tar).
+
+        Returns:
+            List[str]: Lines of output from the listing command.
+        """
+        return list_hpss_slurm(
+            client=self.client,
+            endpoint=endpoint,
+            remote_path=remote_path,
+            recursive=recursive
+        )
 
     def copy(
         self,
@@ -840,6 +946,30 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         super().__init__(config)
         self.client = client
 
+    def list_hpss(
+        self,
+        endpoint: HPSSEndpoint,
+        remote_path: str,
+        recursive: bool = True
+    ) -> List[str]:
+        """
+        Schedule and run a Slurm job to list contents on HPSS.
+
+        Args:
+            endpoint (HPSSEndpoint): HPSS endpoint (knows root_path & URI).
+            remote_path (str): Path under endpoint.root_path to list.
+            recursive (bool): If True, pass -R to `hsi ls` (ignored for tar).
+
+        Returns:
+            List[str]: Lines of output from the listing command.
+        """
+        return list_hpss_slurm(
+            client=self.client,
+            endpoint=endpoint,
+            remote_path=remote_path,
+            recursive=recursive
+        )
+
     def copy(
         self,
         file_path: str = None,
@@ -1049,6 +1179,7 @@ if __name__ == "__main__":
     TEST_HPSS_PRUNE = False
     TEST_CFS_TO_HPSS = False
     TEST_HPSS_TO_CFS = False
+    TEST_HPSS_LS = True
 
     # ------------------------------------------------------
     # Test pruning from HPSS
@@ -1128,4 +1259,43 @@ if __name__ == "__main__":
             destination=destination,
             files_to_extract=files_to_extract,
             config=config
+        )
+
+    # ------------------------------------------------------
+    # Test listing HPSS files
+    # ------------------------------------------------------
+    if TEST_HPSS_LS:
+        from orchestration.flows.bl832.config import Config832
+
+        # Build client, config, endpoint
+        config = Config832()
+        endpoint = HPSSEndpoint(
+            name="HPSS",
+            root_path=config.hpss_alsdev["root_path"],
+            uri=config.hpss_alsdev["uri"]
+        )
+
+        # Instantiate controller
+        transfer_controller = get_transfer_controller(
+            transfer_type=CopyMethod.CFS_TO_HPSS,
+            config=config
+        )
+
+        # Directory listing
+        project_path = f"{config.beamline_id}/raw/BLS-00564_dyparkinson"
+        logger.info("Controller-based directory listing on HPSS:")
+        output_file = transfer_controller.list_hpss(
+            endpoint=endpoint,
+            remote_path=project_path,
+            recursive=True
+        )
+
+        # TAR archive listing
+        archive_name = project_path.split("/")[-1]
+        tar_path = f"{project_path}/{archive_name}_2023-1.tar"
+        logger.info("Controller-based tar archive listing on HPSS:")
+        output_file = transfer_controller.list_hpss(
+            endpoint=endpoint,
+            remote_path=tar_path,
+            recursive=False
         )
