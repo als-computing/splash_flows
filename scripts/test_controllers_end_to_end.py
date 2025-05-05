@@ -55,7 +55,11 @@ def check_required_envvars() -> bool:
         if not os.getenv(var):
             missing_vars.append(var)
 
-    # TODO: Add SFAPI Keys check
+    # Check NERSC SFAPI environment variables
+    nersc_vars = ['PATH_NERSC_CLIENT_ID', 'PATH_NERSC_PRI_KEY']
+    for var in nersc_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
 
     if missing_vars:
         logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -363,7 +367,7 @@ def test_transfer_controllers(
         from orchestration.flows.bl832.config import Config832
 
         config = Config832()
-        project_name = "BLS-00520_dyparkinson"
+        project_name = "BLS-00564_dyparkinson"
         source = FileSystemEndpoint(
             name="CFS",
             root_path="/global/cfs/cdirs/als/data_mover/8.3.2/raw/",
@@ -447,20 +451,20 @@ def test_prune_controllers(
         # PRUNE FROM SOURCE ENDPOINT
         # Configure the source and destination endpoints
         # Use the NERSC alsdev endpoint with root_path: /global/homes/a/alsdev/test_directory/source/ as the source
-        # source_endpoint = GlobusEndpoint(
-        #     uuid=config.nersc_alsdev.uuid,
-        #     uri=config.nersc_alsdev.uri,
-        #     root_path=config.nersc_alsdev.root_path + "source/",
-        #     name="source_endpoint"
-        # )
+        source_endpoint = GlobusEndpoint(
+            uuid=config.nersc_alsdev.uuid,
+            uri=config.nersc_alsdev.uri,
+            root_path=config.nersc_alsdev.root_path + "source/",
+            name="source_endpoint"
+        )
 
         # Prune the source endpoint
-        # globus_prune_controller.prune(
-        #     file_path=file_path,
-        #     source_endpoint=source_endpoint,
-        #     check_endpoint=None,
-        #     days_from_now=timedelta(days=0)
-        # )
+        globus_prune_controller.prune(
+            file_path=file_path,
+            source_endpoint=source_endpoint,
+            check_endpoint=None,
+            days_from_now=timedelta(days=0)
+        )
 
         # PRUNE FROM DESTINATION ENDPOINT
         # Use the NERSC alsdev endpoint with root_path: /global/homes/a/alsdev/test_directory/destination/ as the destination
@@ -648,9 +652,22 @@ def test_it_all(
 
 
 if __name__ == "__main__":
-    test_it_all(
+
+    # Uncomment the following line to run all tests
+    # Set test_globus, test_filesystem, test_hpss, and test_scicat to True or False as needed
+
+    # test_it_all(
+    #     test_globus=False,
+    #     test_filesystem=False,
+    #     test_hpss=False,
+    #     test_scicat=False
+    # )
+
+    # Test individual transfer controllers directly
+    test_transfer_controllers(
+        file_path="test.txt",
         test_globus=False,
         test_filesystem=False,
-        test_hpss=True,
-        test_scicat=False
+        test_hpss=False,
+        config=TestConfig()
     )
