@@ -13,14 +13,11 @@ from prefect.testing.utilities import prefect_test_harness
 from .test_globus import MockTransferClient
 
 
-<<<<<<< HEAD
-=======
 @pytest.fixture(autouse=True)
 def fast_sleep(monkeypatch):
     """Patch time.sleep to return immediately to speed up tests."""
     monkeypatch.setattr(time, "sleep", lambda x: None)
 
->>>>>>> 67e515a (Added logic for HPSSToCFSTransferController() copy() method. Now it will launch an SFAPI Slurm job script that handles each case: a single file is requested (non-tar), an entire tar file, or specified files within a tar (partial). Added pytest cases in test_transfer_controller.py for the new HPSS controllers.)
 
 @pytest.fixture(autouse=True, scope="session")
 def prefect_test_fixture():
@@ -209,7 +206,8 @@ def test_globus_transfer_controller_copy_failure(
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecretClass())
 
-    with patch("orchestration.transfer_controller.start_transfer", return_value=(False, "mock-task-id")) as mock_start_transfer:
+    with patch("orchestration.transfer_controller.start_transfer",
+               return_value=(False, "mock-task-id")) as mock_start_transfer:
         controller = GlobusTransferController(mock_config832)
         result = controller.copy(
             file_path="some_dir/test_file.txt",
@@ -244,6 +242,7 @@ def test_globus_transfer_controller_copy_exception(
         assert result is False, "Expected False when TransferAPIError is raised."
         mock_start_transfer.assert_called_once()
 
+
 def test_globus_transfer_controller_with_metrics(
     mock_config832, mock_globus_endpoint, transfer_controller_module
 ):
@@ -253,30 +252,30 @@ def test_globus_transfer_controller_with_metrics(
     GlobusTransferController = transfer_controller_module["GlobusTransferController"]
     from orchestration.prometheus_utils import PrometheusMetrics
     mock_prometheus = MagicMock(spec=PrometheusMetrics)
-    
+
     with patch("orchestration.transfer_controller.start_transfer", return_value=(True, "mock-task-id")) as mock_start_transfer:
         # Create the controller with mock prometheus metrics
         controller = GlobusTransferController(mock_config832, prometheus_metrics=mock_prometheus)
-        
+
         # Set up mock for get_transfer_file_info
         mock_transfer_info = {"bytes_transferred": 1024 * 1024}  # 1MB
         controller.get_transfer_file_info = MagicMock(return_value=mock_transfer_info)
-        
+
         # Execute the copy operation
         result = controller.copy(
             file_path="some_dir/test_file.txt",
             source=mock_globus_endpoint,
             destination=mock_globus_endpoint,
         )
-        
+
         # Verify transfer was successful
         assert result is True
         mock_start_transfer.assert_called_once()
-        
+
         # Verify metrics were collected and pushed
         controller.get_transfer_file_info.assert_called_once_with("mock-task-id")
         mock_prometheus.push_metrics_to_prometheus.assert_called_once()
-        
+
         # Verify the metrics data
         metrics_data = mock_prometheus.push_metrics_to_prometheus.call_args[0][0]
         assert metrics_data["bytes_transferred"] == 1024 * 1024
@@ -292,6 +291,7 @@ def test_globus_transfer_controller_with_metrics(
 # --------------------------------------------------------------------------
 # Tests for SimpleTransferController
 # --------------------------------------------------------------------------
+
 
 def test_simple_transfer_controller_no_file_path(
     mock_config832, mock_file_system_endpoint, transfer_controller_module
