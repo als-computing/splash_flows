@@ -283,7 +283,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
 
             try:
                 schedule_prefect_flow(
-                    deployment_name="prune_filesystem_endpoint/prune_filesystem_endpoint",
+                    deployment_name="prune_globus_endpoint/prune_globus_endpoint",
                     flow_run_name=flow_name,
                     parameters={
                         "relative_path": file_path,
