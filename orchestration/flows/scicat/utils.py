@@ -60,17 +60,31 @@ def build_thumbnail(
     image_array: npt.ArrayLike
 ) -> io.BytesIO:
     """Create a thumbnail from an image array."""
-    image_array = image_array - np.min(image_array) + 1.001
-    image_array = np.log(image_array)
-    image_array = 205 * image_array / (np.max(image_array))
-    auto_contrast_image = Image.fromarray(image_array.astype("uint8"))
-    auto_contrast_image = ImageOps.autocontrast(auto_contrast_image, cutoff=0.1)
-    # filename = str(uuid4()) + ".png"
-    file = io.BytesIO()
-    # file = thumbnail_dir / Path(filename)
-    auto_contrast_image.save(file, format="png")
-    file.seek(0)
-    return file
+    try:
+        image_array = image_array - np.min(image_array) + 1.001
+        image_array = np.log(image_array)
+        image_array = 205 * image_array / (np.max(image_array))
+        auto_contrast_image = Image.fromarray(image_array.astype("uint8"))
+        auto_contrast_image = ImageOps.autocontrast(auto_contrast_image, cutoff=0.1)
+        # filename = str(uuid4()) + ".png"
+        file = io.BytesIO()
+        # file = thumbnail_dir / Path(filename)
+        auto_contrast_image.save(file, format="png")
+        file.seek(0)
+        return file
+    except Exception as e:
+        logger.error(f"build_thumbnail failed; returning blank image. Error: {e}", exc_info=True)
+        # determine original size (height, width)
+        try:
+            h, w = image_array.shape[:2]
+        except Exception:
+            h, w = 1, 1
+        # create blank RGB image of same dimensions
+        blank = Image.new("RGB", (w, h), color=(0, 0, 0))
+        buf = io.BytesIO()
+        blank.save(buf, format="PNG")
+        buf.seek(0)
+        return buf
 
 
 def calculate_access_controls(
