@@ -23,7 +23,7 @@ def create_sfapi_client(
 
     if not client_id_path or not client_secret_path:
         logger.error("NERSC credentials paths are missing.")
-        raise ValueError("Missing NERSC credentials paths.")
+        raise ValueError("NERSC credentials paths are missing.")
     if not os.path.isfile(client_id_path) or not os.path.isfile(client_secret_path):
         logger.error("NERSC credential files are missing.")
         raise FileNotFoundError("NERSC credential files are missing.")
