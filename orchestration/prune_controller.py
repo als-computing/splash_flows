@@ -48,7 +48,7 @@ class PruneController(Generic[Endpoint], ABC):
         file_path: str = None,
         source_endpoint: Endpoint = None,
         check_endpoint: Optional[Endpoint] = None,
-        days_from_now: datetime.timedelta = 0
+        days_from_now: float = 0.0
     ) -> bool:
         """
         Prune (delete) data from the source endpoint.
@@ -60,7 +60,7 @@ class PruneController(Generic[Endpoint], ABC):
             file_path (str): The path to the file or directory to prune
             source_endpoint (Endpoint): The endpoint containing the data to be pruned
             check_endpoint (Optional[Endpoint]): If provided, verify data exists here before pruning
-            days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
+            days_from_now (float): Delay in days before pruning; if 0.0, prune immediately.
 
         Returns:
             bool: True if pruning was successful or scheduled successfully, False otherwise
@@ -96,7 +96,7 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
         file_path: str = None,
         source_endpoint: FileSystemEndpoint = None,
         check_endpoint: Optional[FileSystemEndpoint] = None,
-        days_from_now: datetime.timedelta = 0
+        days_from_now: float = 0.0,
     ) -> bool:
         """
         Prune (delete) data from a file system endpoint.
@@ -108,7 +108,7 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
             file_path (str): The path to the file or directory to prune
             source_endpoint (FileSystemEndpoint): The file system endpoint containing the data
             check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
-            days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
+            days_from_now (float): Delay in days before pruning; if 0.0, prune immediately.
 
         Returns:
             bool: True if pruning was successful or scheduled successfully, False otherwise
@@ -123,6 +123,9 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
 
         flow_name = f"prune_from_{source_endpoint.name}"
         logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
+
+        # convert float days → timedelta
+        days_from_now: datetime.timedelta = datetime.timedelta(days=days_from_now)
 
         # If days_from_now is 0, prune immediately
         if days_from_now.total_seconds() == 0:
@@ -237,7 +240,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         file_path: str = None,
         source_endpoint: GlobusEndpoint = None,
         check_endpoint: Optional[GlobusEndpoint] = None,
-        days_from_now: datetime.timedelta = 0
+        days_from_now: float = 0.0
     ) -> bool:
         """
         Prune (delete) data from a file system endpoint.
@@ -266,6 +269,9 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         # max_wait_seconds = globus_settings["max_wait_seconds"]
         flow_name = f"prune_from_{source_endpoint.name}"
         logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
+
+        # convert float days → timedelta
+        days_from_now: datetime.timedelta = datetime.timedelta(days=days_from_now)
 
         # If days_from_now is 0, prune immediately
         if days_from_now.total_seconds() == 0:
