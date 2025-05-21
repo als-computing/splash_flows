@@ -171,10 +171,6 @@ class BeamlineIngestorController(ABC):
                 dataFileList=[datafile]
             )
 
-            # Add location information to the path if host is provided
-            if source_folder_host:
-                datafile.path = f"{source_folder_host}:{file_path}"
-
             # Upload the datablock
             self.scicat_client.upload_dataset_origdatablock(dataset_id, datablock)
             logger.info(f"Created new datablock for dataset {dataset_id} at location {datafile_path}")
