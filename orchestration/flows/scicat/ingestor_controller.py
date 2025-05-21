@@ -128,32 +128,32 @@ class BeamlineIngestorController(ABC):
     def add_new_dataset_location(
         self,
         dataset_id: str = None,
-        source_folder: str = None,
-        source_folder_host: str = None
+        datafile_path: str = None,
+        source_folder_host: Optional[str] = None
     ) -> str:
         """
         Add a new location to an existing dataset in SciCat.
 
         :param dataset_id:          SciCat ID of the dataset.
-        :param source_folder:       "Absolute file path on file server containing the files of this dataset,
-                                    e.g. /some/path/to/sourcefolder. In case of a single file dataset, e.g. HDF5 data,
-                                    it contains the path up to, but excluding the filename. Trailing slashes are removed.",
-
+        :param datafile_path:       Absolute file path to the data file (excluding protocol/host).
+                                    Caller is responsible for full path composition, including filename.
         :param source_folder_host: "DNS host name of file server hosting sourceFolder,
                                     optionally including a protocol e.g. [protocol://]fileserver1.example.com",
-
+        :return: The dataset ID after successful datablock addition.
+        :raises ValueError: If the dataset ID is not found or if the dataset does not have a valid 'pid'.
         """
         # Get the dataset to retrieve its metadata
         dataset = self.scicat_client.datasets_get_one(dataset_id)
         if not dataset:
             raise ValueError(f"Dataset with ID {dataset_id} not found")
 
-        logger.info(f"Creating new datablock for dataset {dataset_id} at location {source_folder}")
+        logger.info(f"Creating new datablock for dataset {dataset_id} at location {datafile_path}")
 
         try:
             # Create a datafile for the new location
-            basename = dataset.get("datasetName", "dataset")
-            file_path = f"{source_folder}/{basename}"
+            file_path = datafile_path
+            if source_folder_host:
+                file_path = f"{source_folder_host}:{datafile_path}"
 
             # Get size from existing dataset if available
             size = dataset.get("size", 0)
@@ -177,7 +177,7 @@ class BeamlineIngestorController(ABC):
 
             # Upload the datablock
             self.scicat_client.upload_dataset_origdatablock(dataset_id, datablock)
-            logger.info(f"Created new datablock for dataset {dataset_id} at location {source_folder}")
+            logger.info(f"Created new datablock for dataset {dataset_id} at location {datafile_path}")
 
             # Note: We're skipping the dataset update since it's causing validation issues
 
