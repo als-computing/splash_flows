@@ -264,6 +264,14 @@ class BeamlineIngestorController(ABC):
         Raises:
             ValueError: If no dataset or multiple datasets are found, or if the found dataset does not have a valid 'pid'.
         """
+
+        # TODO: I'm not sure if SciCat's advanced query API supports this, but, if we're actually searching by file_name,
+        # wouldn't it make more sense to look in all the dataFileList entries for all datasets?
+        # This comes to mind because at 733, scientists organize their data mostly by creating dated folders,
+        # and there's no guarantee that the files in those folders have unique names relative to the other folders.
+        # If they were searching for a data file, they would need to use a path fragment, e.g. '20241216_153047/new_run.h5'
+        # If this function could search dataFileLists by path fragment, it would be some future-proofing for those users...
+
         if file_name:
             # Extract the datasetName from the file_name by stripping the directory and extension.
             extracted_name = os.path.splitext(os.path.basename(file_name))[0]
