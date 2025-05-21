@@ -81,7 +81,7 @@ def test_create_sfapi_client_missing_paths():
     from orchestration.sfapi import create_sfapi_client
 
     # Passing None for both paths should trigger a ValueError.
-    with pytest.raises(ValueError, match="Missing NERSC credentials paths."):
+    with pytest.raises(ValueError, match="NERSC credentials paths are missing."):
         create_sfapi_client(None, None)
 
 
