@@ -91,7 +91,7 @@ def process_new_832_file(
         file_path=relative_path,
         source_endpoint=config.spot832,
         check_endpoint=config.data832,
-        days_from_now=datetime.timedelta(days=schedule_spot832_delete_days)
+        days_from_now=schedule_spot832_delete_days
     )
     logger.info(
         f"Scheduled delete from spot832 at {datetime.timedelta(days=schedule_spot832_delete_days)}"
@@ -101,7 +101,7 @@ def process_new_832_file(
         file_path=relative_path,
         source_endpoint=config.data832,
         check_endpoint=config.nersc832,
-        days_from_now=datetime.timedelta(days=schedule_data832_delete_days)
+        days_from_now=schedule_data832_delete_days
     )
     logger.info(
         f"Scheduled delete from data832 at {datetime.timedelta(days=schedule_data832_delete_days)}"

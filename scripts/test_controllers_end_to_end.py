@@ -4,7 +4,7 @@ These tests are designed to be as generic as possible and should work with any b
 
 """
 
-from datetime import timedelta, datetime
+from datetime import datetime
 import logging
 import os
 import shutil
@@ -463,7 +463,7 @@ def test_prune_controllers(
             file_path=file_path,
             source_endpoint=source_endpoint,
             check_endpoint=None,
-            days_from_now=timedelta(days=0)
+            days_from_now=0.0
         )
 
         # PRUNE FROM DESTINATION ENDPOINT
@@ -481,7 +481,7 @@ def test_prune_controllers(
             file_path=file_path,
             source_endpoint=destination_endpoint,
             check_endpoint=None,
-            days_from_now=timedelta(days=0)
+            days_from_now=0.0
         )
 
     if test_filesystem:
@@ -516,7 +516,7 @@ def test_prune_controllers(
             file_path=file_path,
             source_endpoint=source_endpoint,
             check_endpoint=None,
-            days_from_now=timedelta(days=0)
+            days_from_now=0.0
         )
 
         # Prune the destination endpoint
@@ -524,7 +524,7 @@ def test_prune_controllers(
             file_path=file_path,
             source_endpoint=destination_endpoint,
             check_endpoint=None,
-            days_from_now=timedelta(days=0)
+            days_from_now=0.0
         )
 
         # After pruning in the filesystem pruner test
