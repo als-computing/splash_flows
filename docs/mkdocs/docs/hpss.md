@@ -294,6 +294,7 @@ Most of the time we expect transfers to occur from CFS to HPSS on a scheduled ba
       - Recursively check each part of the incoming file path if the folder exists
       - If the folder does not exist, use `hsi mkdir`
       - Repeat until the file path is built
+      - Note: In the [hsi documentation](https://hpss-collaboration.org/wp-content/uploads/2023/09/hpss_hsi_10.2_reference_manual.pdf), there is a command `mkdir -p` to create\ missing intermediate path name directories. If the -p flag is not specified, the parent directory of each newly-created directory must already exist. This is not currently implemented, but something to consider in the future.
    3. Determine if the source is a file or a directory.
       - If a file, transfer it using 'hsi cput'.
       - If a directory, group files by beam cycle and archive them.
