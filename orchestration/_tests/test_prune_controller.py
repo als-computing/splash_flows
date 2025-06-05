@@ -10,11 +10,11 @@ from orchestration.prune_controller import PruneController
 
 
 ###############################################################################
-# Dummy Implementation for Testing
+# Mock Implementation for Testing
 ###############################################################################
-class DummyPruneController(PruneController):
+class MockPruneController(PruneController):
     """
-    A concrete dummy implementation of PruneController for testing purposes.
+    A concrete mock implementation of PruneController for testing purposes.
 
     This class uses a local directory (self.base_dir) to simulate file pruning.
     It provides additional helper methods:
@@ -22,11 +22,11 @@ class DummyPruneController(PruneController):
       - prune_files(retention): deletes files older than the given retention period.
     """
     def __init__(self, base_dir: Path):
-        # Create a dummy configuration object with a default beamline_id.
-        dummy_config = type("DummyConfig", (), {})()
-        dummy_config.tc = None
-        dummy_config.beamline_id = "dummy"  # Add a default beamline_id for testing
-        super().__init__(dummy_config)
+        # Create a mock configuration object with a default beamline_id.
+        mock_config = type("MockConfig", (), {})()
+        mock_config.tc = None
+        mock_config.beamline_id = "mock"  # Add a default beamline_id for testing
+        super().__init__(mock_config)
         self.base_dir = base_dir
 
     def get_files_to_delete(self, retention: int):
@@ -83,7 +83,7 @@ class DummyPruneController(PruneController):
         days_from_now: timedelta = timedelta(0)
     ) -> bool:
         """
-        Dummy implementation of the abstract method.
+        Mock implementation of the abstract method.
         (Not used in these tests.)
         """
         return True
@@ -107,9 +107,9 @@ def test_dir():
 @pytest.fixture
 def prune_controller(test_dir):
     """
-    Fixture that returns an instance of DummyPruneController using the temporary directory.
+    Fixture that returns an instance of MockPruneController using the temporary directory.
     """
-    return DummyPruneController(base_dir=test_dir)
+    return MockPruneController(base_dir=test_dir)
 
 
 ###############################################################################
@@ -140,7 +140,7 @@ def create_test_files(directory: Path, dates):
 ###############################################################################
 def test_prune_controller_initialization(prune_controller):
     from orchestration.prune_controller import PruneController
-    # Verify that our dummy controller is an instance of the abstract base class
+    # Verify that our mock controller is an instance of the abstract base class
     assert isinstance(prune_controller, PruneController)
     # And that the base directory exists
     assert prune_controller.base_dir.exists()
