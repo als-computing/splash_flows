@@ -332,7 +332,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         prune_one_safe(
             file=relative_path,
             if_older_than_days=0,
-            tranfer_client=config.tc,
+            transfer_client=config.tc,
             source_endpoint=source_endpoint,
             check_endpoint=check_endpoint,
             logger=logger,
