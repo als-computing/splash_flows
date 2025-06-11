@@ -1,203 +1,320 @@
-import os
-import shutil
-from datetime import datetime, timedelta
+# tests/orchestration/_tests/test_prune_controllers.py
+
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import pytest
+from prefect.blocks.system import JSON
+from prefect.testing.utilities import prefect_test_harness
 
-# Import the abstract PruneController base
-from orchestration.prune_controller import PruneController
+from orchestration.prune_controller import (
+    PruneController,
+    FileSystemPruneController,
+    GlobusPruneController,
+    get_prune_controller,
+    PruneMethod,
+)
+from orchestration.transfer_endpoints import FileSystemEndpoint
+from orchestration.globus.transfer import GlobusEndpoint
 
 
 ###############################################################################
-# Mock Implementation for Testing
+# Shared Fixtures & Helpers
 ###############################################################################
-class MockPruneController(PruneController):
+
+@pytest.fixture(autouse=True, scope="session")
+def prefect_test_fixture():
+    """Set up the Prefect test harness and register our JSON block."""
+    with prefect_test_harness():
+        JSON(value={"max_wait_seconds": 600}).save(name="globus-settings")
+        yield
+
+
+class MockConfig:
+    """Minimal config stub for controllers (only beamline_id and tc)."""
+    def __init__(self, beamline_id: str = "test_beamline") -> None:
+        self.beamline_id = beamline_id
+        self.tc: Any = None  # transfer client stub
+
+
+@pytest.fixture
+def mock_config() -> MockConfig:
+    """Provides a fresh MockConfig per test."""
+    return MockConfig(beamline_id="unittest_beamline")
+
+
+@pytest.fixture
+def tmp_fs_path(tmp_path: Path) -> Path:
+    """Temporary directory for filesystem tests."""
+    return tmp_path
+
+
+@pytest.fixture
+def fs_endpoint(tmp_fs_path: Path) -> FileSystemEndpoint:
+    """A FileSystemEndpoint rooted at our tmp directory."""
+    return FileSystemEndpoint(
+        name="fs_endpoint",
+        root_path=str(tmp_fs_path),
+        uri=str(tmp_fs_path),
+    )
+
+
+@pytest.fixture
+def globus_endpoint(tmp_fs_path: Path) -> GlobusEndpoint:
+    """A real GlobusEndpoint with a mock UUID."""
+    return GlobusEndpoint(
+        uuid="mock-uuid",
+        uri=str(tmp_fs_path),
+        root_path=str(tmp_fs_path),
+        name="globus_endpoint",
+    )
+
+
+@pytest.fixture
+def fs_controller(mock_config: MockConfig) -> FileSystemPruneController:
+    """FileSystemPruneController using mock_config."""
+    return FileSystemPruneController(config=mock_config)
+
+
+@pytest.fixture
+def globus_controller(mock_config: MockConfig) -> GlobusPruneController:
+    """GlobusPruneController using mock_config."""
+    return GlobusPruneController(config=mock_config)
+
+
+def create_file_or_dir(root: Path, rel: str, mkdir: bool = False) -> Path:
     """
-    A concrete mock implementation of PruneController for testing purposes.
-
-    This class uses a local directory (self.base_dir) to simulate file pruning.
-    It provides additional helper methods:
-      - get_files_to_delete(retention): returns files older than the given retention period.
-      - prune_files(retention): deletes files older than the given retention period.
+    Create either a file or directory under root/rel.
+    If mkdir is True, makes a directory; otherwise creates an empty file.
     """
-    def __init__(self, base_dir: Path):
-        # Create a mock configuration object with a default beamline_id.
-        mock_config = type("MockConfig", (), {})()
-        mock_config.tc = None
-        mock_config.beamline_id = "mock"  # Add a default beamline_id for testing
-        super().__init__(mock_config)
-        self.base_dir = base_dir
+    p = root / rel
+    if mkdir:
+        p.mkdir(parents=True, exist_ok=True)
+    else:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.touch()
+    return p
 
-    def get_files_to_delete(self, retention: int):
-        """
-        Return a list of files in self.base_dir whose modification time is older than
-        'retention' days.
 
-        Args:
-            retention (int): Retention period in days. Must be > 0.
+###############################################################################
+# Mock Fixtures for External Calls
+###############################################################################
 
-        Returns:
-            List[Path]: Files older than the retention period.
+@pytest.fixture
+def mock_scheduler(monkeypatch):
+    """
+    Monkeypatches schedule_prefect_flow → a mock that records its args and returns True.
+    Returns the dict where call args are recorded.
+    """
+    recorded: Dict[str, Any] = {}
 
-        Raises:
-            ValueError: If retention is not positive.
-        """
-        if retention <= 0:
-            raise ValueError("Retention must be a positive number of days")
-        now_ts = datetime.now().timestamp()
-        retention_seconds = retention * 24 * 3600
-        files_to_delete = []
-        for f in self.base_dir.glob("*"):
-            if f.is_file():
-                mod_time = f.stat().st_mtime
-                if now_ts - mod_time > retention_seconds:
-                    files_to_delete.append(f)
-        return files_to_delete
-
-    def prune_files(self, retention: int):
-        """
-        Delete files older than 'retention' days and return the list of deleted files.
-
-        Args:
-            retention (int): Retention period in days. Must be > 0.
-
-        Returns:
-            List[Path]: List of files that were deleted.
-
-        Raises:
-            ValueError: If retention is not positive.
-        """
-        if retention <= 0:
-            raise ValueError("Retention must be a positive number of days")
-        files_to_delete = self.get_files_to_delete(retention)
-        for f in files_to_delete:
-            f.unlink()  # Delete the file
-        return files_to_delete
-
-    def prune(
-        self,
-        file_path: str = None,
-        source_endpoint=None,
-        check_endpoint=None,
-        days_from_now: timedelta = timedelta(0)
-    ) -> bool:
-        """
-        Mock implementation of the abstract method.
-        (Not used in these tests.)
-        """
+    def _scheduler(deployment_name, flow_run_name, parameters, duration_from_now):
+        recorded.update(
+            deployment_name=deployment_name,
+            flow_run_name=flow_run_name,
+            parameters=parameters,
+            duration=duration_from_now,
+        )
         return True
 
-
-###############################################################################
-# Pytest Fixtures
-###############################################################################
-@pytest.fixture
-def test_dir():
-    """
-    Fixture that creates (and later cleans up) a temporary directory for tests.
-    """
-    test_path = Path("test_prune_data")
-    test_path.mkdir(exist_ok=True)
-    yield test_path
-    if test_path.exists():
-        shutil.rmtree(test_path)
+    monkeypatch.setattr(
+        "orchestration.prune_controller.schedule_prefect_flow",
+        _scheduler,
+    )
+    return recorded
 
 
 @pytest.fixture
-def prune_controller(test_dir):
+def mock_scheduler_raises(monkeypatch):
     """
-    Fixture that returns an instance of MockPruneController using the temporary directory.
+    Monkeypatches schedule_prefect_flow → a mock that always raises.
     """
-    return MockPruneController(base_dir=test_dir)
+    def _scheduler_raises(*args, **kwargs):
+        raise RuntimeError("scheduler failure")
+
+    monkeypatch.setattr(
+        "orchestration.prune_controller.schedule_prefect_flow",
+        _scheduler_raises,
+    )
 
 
-###############################################################################
-# Helper Function for Creating Test Files
-###############################################################################
-def create_test_files(directory: Path, dates):
+@pytest.fixture
+def mock_prune_one_safe(monkeypatch):
     """
-    Create test files in the specified directory with modification times given by `dates`.
-
-    Args:
-        directory (Path): The directory in which to create files.
-        dates (List[datetime]): List of datetimes to set as the file's modification time.
-
-    Returns:
-        List[Path]: List of created file paths.
+    Monkeypatches prune_one_safe → a mock that records its kwargs and returns True.
+    Returns the dict where call args are recorded.
     """
-    files = []
-    for date in dates:
-        filepath = directory / f"test_file_{date.strftime('%Y%m%d')}.txt"
-        filepath.touch()  # Create the empty file
-        os.utime(filepath, (date.timestamp(), date.timestamp()))
-        files.append(filepath)
-    return files
+    recorded: Dict[str, Any] = {}
+
+    def _prune_one_safe(
+        file: str,
+        if_older_than_days: int,
+        transfer_client: Any,
+        source_endpoint: GlobusEndpoint,
+        check_endpoint: Optional[GlobusEndpoint],
+        logger: Any,
+        max_wait_seconds: int,
+    ) -> bool:
+        recorded.update(
+            file=file,
+            if_older_than_days=if_older_than_days,
+            transfer_client=transfer_client,
+            source_endpoint=source_endpoint,
+            check_endpoint=check_endpoint,
+            max_wait_seconds=max_wait_seconds,
+        )
+        return True
+
+    monkeypatch.setattr(
+        "orchestration.prune_controller.prune_one_safe",
+        _prune_one_safe,
+    )
+    return recorded
 
 
 ###############################################################################
 # Tests
 ###############################################################################
-def test_prune_controller_initialization(prune_controller):
-    from orchestration.prune_controller import PruneController
-    # Verify that our mock controller is an instance of the abstract base class
-    assert isinstance(prune_controller, PruneController)
-    # And that the base directory exists
-    assert prune_controller.base_dir.exists()
+
+def test_prunecontroller_is_abstract():
+    """PruneController must be abstract (cannot be instantiated directly)."""
+    with pytest.raises(TypeError):
+        PruneController(config=MockConfig())
 
 
-def test_get_files_to_delete(prune_controller, test_dir):
-    # Create test files with various modification times.
-    now = datetime.now()
-    dates = [
-        now - timedelta(days=31),  # Old enough to be pruned
-        now - timedelta(days=20),  # Recent
-        now - timedelta(days=40),  # Old enough to be pruned
-        now - timedelta(days=10),  # Recent
-    ]
-    test_files = create_test_files(test_dir, dates)
-
-    # When using a 30-day retention, the two older files should be flagged.
-    files_to_delete = prune_controller.get_files_to_delete(30)
-    assert len(files_to_delete) == 2
-
-    # Check that the names of the older files are in the returned list.
-    file_names_to_delete = {f.name for f in files_to_delete}
-    assert test_files[0].name in file_names_to_delete
-    assert test_files[2].name in file_names_to_delete
+def test_get_prune_controller_factory_correct_types(mock_config):
+    """get_prune_controller returns the right subclass or raises on invalid."""
+    assert isinstance(get_prune_controller(PruneMethod.SIMPLE, mock_config), FileSystemPruneController)
+    assert isinstance(get_prune_controller(PruneMethod.GLOBUS, mock_config), GlobusPruneController)
+    with pytest.raises((AttributeError, ValueError)):
+        get_prune_controller("invalid", mock_config)  # type: ignore
 
 
-def test_prune_files(prune_controller, test_dir):
-    # Create two files: one older than 30 days and one newer.
-    now = datetime.now()
-    dates = [
-        now - timedelta(days=31),  # Should be deleted
-        now - timedelta(days=20),  # Should remain
-    ]
-    test_files = create_test_files(test_dir, dates)
+def test_fs_prune_immediate_deletes_file_directly(fs_controller, fs_endpoint, tmp_fs_path):
+    """Immediate FileSystem prune should delete an existing file."""
+    rel = "subdir/foo.txt"
+    p = create_file_or_dir(tmp_fs_path, rel)
+    assert p.exists()
 
-    # Prune files older than 30 days.
-    deleted_files = prune_controller.prune_files(30)
-    # One file should have been deleted.
-    assert len(deleted_files) == 1
-    # The older file should no longer exist.
-    assert not test_files[0].exists()
-    # The newer file should still exist.
-    assert test_files[1].exists()
+    fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
+    assert fn(relative_path=rel, source_endpoint=fs_endpoint, check_endpoint=None, config=fs_controller.config)
+    assert not p.exists()
 
 
-def test_empty_directory(prune_controller):
-    # Ensure the test directory is empty.
-    for f in list(prune_controller.base_dir.glob("*")):
-        f.unlink()
-    deleted_files = prune_controller.prune_files(30)
-    # There should be no files to delete.
-    assert len(deleted_files) == 0
+def test_fs_prune_immediate_returns_false_if_missing(fs_controller, fs_endpoint, tmp_fs_path):
+    """Immediate FileSystem prune should return False for missing path."""
+    rel = "no/such/file.txt"
+    assert not (tmp_fs_path / rel).exists()
+
+    fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
+    assert fn(relative_path=rel, source_endpoint=fs_endpoint, check_endpoint=None, config=fs_controller.config) is False
 
 
-def test_invalid_retention_period(prune_controller):
-    # Using retention periods <= 0 should raise a ValueError.
-    with pytest.raises(ValueError):
-        prune_controller.prune_files(-1)
-    with pytest.raises(ValueError):
-        prune_controller.prune_files(0)
+def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoint, tmp_fs_path, mock_scheduler):
+    """Calling prune with days_from_now>0 should schedule a Prefect flow."""
+    rel = "to_schedule.txt"
+    create_file_or_dir(tmp_fs_path, rel)
+
+    result = fs_controller.prune(
+        file_path=rel,
+        source_endpoint=fs_endpoint,
+        check_endpoint=None,
+        days_from_now=1.5,
+    )
+    assert result is True
+
+    assert mock_scheduler["flow_run_name"] == f"prune_from_{fs_endpoint.name}"
+    assert mock_scheduler["parameters"]["relative_path"] == rel
+    assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 1.5 * 86400
+
+
+def test_fs_prune_returns_false_if_schedule_raises(fs_controller, fs_endpoint, tmp_fs_path, mock_scheduler_raises):
+    """If scheduling fails, fs_controller.prune should return False."""
+    rel = "error.txt"
+    create_file_or_dir(tmp_fs_path, rel)
+
+    assert fs_controller.prune(
+        file_path=rel,
+        source_endpoint=fs_endpoint,
+        check_endpoint=None,
+        days_from_now=2.0,
+    ) is False
+
+
+def test_globus_prune_immediate_calls_prune_one_safe_directly(
+    globus_controller,
+    globus_endpoint,
+    tmp_fs_path,
+    mock_prune_one_safe
+):
+    """Immediate Globus prune should invoke prune_one_safe with correct arguments."""
+    rel = "data.bin"
+    create_file_or_dir(tmp_fs_path, rel)
+    assert (tmp_fs_path / rel).exists()
+
+    fn = globus_controller._prune_globus_endpoint.fn  # type: ignore
+    _ = fn(
+        relative_path=rel,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        config=globus_controller.config,
+    )
+
+    assert mock_prune_one_safe["file"] == rel
+    assert mock_prune_one_safe["if_older_than_days"] == 0
+    assert mock_prune_one_safe["transfer_client"] is None
+    assert mock_prune_one_safe["source_endpoint"] is globus_endpoint
+    assert mock_prune_one_safe["max_wait_seconds"] == 600
+
+
+@pytest.mark.parametrize("invalid_fp", [None, ""])
+def test_globus_prune_rejects_missing_file_path_directly(globus_controller, globus_endpoint, invalid_fp):
+    """Globus prune should return False when file_path is None or empty."""
+    assert globus_controller.prune(
+        file_path=invalid_fp,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        days_from_now=0.0,
+    ) is False
+
+
+def test_globus_prune_rejects_missing_endpoint_directly(globus_controller, tmp_fs_path):
+    """Globus prune should return False when source_endpoint is None."""
+    (tmp_fs_path / "whatever").touch()
+
+    assert globus_controller.prune(
+        file_path="whatever",
+        source_endpoint=None,  # type: ignore
+        check_endpoint=None,
+        days_from_now=0.0,
+    ) is False
+
+
+def test_globus_prune_schedules_when_days_from_now_positive(globus_controller, globus_endpoint, tmp_fs_path, mock_scheduler):
+    """Calling Globus prune with days_from_now>0 should schedule a Prefect flow."""
+    rel = "sched.txt"
+    create_file_or_dir(tmp_fs_path, rel)
+
+    result = globus_controller.prune(
+        file_path=rel,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        days_from_now=3.0,
+    )
+    assert result is True
+
+    assert mock_scheduler["flow_run_name"] == f"prune_from_{globus_endpoint.name}"
+    assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 3.0 * 86400
+
+
+def test_globus_prune_returns_false_if_schedule_raises(globus_controller, globus_endpoint, tmp_fs_path, mock_scheduler_raises):
+    """If scheduling fails, globus_controller.prune should return False."""
+    rel = "err.txt"
+    create_file_or_dir(tmp_fs_path, rel)
+
+    assert globus_controller.prune(
+        file_path=rel,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        days_from_now=4.0,
+    ) is False
