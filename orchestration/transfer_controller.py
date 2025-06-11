@@ -79,7 +79,6 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     ) -> None:
         super().__init__(config)
         self.prometheus_metrics = prometheus_metrics
-        logger.debug(f"Initialized GlobusTransferController for beamline {config.beamline_id}")
     """
     Use Globus Transfer to move data between endpoints.
 
@@ -313,7 +312,6 @@ class SimpleTransferController(TransferController[FileSystemEndpoint]):
         config: BeamlineConfig
     ) -> None:
         super().__init__(config)
-        logger.debug(f"Initialized SimpleTransferController for beamline {config.beamline_id}")
 
     def copy(
         self,
