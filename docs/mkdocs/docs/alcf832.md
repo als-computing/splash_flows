@@ -389,7 +389,7 @@ def  prune_alcf832_raw(relative_path:  str):
     prune_one_safe(
         file=relative_path,
         if_older_than_days=0,
-        tranfer_client=tc,
+        transfer_client=tc,
         source_endpoint=config.alcf832_raw,
         check_endpoint=config.nersc832_alsdev_raw,
         logger=p_logger,
