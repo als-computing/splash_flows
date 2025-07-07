@@ -5,8 +5,8 @@ from typing import Optional
 from prefect import flow
 from prefect.blocks.system import JSON
 
-from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.flows.bl733.config import Config733
+from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.transfer_controller import CopyMethod, get_transfer_controller
 
@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def prune(
-    self,
     file_path: str = None,
     source_endpoint: GlobusEndpoint = None,
     check_endpoint: Optional[GlobusEndpoint] = None,
