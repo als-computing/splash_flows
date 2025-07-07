@@ -20,7 +20,8 @@ def prune(
     file_path: str = None,
     source_endpoint: GlobusEndpoint = None,
     check_endpoint: Optional[GlobusEndpoint] = None,
-    days_from_now: float = 0.0
+    days_from_now: float = 0.0,
+    config: Config733 = None
 ) -> bool:
     """
     Prune (delete) data from a file system endpoint.
@@ -28,8 +29,8 @@ def prune(
     Otherwise, schedules pruning for future execution using Prefect.
     Args:
         file_path (str): The path to the file or directory to prune
-        source_endpoint (FileSystemEndpoint): The file system endpoint containing the data
-        check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
+        source_endpoint (GlobusEndpoint): The globus endpoint containing the data
+        check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
         days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
@@ -41,6 +42,9 @@ def prune(
     if not source_endpoint:
         logger.error("No source_endpoint provided for pruning operation")
         return False
+
+    if not config:
+        config = Config733()
 
     # globus_settings = JSON.load("globus-settings").value
     # max_wait_seconds = globus_settings["max_wait_seconds"]
@@ -57,7 +61,7 @@ def prune(
             relative_path=file_path,
             source_endpoint=source_endpoint,
             check_endpoint=check_endpoint,
-            config=self.config
+            config=config
         )
     else:
         # Otherwise, schedule pruning for future execution
@@ -72,7 +76,7 @@ def prune(
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
                     "check_endpoint": check_endpoint,
-                    "config": self.config
+                    "config": config
                 },
                 duration_from_now=days_from_now,
             )

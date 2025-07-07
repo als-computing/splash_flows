@@ -161,6 +161,12 @@ def test_process_new_733_file(mocker: MockFixture) -> None:
         )
         from orchestration.flows.bl733.config import Config733
 
+    # Patch the schedule_prefect_flow call to avoid real Prefect interaction
+    mocker.patch(
+        "orchestration.flows.bl733.move.schedule_prefect_flow",
+        return_value=None
+    )
+
     # Instantiate the dummy configuration.
     mock_config = Config733()
 
