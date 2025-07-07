@@ -1,0 +1,17 @@
+name: bl733
+prefect-version: 3.4.2
+deployments:
+- name: new_file_733
+  entrypoint: orchestration/flows/bl733/move.py:process_new_733_file
+  work_pool: new_file_733_pool
+  work_queue: new_file_733_queue
+
+- name: run_733_dispatcher
+  entrypoint: orchestration/flows/bl733/dispatcher.py:dispatcher
+  work_pool: dispatcher_733_pool
+  work_queue: dispatcher_733_queue
+
+- name: prune_data733
+  entrypoint: orchestration/flows/bl733/move.py:prune
+  work_pool: prune_733_pool
+  work_queue: prune_733_queue
