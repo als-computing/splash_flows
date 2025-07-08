@@ -7,7 +7,7 @@ from orchestration.flows.bl733.move import process_new_733_file
 logger = logging.getLogger(__name__)
 
 
-@flow(name="dispatcher")
+@flow(name="dispatcher", flow_run_name="dispatcher-{{file_path | basename }}")
 def dispatcher(
     file_path: Optional[str] = None,
     is_export_control: bool = False,
