@@ -24,7 +24,7 @@ def prune(
     config: Config733 = None
 ) -> bool:
     """
-    Prune (delete) data from a file system endpoint.
+    Prune (delete) data from a globus endpoint.
     If days_from_now is 0, executes pruning immediately.
     Otherwise, schedules pruning for future execution using Prefect.
     Args:
@@ -48,7 +48,7 @@ def prune(
 
     # globus_settings = JSON.load("globus-settings").value
     # max_wait_seconds = globus_settings["max_wait_seconds"]
-    flow_name = f"prune_from_{source_endpoint.name}"
+
     logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
 
     # convert float days → timedelta
@@ -71,7 +71,6 @@ def prune(
         try:
             schedule_prefect_flow(
                 deployment_name="prune_globus_endpoint/prune_globus_endpoint",
-                flow_run_name=flow_name,
                 parameters={
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
@@ -91,7 +90,7 @@ def prune(
 
 
 # @staticmethod
-@flow(name="prune_globus_endpoint")
+@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{{ relative_path | basename }}")
 def _prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
@@ -124,7 +123,7 @@ def _prune_globus_endpoint(
     )
 
 
-@flow(name="new_733_file_flow")
+@flow(name="new_733_file_flow", flow_run_name="process_new-{{ file_path | basename }}")
 def process_new_733_file(
     file_path: str,
     config: Config733
@@ -157,10 +156,11 @@ def process_new_733_file(
     )
 
     # TODO: Ingest file path in SciCat
+    # Waiting for PR #62 to be merged (scicat_controller)
 
-    # TODO: Schedule pruning from QNAP
+    # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
-    # Determine scheduling days_from_now based on beamline needs
+    # TODO: Determine scheduling days_from_now based on beamline needs
     prune(
         file_path=file_path,
         source_endpoint=config.data733_raw,
@@ -172,3 +172,4 @@ def process_new_733_file(
     # Waiting for PR #62 to be merged (transfer_controller)
 
     # TODO: Ingest file path in SciCat
+    # Waiting for PR #62 to be merged (scicat_controller)
