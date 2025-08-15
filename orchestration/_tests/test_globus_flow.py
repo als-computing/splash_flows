@@ -37,8 +37,8 @@ def prefect_test_fixture():
 
         decision_settings = JSON(value={
             "alcf_recon_flow/alcf_recon_flow": True,
-            "nersc_recon_flow/nersc_recon_flow": False,
-            "new_832_file_flow/new_file_832": False
+            "nersc_recon_flow/nersc_recon_flow": True,
+            "new_832_file_flow/new_file_832": True
         })
         decision_settings.save(name="decision-settings")
 
@@ -134,14 +134,13 @@ def test_832_dispatcher(mocker: MockFixture):
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
 
-    # Import decision flow after mocking the necessary components
-    from orchestration.flows.bl832.dispatcher import dispatcher
-
     # Mock read_deployment_by_name with a manually defined mock class
     class MockDeployment:
-        version = "1.0.0"
-        flow_id = str(uuid4())
-        name = "test_deployment"
+        def __init__(self):
+            self.id = str(uuid4())  # Add this line
+            self.version = "1.0.0"
+            self.flow_id = str(uuid4())
+            self.name = "test_deployment"
 
     mocker.patch('prefect.client.orchestration.PrefectClient.read_deployment_by_name',
                  return_value=MockDeployment())
@@ -150,13 +149,16 @@ def test_832_dispatcher(mocker: MockFixture):
     async def mock_run_deployment(*args, **kwargs):
         return None
 
-    mocker.patch('prefect.deployments.deployments.run_deployment', new=mock_run_deployment)
+    mocker.patch('prefect.deployments.run_deployment', new=mock_run_deployment)
 
     # Mock asyncio.gather to avoid actual async task execution
     async def mock_gather(*args, **kwargs):
         return [None]
 
     mocker.patch('asyncio.gather', new=mock_gather)
+
+    # Import decision flow after mocking the necessary components
+    from orchestration.flows.bl832.dispatcher import dispatcher
 
     # Run the decision flow
     result = asyncio.run(dispatcher(
