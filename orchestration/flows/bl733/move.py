@@ -46,6 +46,7 @@ def prune(
     if not config:
         config = Config733()
 
+    # JSON blocks are deprecated, we should use what they recommend in the docs
     # globus_settings = JSON.load("globus-settings").value
     # max_wait_seconds = globus_settings["max_wait_seconds"]
 
@@ -123,7 +124,7 @@ def _prune_globus_endpoint(
     )
 
 
-@flow(name="new_733_file_flow", flow_run_name="process_new-{{ file_path | basename }}")
+@flow(name="new_733_file_flow", flow_run_name="process_new-{file_path}")
 def process_new_733_file(
     file_path: str,
     config: Config733
@@ -131,7 +132,7 @@ def process_new_733_file(
     """
     Flow to process a new file at BL 7.3.3
     1. Copy the file from the data733 to NERSC CFS. Ingest file path in SciCat.
-    2. Schedule pruning from data733.
+    2. Schedule pruning from data733. 6 months from now.
     3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
     4. Schedule pruning from NERSC CFS.
 
@@ -165,11 +166,18 @@ def process_new_733_file(
         file_path=file_path,
         source_endpoint=config.data733_raw,
         check_endpoint=config.nersc733_alsdev_raw,
-        days_from_now=1.0  # work with Chenhui/Eric to determine appropriate value
+        days_from_now=180.0  # work with Chenhui/Eric to determine appropriate value: 6 months
     )
 
-    # TODO: Copy the file from NERSC CFS to NERSC HPSS
+    # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
+
+
+if __name__ == "__main__":
+    # Example usage
+    config = Config733()
+    file_path = "dabramov/test.txt"
+    process_new_733_file(file_path, config)
