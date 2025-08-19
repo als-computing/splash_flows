@@ -347,7 +347,7 @@ def schedule_pruning(
     return True
 
 
-@flow(name="alcf_recon_flow", flow_run_name="alcf_recon-{{ file_path | basename }}")
+@flow(name="alcf_recon_flow", flow_run_name="alcf_recon-{file_path}")
 def alcf_recon_flow(
     file_path: str,
     config: Optional[Config832] = None,

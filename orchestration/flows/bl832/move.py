@@ -87,7 +87,6 @@ def transfer_data_to_nersc(
     return success
 
 
-<<<<<<< HEAD
 @flow(name="new_832_file_flow")
 def process_new_832_file_flow(
     file_path: str,
@@ -110,13 +109,6 @@ def process_new_832_file_task(
     send_to_nersc=True,
     config=None
 ):
-=======
-@flow(name="new_832_file_flow", flow_run_name="process_new-{{ file_path | basename }}")
-def process_new_832_file(file_path: str,
-                         is_export_control=False,
-                         send_to_nersc=True,
-                         config=None):
->>>>>>> af01bc5 (Prefect 3 upgrade: flows, tests, dispatcher/BL832 updates, requirements, and Prefect YAML)
     """
     Sends a file along a path:
         - Copy from spot832 to data832

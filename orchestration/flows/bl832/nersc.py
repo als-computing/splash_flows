@@ -425,7 +425,7 @@ def schedule_pruning(
         logger.error(f"Failed to schedule prune task: {e}")
 
 
-@flow(name="nersc_recon_flow", flow_run_name="nersc_recon-{{ file_path | basename }}")
+@flow(name="nersc_recon_flow", flow_run_name="nersc_recon-{file_path}")
 def nersc_recon_flow(
     file_path: str,
     config: Optional[Config832] = None,

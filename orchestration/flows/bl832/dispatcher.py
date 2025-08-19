@@ -101,11 +101,7 @@ async def run_recon_flow_async(flow_name: str, parameters: dict) -> None:
         raise
 
 
-<<<<<<< HEAD
 @flow(name="dispatcher", flow_run_name="dispatcher-{file_path}")
-=======
-@flow(name="dispatcher", flow_run_name="dispatch_flows-{{ file_path | basename }}")
->>>>>>> af01bc5 (Prefect 3 upgrade: flows, tests, dispatcher/BL832 updates, requirements, and Prefect YAML)
 async def dispatcher(
     file_path: Optional[str] = None,
     is_export_control: bool = False,
