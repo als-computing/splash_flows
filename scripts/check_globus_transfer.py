@@ -271,7 +271,7 @@ def main(endpoint_id: str,
     Main function to parse command-line arguments and run the check_globus_transfer_permissions flow.
 
     Run from the command line:
-    python check_globus_transfer.py --endpoint_id "your-endpoint-id" --directory_name "your-directory-name"
+    python check_globus_transfer.py "your-endpoint-id" --directory-name "your-directory-name"
 
     Args:
         endpoint_id (str): The UUID of the Globus endpoint.
