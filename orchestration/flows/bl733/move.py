@@ -179,5 +179,5 @@ def process_new_733_file(
 if __name__ == "__main__":
     # Example usage
     config = Config733()
-    file_path = "dabramov/test.txt"
+    file_path = "test_directory/"
     process_new_733_file(file_path, config)
