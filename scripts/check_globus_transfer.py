@@ -138,14 +138,20 @@ def create_directory(transfer_client: globus_sdk.TransferClient,
 
 
 @task
-def remove_directory(transfer_client: globus_sdk.TransferClient, endpoint_id: str, path: str) -> bool:
+def create_test_file(transfer_client: globus_sdk.TransferClient,
+                     endpoint_id: str,
+                     directory_path: str = "test_directory/",
+                     file_name: str = "test.txt",
+                     content: str = "This is a test file.") -> bool:
     """
-    Remove a directory on a specified Globus endpoint.
+    Create a file on a Globus endpoint by uploading provided content.
 
     Args:
-        transfer_client (globus_sdk.TransferClient): An authenticated TransferClient object.
-        endpoint_id (str): The UUID of the endpoint where the directory is located.
-        path (str): The path of the directory to remove.
+        transfer_client (globus_sdk.TransferClient): Authenticated TransferClient.
+        endpoint_id (str): UUID of the endpoint.
+        directory_path (str): Path to the directory where file will be created.
+        file_name (str): Name of the file to create.
+        content (str): Text content to write to the file.
 
     Returns:
         bool: True if successful, False otherwise.
@@ -154,19 +160,57 @@ def remove_directory(transfer_client: globus_sdk.TransferClient, endpoint_id: st
     start_time = time.time()
     success = False
     try:
-        delete_data = globus_sdk.DeleteData(transfer_client, endpoint_id, recursive=True)
-        delete_data.add_item(path)
-        transfer_result = transfer_client.submit_delete(delete_data)
-        logger.info(f"Successfully submitted request to remove directory {path} in endpoint {endpoint_id}.")
-        logger.info(f"Task ID: {transfer_result['task_id']}")
-        logger.info(f"transfer result:  {transfer_result}")
+        if not directory_path.endswith('/'):
+            directory_path += '/'
+        full_path = directory_path + file_name
+
+        # Create a temporary local file
+        import tempfile
+        with tempfile.NamedTemporaryFile("w+", delete=False) as tmp_file:
+            tmp_file.write(content)
+            tmp_file_path = tmp_file.name
+
+        # Upload the file to the endpoint
+        transfer_client.operation_upload(tmp_file_path, endpoint_id, full_path)
+        logger.info(f"Successfully created file {full_path} in endpoint {endpoint_id}.")
         success = True
     except globus_sdk.GlobusAPIError as err:
-        logger.error(f"Error removing directory {path} in endpoint {endpoint_id}: {err.message}")
+        logger.error(f"Error creating file {full_path} in endpoint {endpoint_id}: {err.message}")
     finally:
         elapsed_time = time.time() - start_time
-        logger.info(f"remove_directory task took {elapsed_time:.2f} seconds")
+        logger.info(f"create_test_file task took {elapsed_time:.2f} seconds")
         return success
+
+# @task
+# def remove_directory(transfer_client: globus_sdk.TransferClient, endpoint_id: str, path: str) -> bool:
+#     """
+#     Remove a directory on a specified Globus endpoint.
+
+#     Args:
+#         transfer_client (globus_sdk.TransferClient): An authenticated TransferClient object.
+#         endpoint_id (str): The UUID of the endpoint where the directory is located.
+#         path (str): The path of the directory to remove.
+
+#     Returns:
+#         bool: True if successful, False otherwise.
+#     """
+#     logger = get_run_logger()
+#     start_time = time.time()
+#     success = False
+#     try:
+#         # delete_data = globus_sdk.DeleteData(transfer_client, endpoint_id, recursive=True)
+#         # delete_data.add_item(path)
+#         # transfer_result = transfer_client.submit_delete(delete_data)
+#         logger.info(f"Successfully submitted request to remove directory {path} in endpoint {endpoint_id}.")
+#         logger.info(f"Task ID: {transfer_result['task_id']}")
+#         logger.info(f"transfer result:  {transfer_result}")
+#         success = True
+#     except globus_sdk.GlobusAPIError as err:
+#         logger.error(f"Error removing directory {path} in endpoint {endpoint_id}: {err.message}")
+#     finally:
+#         elapsed_time = time.time() - start_time
+#         logger.info(f"remove_directory task took {elapsed_time:.2f} seconds")
+#         return success
 
 
 @flow(name="check-globus-transfer")
@@ -174,7 +218,7 @@ def check_globus_transfer_permissions(endpoint_id: str,
                                       transfer_client: Optional[globus_sdk.TransferClient],
                                       list_contents: bool = True,
                                       create_test_directory: bool = True,
-                                      delete_test_directory: bool = True,
+                                      delete_test_directory: bool = False,
                                       directory_name: str = "test_directory/") -> None:
     """
     Check permissions, list directory contents, create a directory,
@@ -207,9 +251,9 @@ def check_globus_transfer_permissions(endpoint_id: str,
         success_create_directory = create_directory(transfer_client, endpoint_id, "", directory_name)
         logger.info(f"create_directory successful: {success_create_directory}")
 
-    if delete_test_directory:
-        success_remove_directory = remove_directory(transfer_client, endpoint_id, directory_name)
-        logger.info(f"remove_directory successful: {success_remove_directory}")
+    # if delete_test_directory:
+    #     success_remove_directory = remove_directory(transfer_client, endpoint_id, directory_name)
+    #     logger.info(f"remove_directory successful: {success_remove_directory}")
 
     if list_contents and create_test_directory:
         logger.info(f"Listing / directory after creating {directory_name}:")
@@ -221,7 +265,7 @@ def check_globus_transfer_permissions(endpoint_id: str,
 def main(endpoint_id: str,
          list_contents: bool = True,
          create_test_directory: bool = True,
-         delete_test_directory: bool = True,
+         delete_test_directory: bool = False,
          directory_name: str = "test_directory/") -> None:
     """
     Main function to parse command-line arguments and run the check_globus_transfer_permissions flow.
