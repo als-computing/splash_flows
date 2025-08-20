@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from prefect import flow
-from prefect.blocks.system import JSON
+# from prefect.blocks.system import JSON
 
 from orchestration.flows.bl733.config import Config733
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
@@ -108,8 +108,12 @@ def _prune_globus_endpoint(
     """
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
-    globus_settings = JSON.load("globus-settings").value
-    max_wait_seconds = globus_settings["max_wait_seconds"]
+    if not config:
+        config = Config733()
+
+    # globus_settings = JSON.load("globus-settings").value
+    # max_wait_seconds = globus_settings["max_wait_seconds"]
+    max_wait_seconds = 600
     flow_name = f"prune_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
