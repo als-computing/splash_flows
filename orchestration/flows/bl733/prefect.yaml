@@ -7,6 +7,17 @@ deployments:
     name: new_file_733_pool
     work_queue_name: new_file_733_queue
 
+- name: new_file_733_flight_check
+  entrypoint: orchestration/flows/bl733/move.py:move_733_flight_check
+  work_pool:
+    name: new_file_733_pool
+    work_queue_name: move_file_733_flight_check_queue
+  schedules:
+  - cron: "0 */12 * * *" # Every 12 hours
+    slug: "test-move-733-flight-check"
+    timezone: America/Los_Angeles
+    active: true
+
 - name: run_733_dispatcher
   entrypoint: orchestration/flows/bl733/dispatcher.py:dispatcher
   work_pool:

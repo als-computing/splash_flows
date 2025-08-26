@@ -183,6 +183,31 @@ def process_new_733_file(
     # Waiting for PR #62 to be merged (scicat_controller)
 
 
+@flow(name="move_733_flight_check", flow_run_name="move_733_flight_check-{file_path}")
+def move_733_flight_check(
+    file_path: str = "test_directory/test.txt",
+):
+    """Please keep your arms and legs inside the vehicle at all times."""
+    logger.info("733 flight check: testing transfer from data733 to NERSC CFS")
+
+    config = Config733()
+
+    transfer_controller = get_transfer_controller(
+        transfer_type=CopyMethod.GLOBUS,
+        config=config
+    )
+
+    success = transfer_controller.copy(
+        file_path=file_path,
+        source=config.data733_raw,
+        destination=config.nersc733_alsdev_raw
+    )
+    if success is True:
+        logger.info("733 flight check: transfer successful")
+    else:
+        logger.error("733 flight check: transfer failed")
+
+
 if __name__ == "__main__":
     # Example usage
     config = Config733()
