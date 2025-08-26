@@ -1,42 +1,26 @@
 #!/usr/bin/env python3
 """
 init_work_pools.py
-<<<<<<< HEAD
 Description:
     Initializes Prefect work pools and deployments for the beamline defined by the BEAMLINE environment variable.
     Uses orchestration/flows/bl"$BEAMLINE"/prefect.yaml as the single source of truth.
-=======
-
-Description:
-    Initializes Prefect work pools and deployments for the beamline defined by the BEAMLINE environment variable.
-    Uses orchestration/flows/bl"$BEAMLINE"/prefect.yaml as the single source of truth.
-
->>>>>>> 2040052 (Rewriting the init_work_pools script to be in python rather than shell, for improved maintainability.)
 Requirements:
     - BEAMLINE must be set (e.g., 832).
     - A prefect.yaml file must exist in orchestration/flows/bl"$BEAMLINE"/.
     - Prefect CLI must be installed and available in PATH.
-<<<<<<< HEAD
-=======
-
->>>>>>> 2040052 (Rewriting the init_work_pools script to be in python rather than shell, for improved maintainability.)
 Behavior:
     - Waits until the Prefect server is reachable via its /health endpoint.
     - Creates any missing work pools defined in the beamline's prefect.yaml.
     - Deploys all flows defined in the beamline's prefect.yaml.
-<<<<<<< HEAD
     - Creates/updates Prefect Secret blocks for GLOBUS_CLIENT_ID and GLOBUS_CLIENT_SECRET
       if the corresponding environment variables are present. Otherwise warns and continues.
-=======
 
->>>>>>> 2040052 (Rewriting the init_work_pools script to be in python rather than shell, for improved maintainability.)
 Environment Variables:
     BEAMLINE          The beamline identifier (e.g., 832). Required.
     PREFECT_API_URL   Override the Prefect server API URL.
                       Default: http://prefect_server:4200/api
 """
 
-<<<<<<< HEAD
 import httpx
 import logging
 import os
@@ -47,15 +31,6 @@ import yaml
 
 from prefect.blocks.system import Secret
 
-=======
-import os
-import sys
-import time
-import subprocess
-import httpx
-import yaml
-import logging
->>>>>>> 2040052 (Rewriting the init_work_pools script to be in python rather than shell, for improved maintainability.)
 
 # ---------------- Logging Setup ---------------- #
 logger = logging.getLogger("init_work_pools")
