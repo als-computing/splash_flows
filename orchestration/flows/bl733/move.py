@@ -31,7 +31,7 @@ def prune(
         file_path (str): The path to the file or directory to prune
         source_endpoint (GlobusEndpoint): The globus endpoint containing the data
         check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
-        days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
+        days_from_now (float): Delay before pruning; if 0, prune immediately
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
     """
@@ -46,6 +46,9 @@ def prune(
     if not config:
         config = Config733()
 
+    if days_from_now < 0:
+        raise ValueError(f"Invalid days_from_now: {days_from_now}")
+
     # JSON blocks are deprecated, we should use what they recommend in the docs
     # globus_settings = JSON.load("globus-settings").value
     # max_wait_seconds = globus_settings["max_wait_seconds"]
@@ -53,10 +56,10 @@ def prune(
     logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
 
     # convert float days → timedelta
-    days_from_now: datetime.timedelta = datetime.timedelta(days=days_from_now)
+    delay: datetime.timedelta = datetime.timedelta(days=days_from_now)
 
     # If days_from_now is 0, prune immediately
-    if days_from_now.total_seconds() == 0:
+    if delay.total_seconds() == 0:
         logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
         return _prune_globus_endpoint(
             relative_path=file_path,
@@ -67,7 +70,7 @@ def prune(
     else:
         # Otherwise, schedule pruning for future execution
         logger.info(f"Scheduling pruning of '{file_path}' from '{source_endpoint.name}' "
-                    f"in {days_from_now.total_seconds()/86400:.1f} days")
+                    f"in {delay.total_seconds()/86400:.1f} days")
 
         try:
             schedule_prefect_flow(
@@ -78,9 +81,9 @@ def prune(
                     "check_endpoint": check_endpoint,
                     "config": config
                 },
-                duration_from_now=days_from_now,
+                duration_from_now=delay,
             )
-            logger.info(f"Successfully scheduled pruning task for {days_from_now.total_seconds()/86400:.1f} days from now")
+            logger.info(f"Successfully scheduled pruning task for {delay.total_seconds()/86400:.1f} days from now")
             return True
         except Exception as e:
             logger.error(f"Failed to schedule pruning task: {str(e)}", exc_info=True)
