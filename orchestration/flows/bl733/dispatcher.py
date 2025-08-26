@@ -7,6 +7,7 @@ from orchestration.flows.bl733.move import process_new_733_file
 logger = logging.getLogger(__name__)
 
 
+# TODO Once this PR (https://github.com/als-computing/splash_flows/pull/62) is merged, we can use config: Config733
 @flow(name="dispatcher", flow_run_name="dispatcher-{file_path}")
 def dispatcher(
     file_path: Optional[str] = None,
