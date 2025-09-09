@@ -1,5 +1,6 @@
 import asyncio
-from uuid import uuid4
+# import uuid
+from uuid import UUID, uuid4, uuid5
 import warnings
 
 from prefect.blocks.system import Secret
@@ -107,7 +108,19 @@ class MockGlobusComputeClient:
 
 
 class MockSecret:
-    value = str(uuid4())
+    """
+    Deterministic secret for tests.
+    """
+    value = "550e8400-e29b-41d4-a716-446655440000"
+
+    @staticmethod
+    def for_endpoint(endpoint_name: str) -> str:
+        """
+        Generate a deterministic UUID string based on endpoint name.
+        This ensures each endpoint is unique but stable across test runs.
+        """
+        namespace = UUID("12345678-1234-5678-1234-123456789012")
+        return str(uuid5(namespace, endpoint_name))
 
 
 # ----------------------------
@@ -121,8 +134,14 @@ class MockConfig733:
         """
         # Create mock endpoints
         self.endpoints = {
-            "data733_raw": MockEndpoint(root_path="mock_data733_raw_path", uuid_value=str(uuid4())),
-            "nersc733_alsdev_raw": MockEndpoint(root_path="mock_nersc733_alsdev_raw_path", uuid_value=str(uuid4())),
+            "data733_raw": MockEndpoint(
+                root_path="mock_data733_raw_path",
+                uuid_value=MockSecret.for_endpoint("data733_raw"),
+            ),
+            "nersc733_alsdev_raw": MockEndpoint(
+                root_path="mock_nersc733_alsdev_raw_path",
+                uuid_value=MockSecret.for_endpoint("nersc733_alsdev_raw"),
+            ),
         }
 
         # Define mock apps
@@ -205,18 +224,18 @@ class MockConfig832():
 
         # Mock endpoints with UUIDs
         self.endpoints = {
-            "spot832": MockEndpoint(root_path="mock_spot832_path", uuid_value=str(uuid4())),
-            "data832": MockEndpoint(root_path="mock_data832_path", uuid_value=str(uuid4())),
-            "nersc832": MockEndpoint(root_path="mock_nersc832_path", uuid_value=str(uuid4())),
-            "data832_raw": MockEndpoint(root_path="mock_data832_raw_path", uuid_value=str(uuid4())),
-            "data832_scratch": MockEndpoint(root_path="mock_data832_scratch_path", uuid_value=str(uuid4())),
-            "nersc_alsdev": MockEndpoint(root_path="mock_nersc_alsdev_path", uuid_value=str(uuid4())),
-            "nersc832_alsdev_raw": MockEndpoint(root_path="mock_nersc832_alsdev_raw_path",
-                                                uuid_value=str(uuid4())),
-            "nersc832_alsdev_scratch": MockEndpoint(root_path="mock_nersc832_alsdev_scratch_path",
-                                                    uuid_value=str(uuid4())),
-            "alcf832_raw": MockEndpoint(root_path="mock_alcf832_raw_path", uuid_value=str(uuid4())),
-            "alcf832_scratch": MockEndpoint(root_path="mock_alcf832_scratch_path", uuid_value=str(uuid4())),
+            "spot832": MockEndpoint("mock_spot832_path", MockSecret.for_endpoint("spot832")),
+            "data832": MockEndpoint("mock_data832_path", MockSecret.for_endpoint("data832")),
+            "nersc832": MockEndpoint("mock_nersc832_path", MockSecret.for_endpoint("nersc832")),
+            "data832_raw": MockEndpoint("mock_data832_raw_path", MockSecret.for_endpoint("data832_raw")),
+            "data832_scratch": MockEndpoint("mock_data832_scratch_path", MockSecret.for_endpoint("data832_scratch")),
+            "nersc_alsdev": MockEndpoint("mock_nersc_alsdev_path", MockSecret.for_endpoint("nersc_alsdev")),
+            "nersc832_alsdev_raw": MockEndpoint("mock_nersc832_alsdev_raw_path",
+                                                MockSecret.for_endpoint("nersc832_alsdev_raw")),
+            "nersc832_alsdev_scratch": MockEndpoint("mock_nersc832_alsdev_scratch_path",
+                                                    MockSecret.for_endpoint("nersc832_alsdev_scratch")),
+            "alcf832_raw": MockEndpoint("mock_alcf832_raw_path", MockSecret.for_endpoint("alcf832_raw")),
+            "alcf832_scratch": MockEndpoint("mock_alcf832_scratch_path", MockSecret.for_endpoint("alcf832_scratch")),
         }
 
         # Mock apps
