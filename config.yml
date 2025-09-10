@@ -1,5 +1,24 @@
 globus:
   globus_endpoints:
+
+    data931:
+      root_path: /data/
+      uri: compute-dtn.als.lbl.gov
+      uuid: TBD
+      name: data931_raw
+
+    data931_raw:
+      root_path: /data/raw
+      uri: compute-dtn.als.lbl.gov
+      uuid: TBD
+      name: data931_raw
+
+    nersc931_alsdev_raw:
+      root_path: /global/cfs/cdirs/als/data_mover/9.3.1/raw
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: nersc931_alsdev_raw
+
     spot832:
       root_path: /
       uri: spot832.lbl.gov
