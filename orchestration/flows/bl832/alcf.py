@@ -135,7 +135,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         folder_name = Path(file_path).parent.name
 
         tiff_scratch_path = f"{self.allocation_root}/data/scratch/{folder_name}/rec{file_name}/"
-        raw_path = f"{self.allocation_root}/raw/{folder_name}/{file_name}.h5"
+        raw_path = f"{self.allocation_root}/data/raw/{folder_name}/{file_name}.h5"
 
         iri_als_bl832_rundir = f"{self.allocation_root}/data/raw"
         iri_als_bl832_conversion_script = f"{self.allocation_root}/scripts/tiff_to_zarr.py"
@@ -413,6 +413,15 @@ def alcf_recon_flow(
         else:
             logger.info("Reconstruction Successful.")
 
+            # Transfer A: Send reconstructed data (tiff) to data832
+            logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                        f"at ALCF to {config.data832_scratch} at data832")
+            data832_tiff_transfer_success = transfer_controller.copy(
+                file_path=scratch_path_tiff,
+                source=config.alcf832_scratch,
+                destination=config.data832_scratch
+            )
+
             # STEP 2B: Run the Tiff to Zarr Globus Flow
             logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
             alcf_multi_res_success = tomography_controller.build_multi_resolution(
@@ -423,27 +432,35 @@ def alcf_recon_flow(
                 raise ValueError("Tiff to Zarr at ALCF Failed")
             else:
                 logger.info("Tiff to Zarr Successful.")
+                # Transfer B: Send reconstructed data (zarr) to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                            f"at ALCF to {config.data832_scratch} at data832")
+                data832_zarr_transfer_success = transfer_controller.copy(
+                    file_path=scratch_path_zarr,
+                    source=config.alcf832_scratch,
+                    destination=config.data832_scratch
+                )
 
     # STEP 3: Send reconstructed data (tiffs and zarr) to data832
-    if alcf_reconstruction_success:
-        # Transfer A: Send reconstructed data (tiff) to data832
-        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-                    f"at ALCF to {config.data832_scratch} at data832")
-        data832_tiff_transfer_success = transfer_controller.copy(
-            file_path=scratch_path_tiff,
-            source=config.alcf832_scratch,
-            destination=config.data832_scratch
-        )
+    # if alcf_reconstruction_success:
+    #     # Transfer A: Send reconstructed data (tiff) to data832
+    #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+    #                 f"at ALCF to {config.data832_scratch} at data832")
+    #     data832_tiff_transfer_success = transfer_controller.copy(
+    #         file_path=scratch_path_tiff,
+    #         source=config.alcf832_scratch,
+    #         destination=config.data832_scratch
+    #     )
 
-    if alcf_multi_res_success:
-        # Transfer B: Send reconstructed data (zarr) to data832
-        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-                    f"at ALCF to {config.data832_scratch} at data832")
-        data832_zarr_transfer_success = transfer_controller.copy(
-            file_path=scratch_path_zarr,
-            source=config.alcf832_scratch,
-            destination=config.data832_scratch
-        )
+    # if alcf_multi_res_success:
+    #     # Transfer B: Send reconstructed data (zarr) to data832
+    #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+    #                 f"at ALCF to {config.data832_scratch} at data832")
+    #     data832_zarr_transfer_success = transfer_controller.copy(
+    #         file_path=scratch_path_zarr,
+    #         source=config.alcf832_scratch,
+    #         destination=config.data832_scratch
+    #     )
 
     # Place holder in case we want to transfer to NERSC for long term storage
     nersc_transfer_success = False
