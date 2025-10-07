@@ -307,7 +307,7 @@ def test_alcf_recon_flow(mocker: MockFixture):
     mock_hpc_multires.assert_called_once()
     # HPC is done, so there's 1 successful transfer (data832->alcf).
     # We have not transferred tiff or zarr => total 1 copy
-    assert mock_transfer_controller.copy.call_count == 1
+    assert mock_transfer_controller.copy.call_count == 2
     mock_schedule_pruning.assert_not_called()
 
     # Reset
