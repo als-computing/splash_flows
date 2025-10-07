@@ -441,27 +441,6 @@ def alcf_recon_flow(
                     destination=config.data832_scratch
                 )
 
-    # STEP 3: Send reconstructed data (tiffs and zarr) to data832
-    # if alcf_reconstruction_success:
-    #     # Transfer A: Send reconstructed data (tiff) to data832
-    #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-    #                 f"at ALCF to {config.data832_scratch} at data832")
-    #     data832_tiff_transfer_success = transfer_controller.copy(
-    #         file_path=scratch_path_tiff,
-    #         source=config.alcf832_scratch,
-    #         destination=config.data832_scratch
-    #     )
-
-    # if alcf_multi_res_success:
-    #     # Transfer B: Send reconstructed data (zarr) to data832
-    #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-    #                 f"at ALCF to {config.data832_scratch} at data832")
-    #     data832_zarr_transfer_success = transfer_controller.copy(
-    #         file_path=scratch_path_zarr,
-    #         source=config.alcf832_scratch,
-    #         destination=config.data832_scratch
-    #     )
-
     # Place holder in case we want to transfer to NERSC for long term storage
     nersc_transfer_success = False
 
