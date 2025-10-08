@@ -7,7 +7,7 @@ from typing import Optional
 
 from globus_compute_sdk import Client, Executor
 from globus_compute_sdk.serialize import CombinedCode
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 from prefect.blocks.system import Secret
 from prefect.variables import Variable
 
@@ -363,6 +363,7 @@ def alcf_recon_flow(
     Returns:
         bool: True if the flow completed successfully, False otherwise.
     """
+    logger = get_run_logger()
 
     if config is None:
         config = Config832()
