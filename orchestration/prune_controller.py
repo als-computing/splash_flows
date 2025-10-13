@@ -108,7 +108,7 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
             file_path (str): The path to the file or directory to prune
             source_endpoint (FileSystemEndpoint): The file system endpoint containing the data
             check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
-            days_from_now (float): Delay in days before pruning; if 0.0, prune immediately.
+            days_from_now (float): Delay in days before pruning; if 0.0, prune immediately. If <0, throws error.
 
         Returns:
             bool: True if pruning was successful or scheduled successfully, False otherwise
@@ -119,6 +119,10 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
 
         if not source_endpoint:
             logger.error("No source_endpoint provided for pruning operation")
+            return False
+
+        if days_from_now < 0:
+            logger.error("days_from_now cannot be negative")
             return False
 
         flow_name = f"prune_from_{source_endpoint.name}"
@@ -252,7 +256,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
             file_path (str): The path to the file or directory to prune
             source_endpoint (FileSystemEndpoint): The file system endpoint containing the data
             check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
-            days_from_now (datetime.timedelta): Delay before pruning; if 0, prune immediately
+            days_from_now (float): Delay before pruning; if 0, prune immediately. If <0, throws error.
 
         Returns:
             bool: True if pruning was successful or scheduled successfully, False otherwise
@@ -263,6 +267,10 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
 
         if not source_endpoint:
             logger.error("No source_endpoint provided for pruning operation")
+            return False
+
+        if days_from_now < 0:
+            logger.error("days_from_now cannot be negative")
             return False
 
         # globus_settings = JSON.load("globus-settings").value
