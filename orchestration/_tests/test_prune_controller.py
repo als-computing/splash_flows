@@ -7,6 +7,7 @@ import pytest
 from prefect.blocks.system import JSON
 from prefect.testing.utilities import prefect_test_harness
 
+from orchestration.config import BeamlineConfig
 from orchestration.prune_controller import (
     PruneController,
     FileSystemPruneController,
@@ -30,11 +31,23 @@ def prefect_test_fixture():
         yield
 
 
-class MockConfig:
-    """Minimal config stub for controllers (only beamline_id and tc)."""
+# class MockConfig:
+#     """Minimal config stub for controllers (only beamline_id and tc)."""
+#     def __init__(self, beamline_id: str = "test_beamline") -> None:
+#         self.beamline_id = beamline_id
+#         self.tc: Any = None  # transfer client stub
+
+class MockConfig(BeamlineConfig):
+    """Minimal concrete BeamlineConfig for tests (no real I/O)."""
     def __init__(self, beamline_id: str = "test_beamline") -> None:
-        self.beamline_id = beamline_id
-        self.tc: Any = None  # transfer client stub
+        super().__init__(beamline_id=beamline_id)
+        # Test stubs that the controllers/flows expect to exist
+        self.tc = None
+
+    def _beam_specific_config(self) -> None:
+        # Keep it no-op for tests; you can set other attributes here if needed
+        # e.g., self.some_endpoint = ...
+        pass
 
 
 @pytest.fixture
@@ -212,6 +225,23 @@ def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoi
     assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 1.5 * 86400
 
 
+def test_fs_prune_schedules_when_days_from_now_zero(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler):
+    """Calling prune with days_from_now==0 should schedule a Prefect flow."""
+    rel = "to_schedule.txt"
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
+
+    result = fs_controller.prune(
+        file_path=rel,
+        source_endpoint=fs_endpoint,
+        check_endpoint=None,
+        days_from_now=0.0,
+    )
+    assert result is True
+    assert not p.exists()
+
+
 def test_fs_prune_schedules_when_days_from_now_negative(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler):
     """Calling prune with days_from_now<0 should return False."""
     rel = "to_schedule.txt"
@@ -333,6 +363,30 @@ def test_globus_prune_schedules_when_days_from_now_negative(
         days_from_now=-4.0,
     )
     assert result is False
+
+
+def test_globus_prune_schedules_when_days_from_now_zero(
+        globus_controller,
+        globus_endpoint,
+        tmp_path: Path,
+        mock_scheduler,
+        mock_prune_one_safe):
+    """Calling Globus prune with days_from_now==0 should schedule a Prefect flow."""
+    rel = "sched.txt"
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
+
+    result = globus_controller.prune(
+        file_path=rel,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        days_from_now=0.0
+    )
+    assert result is True
+    assert mock_prune_one_safe["file"] == rel
+    assert mock_prune_one_safe["if_older_than_days"] == 0
+    assert mock_prune_one_safe["source_endpoint"] is globus_endpoint
 
 
 def test_globus_prune_returns_false_if_schedule_raises(

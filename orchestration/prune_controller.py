@@ -134,12 +134,17 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
         # If days_from_now is 0, prune immediately
         if days_from_now.total_seconds() == 0:
             logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
-            return self._prune_filesystem_endpoint(
-                relative_path=file_path,
-                source_endpoint=source_endpoint,
-                check_endpoint=check_endpoint,
-                config=self.config
-            )
+            try:
+                self._prune_filesystem_endpoint(
+                    relative_path=file_path,
+                    source_endpoint=source_endpoint,
+                    check_endpoint=check_endpoint,
+                    config=self.config
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Failed to prune file: {str(e)}", exc_info=True)
+                return False
         else:
             # Otherwise, schedule pruning for future execution
             logger.info(f"Scheduling pruning of '{file_path}' from '{source_endpoint.name}' "
@@ -284,12 +289,17 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         # If days_from_now is 0, prune immediately
         if days_from_now.total_seconds() == 0:
             logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
-            return self._prune_globus_endpoint(
-                relative_path=file_path,
-                source_endpoint=source_endpoint,
-                check_endpoint=check_endpoint,
-                config=self.config
-            )
+            try:
+                self._prune_globus_endpoint(
+                    relative_path=file_path,
+                    source_endpoint=source_endpoint,
+                    check_endpoint=check_endpoint,
+                    config=self.config
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Failed to prune file: {str(e)}", exc_info=True)
+                return False
         else:
             # Otherwise, schedule pruning for future execution
             logger.info(f"Scheduling pruning of '{file_path}' from '{source_endpoint.name}' "
