@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import json
 import logging
 import os
+from pathlib import Path
 
 from authlib.jose import JsonWebKey
 from sfapi_client import Client
@@ -24,17 +25,12 @@ def create_sfapi_client(
     if not client_id_path or not client_secret_path:
         logger.error("NERSC credentials paths are missing.")
         raise ValueError("NERSC credentials paths are missing.")
-    if not os.path.isfile(client_id_path) or not os.path.isfile(client_secret_path):
-        logger.error("NERSC credential files are missing.")
+    if not Path(client_id_path).is_file() or not Path(client_secret_path).is_file():
         raise FileNotFoundError("NERSC credential files are missing.")
 
-    client_id = None
-    client_secret = None
-    with open(client_id_path, "r") as f:
-        client_id = f.read()
-
-    with open(client_secret_path, "r") as f:
-        client_secret = JsonWebKey.import_key(json.loads(f.read()))
+    client_id = Path(client_id_path).read_text(encoding="utf-8").strip()
+    secret_text = Path(client_secret_path).read_text(encoding="utf-8")
+    client_secret = JsonWebKey.import_key(json.loads(secret_text))
 
     try:
         client = Client(client_id, client_secret)

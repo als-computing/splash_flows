@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from prefect.blocks.system import Secret
@@ -48,19 +48,10 @@ def test_create_sfapi_client_success():
     mock_client_secret = '{"key": "value"}'
 
     # Create separate mock_open instances for each file
-    mock_open_client_id = mock_open(read_data=mock_client_id)
-    mock_open_client_secret = mock_open(read_data=mock_client_secret)
-
-    with patch("orchestration.sfapi.os.path.isfile") as mock_isfile, \
-         patch("builtins.open", side_effect=[
-             mock_open_client_id.return_value,
-             mock_open_client_secret.return_value
-         ]), \
+    with patch("orchestration.sfapi.Path.is_file", return_value=True), \
+        patch("orchestration.sfapi.Path.read_text", side_effect=[mock_client_id, mock_client_secret]), \
             patch("orchestration.sfapi.JsonWebKey.import_key") as mock_import_key, \
             patch("orchestration.sfapi.Client") as MockClient:
-
-        # Simulate that both credential files exist
-        mock_isfile.return_value = True
 
         # Mock key import to return a fake secret
         mock_import_key.return_value = "mock_secret"
@@ -93,8 +84,8 @@ def test_create_sfapi_client_missing_files():
     fake_client_id_path = "/path/to/client_id"
     fake_client_secret_path = "/path/to/client_secret"
 
-    # Simulate missing credential files by patching os.path.isfile to return False.
-    with patch("orchestration.sfapi.os.path.isfile", return_value=False):
+    # Simulate missing credential files by patching Path.is_file to return False.
+    with patch("orchestration.sfapi.Path.is_file", return_value=False):
         with pytest.raises(FileNotFoundError, match="NERSC credential files are missing."):
             create_sfapi_client(fake_client_id_path, fake_client_secret_path)
 
