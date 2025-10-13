@@ -3,7 +3,7 @@
 import pytest
 from pytest_mock import MockFixture
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, Mock
 from uuid import uuid4
 
 import globus_sdk
@@ -317,40 +317,112 @@ def test_simple_transfer_controller_no_source_or_destination(mock_config832, tra
     assert result is False, "Expected False when either source or destination is None."
 
 
-def test_simple_transfer_controller_copy_success(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
+def test_simple_transfer_controller_copy_success_with_real_files(
+    tmp_path, mock_config832, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # patch in module namespace
-        with patch("orchestration.transfer_controller.os.system", return_value=0) as mock_os_system:
-            controller = SimpleTransferController(mock_config832)
-            result = controller.copy(
-                file_path="some_dir/test_file.txt",
-                source=mock_file_system_endpoint,
-                destination=mock_file_system_endpoint,
-            )
-            assert result is True, "Expected True when os.system returns 0."
-            mock_os_system.assert_called_once()
-            command_called = mock_os_system.call_args[0][0]
-            assert "cp -r" in command_called, "Expected cp command in os.system call."
+
+    # Create real directory structure
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination" 
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create actual source file
+    source_file = source_dir / "experiment" / "data.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.name = "source_storage"
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.name = "dest_storage" 
+    dest_endpoint.root_path = str(dest_dir)
+
+    controller = SimpleTransferController(mock_config832)
+    result = controller.copy(
+        file_path="experiment/data.txt",
+        source=source_endpoint,
+        destination=dest_endpoint,
+    )
+
+    # Verify the result and actual file operations
+    assert result is True
+
+    # Check that the file actually exists at destination
+    dest_file = dest_dir / "experiment" / "data.txt"
+    assert dest_file.exists(), "File should be copied to destination"
+    assert dest_file.read_text() == "test content", "File content should match"
 
 
-def test_simple_transfer_controller_copy_failure(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
+# def test_simple_transfer_controller_copy_failure(
+#     mock_config832, mock_file_system_endpoint, transfer_controller_module
+# ):
+#     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
+#     with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # ensure source file exists
+#         with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
+#             controller = SimpleTransferController(mock_config832)
+#             result = controller.copy(
+#                 file_path="some_dir/test_file.txt",
+#                 source=mock_file_system_endpoint,
+#                 destination=mock_file_system_endpoint,
+#             )
+#             assert result is False, "Expected False when os.system returns non-zero."
+#             mock_os_system.assert_called_once()
+#             command_called = mock_os_system.call_args[0][0]
+#             assert "cp -r" in command_called, "Expected cp command in os.system call."
+
+def test_simple_transfer_controller_copy_command_failure(
+    tmp_path, mock_config832, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # ensure source file exists
-        with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
-            controller = SimpleTransferController(mock_config832)
-            result = controller.copy(
-                file_path="some_dir/test_file.txt",
-                source=mock_file_system_endpoint,
-                destination=mock_file_system_endpoint,
-            )
-            assert result is False, "Expected False when os.system returns non-zero."
-            mock_os_system.assert_called_once()
-            command_called = mock_os_system.call_args[0][0]
-            assert "cp -r" in command_called, "Expected cp command in os.system call."
+
+    # Create real directory structure and source file
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create the actual source file
+    source_file = source_dir / "some_dir" / "test_file.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.root_path = str(dest_dir)
+
+    # Mock only os.system to simulate command failure
+    with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
+        controller = SimpleTransferController(mock_config832)
+        result = controller.copy(
+            file_path="some_dir/test_file.txt",
+            source=source_endpoint,
+            destination=dest_endpoint,
+        )
+
+        # Verify the copy failed
+        assert result is False, "Expected False when os.system returns non-zero."
+
+        # Verify the command was called correctly
+        mock_os_system.assert_called_once()
+        command_called = mock_os_system.call_args[0][0]
+
+        # More specific assertions about the command
+        expected_source = str(source_dir / "some_dir" / "test_file.txt")
+        expected_dest = str(dest_dir / "some_dir" / "test_file.txt")
+        expected_command = f"cp -r '{expected_source}' '{expected_dest}'"
+        assert command_called == expected_command, f"Expected exact command: {expected_command}"
+
+        # Verify the destination file was NOT created (since command failed)
+        dest_file = dest_dir / "some_dir" / "test_file.txt"
+        assert not dest_file.exists(), "File should not exist when copy command fails"
 
 
 def test_simple_transfer_controller_copy_exception(
