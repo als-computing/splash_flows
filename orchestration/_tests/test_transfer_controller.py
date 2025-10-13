@@ -324,7 +324,7 @@ def test_simple_transfer_controller_copy_success_with_real_files(
 
     # Create real directory structure
     source_dir = tmp_path / "source"
-    dest_dir = tmp_path / "destination" 
+    dest_dir = tmp_path / "destination"
     source_dir.mkdir()
     dest_dir.mkdir()
 
@@ -339,7 +339,7 @@ def test_simple_transfer_controller_copy_success_with_real_files(
     source_endpoint.root_path = str(source_dir)
 
     dest_endpoint = Mock()
-    dest_endpoint.name = "dest_storage" 
+    dest_endpoint.name = "dest_storage"
     dest_endpoint.root_path = str(dest_dir)
 
     controller = SimpleTransferController(mock_config832)
