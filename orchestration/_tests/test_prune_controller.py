@@ -212,6 +212,22 @@ def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoi
     assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 1.5 * 86400
 
 
+def test_fs_prune_schedules_when_days_from_now_negative(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler):
+    """Calling prune with days_from_now<0 should return False."""
+    rel = "to_schedule.txt"
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
+
+    result = fs_controller.prune(
+        file_path=rel,
+        source_endpoint=fs_endpoint,
+        check_endpoint=None,
+        days_from_now=-4.0,
+    )
+    assert result is False
+
+
 def test_fs_prune_returns_false_if_schedule_raises(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler_raises):
     """If scheduling fails, fs_controller.prune should return False."""
     rel = "error.txt"
