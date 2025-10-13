@@ -300,6 +300,25 @@ def test_globus_prune_schedules_when_days_from_now_positive(
     assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 3.0 * 86400
 
 
+def test_globus_prune_schedules_when_days_from_now_negative(
+        globus_controller,
+        globus_endpoint,
+        tmp_path: Path,):
+    """Calling Globus prune with days_from_now<0 should return False."""
+    rel = "sched.txt"
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
+
+    result = globus_controller.prune(
+        file_path=rel,
+        source_endpoint=globus_endpoint,
+        check_endpoint=None,
+        days_from_now=-4.0,
+    )
+    assert result is False
+
+
 def test_globus_prune_returns_false_if_schedule_raises(
         globus_controller,
         globus_endpoint,
