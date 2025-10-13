@@ -44,28 +44,22 @@ def mock_config() -> MockConfig:
 
 
 @pytest.fixture
-def tmp_fs_path(tmp_path: Path) -> Path:
-    """Temporary directory for filesystem tests."""
-    return tmp_path
-
-
-@pytest.fixture
-def fs_endpoint(tmp_fs_path: Path) -> FileSystemEndpoint:
+def fs_endpoint(tmp_path: Path) -> FileSystemEndpoint:
     """A FileSystemEndpoint rooted at our tmp directory."""
     return FileSystemEndpoint(
         name="fs_endpoint",
-        root_path=str(tmp_fs_path),
-        uri=str(tmp_fs_path),
+        root_path=str(tmp_path),
+        uri=str(tmp_path),
     )
 
 
 @pytest.fixture
-def globus_endpoint(tmp_fs_path: Path) -> GlobusEndpoint:
+def globus_endpoint(tmp_path: Path) -> GlobusEndpoint:
     """A real GlobusEndpoint with a mock UUID."""
     return GlobusEndpoint(
         uuid="mock-uuid",
-        uri=str(tmp_fs_path),
-        root_path=str(tmp_fs_path),
+        uri=str(tmp_path),
+        root_path=str(tmp_path),
         name="globus_endpoint",
     )
 
@@ -80,20 +74,6 @@ def fs_controller(mock_config: MockConfig) -> FileSystemPruneController:
 def globus_controller(mock_config: MockConfig) -> GlobusPruneController:
     """GlobusPruneController using mock_config."""
     return GlobusPruneController(config=mock_config)
-
-
-def create_file_or_dir(root: Path, rel: str, mkdir: bool = False) -> Path:
-    """
-    Create either a file or directory under root/rel.
-    If mkdir is True, makes a directory; otherwise creates an empty file.
-    """
-    p = root / rel
-    if mkdir:
-        p.mkdir(parents=True, exist_ok=True)
-    else:
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.touch()
-    return p
 
 
 ###############################################################################
@@ -190,10 +170,12 @@ def test_get_prune_controller_factory_correct_types(mock_config):
         get_prune_controller("invalid", mock_config)  # type: ignore
 
 
-def test_fs_prune_immediate_deletes_file_directly(fs_controller, fs_endpoint, tmp_fs_path):
+def test_fs_prune_immediate_deletes_file_directly(fs_controller, fs_endpoint, tmp_path: Path):
     """Immediate FileSystem prune should delete an existing file."""
     rel = "subdir/foo.txt"
-    p = create_file_or_dir(tmp_fs_path, rel)
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
     assert p.exists()
 
     fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
@@ -201,19 +183,21 @@ def test_fs_prune_immediate_deletes_file_directly(fs_controller, fs_endpoint, tm
     assert not p.exists()
 
 
-def test_fs_prune_immediate_returns_false_if_missing(fs_controller, fs_endpoint, tmp_fs_path):
+def test_fs_prune_immediate_returns_false_if_missing(fs_controller, fs_endpoint, tmp_path: Path):
     """Immediate FileSystem prune should return False for missing path."""
     rel = "no/such/file.txt"
-    assert not (tmp_fs_path / rel).exists()
+    assert not (tmp_path / rel).exists()
 
     fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
     assert fn(relative_path=rel, source_endpoint=fs_endpoint, check_endpoint=None, config=fs_controller.config) is False
 
 
-def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoint, tmp_fs_path, mock_scheduler):
+def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler):
     """Calling prune with days_from_now>0 should schedule a Prefect flow."""
     rel = "to_schedule.txt"
-    create_file_or_dir(tmp_fs_path, rel)
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
 
     result = fs_controller.prune(
         file_path=rel,
@@ -228,10 +212,12 @@ def test_fs_prune_schedules_when_days_from_now_positive(fs_controller, fs_endpoi
     assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 1.5 * 86400
 
 
-def test_fs_prune_returns_false_if_schedule_raises(fs_controller, fs_endpoint, tmp_fs_path, mock_scheduler_raises):
+def test_fs_prune_returns_false_if_schedule_raises(fs_controller, fs_endpoint, tmp_path: Path, mock_scheduler_raises):
     """If scheduling fails, fs_controller.prune should return False."""
     rel = "error.txt"
-    create_file_or_dir(tmp_fs_path, rel)
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
 
     assert fs_controller.prune(
         file_path=rel,
@@ -244,13 +230,14 @@ def test_fs_prune_returns_false_if_schedule_raises(fs_controller, fs_endpoint, t
 def test_globus_prune_immediate_calls_prune_one_safe_directly(
     globus_controller,
     globus_endpoint,
-    tmp_fs_path,
+    tmp_path: Path,
     mock_prune_one_safe
 ):
     """Immediate Globus prune should invoke prune_one_safe with correct arguments."""
     rel = "data.bin"
-    create_file_or_dir(tmp_fs_path, rel)
-    assert (tmp_fs_path / rel).exists()
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
 
     fn = globus_controller._prune_globus_endpoint.fn  # type: ignore
     _ = fn(
@@ -278,9 +265,9 @@ def test_globus_prune_rejects_missing_file_path_directly(globus_controller, glob
     ) is False
 
 
-def test_globus_prune_rejects_missing_endpoint_directly(globus_controller, tmp_fs_path):
+def test_globus_prune_rejects_missing_endpoint_directly(globus_controller, tmp_path: Path):
     """Globus prune should return False when source_endpoint is None."""
-    (tmp_fs_path / "whatever").touch()
+    (tmp_path / "whatever").touch()
 
     assert globus_controller.prune(
         file_path="whatever",
@@ -290,10 +277,16 @@ def test_globus_prune_rejects_missing_endpoint_directly(globus_controller, tmp_f
     ) is False
 
 
-def test_globus_prune_schedules_when_days_from_now_positive(globus_controller, globus_endpoint, tmp_fs_path, mock_scheduler):
+def test_globus_prune_schedules_when_days_from_now_positive(
+        globus_controller,
+        globus_endpoint,
+        tmp_path: Path,
+        mock_scheduler):
     """Calling Globus prune with days_from_now>0 should schedule a Prefect flow."""
     rel = "sched.txt"
-    create_file_or_dir(tmp_fs_path, rel)
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
 
     result = globus_controller.prune(
         file_path=rel,
@@ -307,10 +300,16 @@ def test_globus_prune_schedules_when_days_from_now_positive(globus_controller, g
     assert pytest.approx(mock_scheduler["duration"].total_seconds()) == 3.0 * 86400
 
 
-def test_globus_prune_returns_false_if_schedule_raises(globus_controller, globus_endpoint, tmp_fs_path, mock_scheduler_raises):
+def test_globus_prune_returns_false_if_schedule_raises(
+        globus_controller,
+        globus_endpoint,
+        tmp_path: Path,
+        mock_scheduler_raises):
     """If scheduling fails, globus_controller.prune should return False."""
     rel = "err.txt"
-    create_file_or_dir(tmp_fs_path, rel)
+    p = tmp_path / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch()
 
     assert globus_controller.prune(
         file_path=rel,
