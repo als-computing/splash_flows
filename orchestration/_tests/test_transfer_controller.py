@@ -425,20 +425,58 @@ def test_simple_transfer_controller_copy_command_failure(
         assert not dest_file.exists(), "File should not exist when copy command fails"
 
 
-def test_simple_transfer_controller_copy_exception(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
+def test_simple_transfer_controller_copy_exception_handling(
+    tmp_path, mock_config832, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("orchestration.transfer_controller.os.path.exists", return_value=True):
-        with patch("orchestration.transfer_controller.os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
-            controller = SimpleTransferController(mock_config832)
-            result = controller.copy(
-                file_path="some_dir/test_file.txt",
-                source=mock_file_system_endpoint,
-                destination=mock_file_system_endpoint,
-            )
-            assert result is False, "Expected False when an exception is raised during copy."
-            mock_os_system.assert_called_once()
+
+    # Create real directory structure and source file
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create the actual source file
+    source_file = source_dir / "some_dir" / "test_file.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.root_path = str(dest_dir)
+
+    # Mock os.system to raise an exception
+    with patch("orchestration.transfer_controller.os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
+        controller = SimpleTransferController(mock_config832)
+        result = controller.copy(
+            file_path="some_dir/test_file.txt",
+            source=source_endpoint,
+            destination=dest_endpoint,
+        )
+
+        # Verify the copy failed due to exception
+        assert result is False, "Expected False when an exception is raised during copy."
+
+        # Verify the system command was attempted
+        mock_os_system.assert_called_once()
+
+        # Verify the command that would have been called
+        command_called = mock_os_system.call_args[0][0]
+        expected_source = str(source_dir / "some_dir" / "test_file.txt")
+        expected_dest = str(dest_dir / "some_dir" / "test_file.txt")
+        expected_command = f"cp -r '{expected_source}' '{expected_dest}'"
+        assert command_called == expected_command, f"Expected exact command: {expected_command}"
+
+        # Verify the destination file was NOT created (since exception occurred)
+        dest_file = dest_dir / "some_dir" / "test_file.txt"
+        assert not dest_file.exists(), "File should not exist when copy operation raises exception"
+
+        # Verify destination directory was still created (this happens before the exception)
+        dest_parent_dir = dest_dir / "some_dir"
+        assert dest_parent_dir.exists(), "Destination directory should have been created before exception"
 
 
 # --------------------------------------------------------------------------
