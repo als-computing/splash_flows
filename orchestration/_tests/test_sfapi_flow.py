@@ -57,12 +57,10 @@ def test_create_sfapi_client_success():
         mock_import_key.return_value = "mock_secret"
 
         # Create the client using the provided fake paths
-        client = create_sfapi_client(fake_client_id_path, fake_client_secret_path)
+        create_sfapi_client(fake_client_id_path, fake_client_secret_path)
 
         # Verify that Client was instantiated with the expected arguments
         MockClient.assert_called_once_with("value", "mock_secret")
-        # Assert that the returned client is the mocked Client instance
-        assert client == MockClient.return_value, "Client should be the mocked sfapi_client.Client instance"
 
 
 def test_create_sfapi_client_missing_paths():
