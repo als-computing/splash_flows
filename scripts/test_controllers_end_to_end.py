@@ -4,23 +4,22 @@ These tests are designed to be as generic as possible and should work with any b
 
 """
 
-from collections import defaultdict
 from datetime import datetime
 from dotenv import load_dotenv
 import logging
 import os
 import shutil
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 from pyscicat.client import ScicatClient
 
 from orchestration.config import BeamlineConfig
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
-from orchestration.globus import transfer
+from orchestration.globus import flows, transfer
 from orchestration.globus.transfer import GlobusEndpoint
 from orchestration.hpss import cfs_to_hpss_flow, hpss_to_cfs_flow
 from orchestration.prune_controller import get_prune_controller, PruneMethod
-# from orchestration.transfer_controller import get_transfer_controller, CopyMethod
+from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint
 from globus_sdk import TransferClient
 
@@ -67,7 +66,6 @@ class TestConfig(BeamlineConfig):
         super().__init__(beamline_id="0.0.0")
 
     def _beam_specific_config(self) -> None:
-        from orchestration.globus import flows
         self.endpoints = transfer.build_endpoints(self.config)
         self.apps = transfer.build_apps(self.config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
@@ -264,7 +262,6 @@ def test_transfer_controllers(
     Returns:
         None
     """
-    from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 
     logger.info("Testing transfer controllers...")
     logger.info(f"File path: {file_path}")
@@ -657,10 +654,10 @@ if __name__ == "__main__":
     check_required_envvars()
 
     # Test individual transfer controllers directly
-    # test_transfer_controllers(
-    #     file_path="test.txt",
-    #     test_globus=False,
-    #     test_filesystem=False,
-    #     test_hpss=False,
-    #     config=TestConfig()
-    # )
+    test_transfer_controllers(
+        file_path="test.txt",
+        test_globus=False,
+        test_filesystem=False,
+        test_hpss=False,
+        config=TestConfig()
+    )
