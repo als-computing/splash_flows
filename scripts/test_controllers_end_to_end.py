@@ -15,7 +15,7 @@ from pyscicat.client import ScicatClient
 
 from orchestration.config import BeamlineConfig
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
-from orchestration.globus import flows, transfer
+from orchestration.globus import transfer
 from orchestration.globus.transfer import GlobusEndpoint
 from orchestration.hpss import cfs_to_hpss_flow, hpss_to_cfs_flow
 from orchestration.prune_controller import get_prune_controller, PruneMethod
@@ -66,6 +66,7 @@ class TestConfig(BeamlineConfig):
         super().__init__(beamline_id="0.0.0")
 
     def _beam_specific_config(self) -> None:
+        from orchestration.globus import flows  # Wait to import here to ensure checked env vars first
         self.endpoints = transfer.build_endpoints(self.config)
         self.apps = transfer.build_apps(self.config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])

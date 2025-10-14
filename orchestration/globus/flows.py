@@ -10,6 +10,10 @@ from globus_sdk.scopes import TransferScopes, GCSCollectionScopeBuilder, Mutable
 from globus_sdk.tokenstorage import SimpleJSONFileAdapter
 from pprint import pprint
 from prefect.blocks.system import Secret
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 MY_FILE_ADAPTER = SimpleJSONFileAdapter(os.path.expanduser("~/.sdk-manage-flow.json"))
 
@@ -19,8 +23,16 @@ TRANSFER_ACTION_PROVIDER_SCOPE_STRING = (
 
 dotenv_file = load_dotenv()
 
-GLOBUS_CLIENT_ID = Secret.load("globus-client-id")
-GLOBUS_CLIENT_SECRET = Secret.load("globus-client-secret")
+if os.getenv("PREFECT_API_URL") and os.getenv("PREFECT_API_KEY"):
+    try:
+        GLOBUS_CLIENT_ID = Secret.load("globus-client-id")
+        GLOBUS_CLIENT_SECRET = Secret.load("globus-client-secret")
+    except Exception as e:
+        logger.error(f"Error loading Globus client credentials: {e}")
+        raise e
+else:
+    logger.error("Prefect environment variables are not set.")
+    raise EnvironmentError("Prefect environment variables are not set.")
 
 
 def get_flows_client():
