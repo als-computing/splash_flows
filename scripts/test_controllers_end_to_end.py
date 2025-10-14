@@ -4,27 +4,32 @@ These tests are designed to be as generic as possible and should work with any b
 
 """
 
+from collections import defaultdict
 from datetime import datetime
+from dotenv import load_dotenv
 import logging
 import os
 import shutil
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 from pyscicat.client import ScicatClient
 
 from orchestration.config import BeamlineConfig
 from orchestration.flows.scicat.ingestor_controller import BeamlineIngestorController
-from orchestration.globus import flows, transfer
+from orchestration.globus import transfer
 from orchestration.globus.transfer import GlobusEndpoint
 from orchestration.hpss import cfs_to_hpss_flow, hpss_to_cfs_flow
 from orchestration.prune_controller import get_prune_controller, PruneMethod
-from orchestration.transfer_controller import get_transfer_controller, CopyMethod
+# from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.transfer_endpoints import FileSystemEndpoint, HPSSEndpoint
 from globus_sdk import TransferClient
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+load_dotenv()
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Setup Environment Configuration and Test Classes
@@ -35,37 +40,21 @@ def check_required_envvars() -> bool:
     """
     Check for required environment variables before running the end-to-end tests.
     """
-    missing_vars = []
-
-    # Check Globus environment variables
-    globus_vars = ['GLOBUS_CLIENT_ID', 'GLOBUS_CLIENT_SECRET']
-    for var in globus_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-
-    # Check Prefect environment variables
-    prefect_vars = ['PREFECT_API_URL', 'PREFECT_API_KEY']
-    for var in prefect_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-
-    # Check SciCat environment variables
-    scicat_vars = ['SCICAT_API_URL', 'SCICAT_INGEST_USER', 'SCICAT_INGEST_PASSWORD']
-    for var in scicat_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-
-    # Check NERSC SFAPI environment variables
-    nersc_vars = ['PATH_NERSC_CLIENT_ID', 'PATH_NERSC_PRI_KEY']
-    for var in nersc_vars:
-        if not os.getenv(var):
-            missing_vars.append(var)
-
-    if missing_vars:
-        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-        logger.error("Please set these variables before running the end-to-end tests.")
+    to_check = (
+        "GLOBUS_CLIENT_ID", "GLOBUS_CLIENT_SECRET",
+        "PREFECT_API_URL", "PREFECT_API_KEY",
+        "SCICAT_API_URL", "SCICAT_INGEST_USER", "SCICAT_INGEST_PASSWORD",
+        "PATH_NERSC_CLIENT_ID", "PATH_NERSC_PRI_KEY",
+    )
+    missing = []
+    for var in to_check:
+        logger.info(f"Checking environment variable: {var}")
+        if var not in os.environ or os.environ.get(var) is None:
+            logger.warning(f"Environment variable {var} is not set.")
+            missing.append(var)
+    if missing:
+        logger.error("Missing required environment variables: %s", ", ".join(missing))
         return False
-
     logger.info("All required environment variables are set.")
     return True
 
@@ -78,6 +67,7 @@ class TestConfig(BeamlineConfig):
         super().__init__(beamline_id="0.0.0")
 
     def _beam_specific_config(self) -> None:
+        from orchestration.globus import flows
         self.endpoints = transfer.build_endpoints(self.config)
         self.apps = transfer.build_apps(self.config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
@@ -274,6 +264,8 @@ def test_transfer_controllers(
     Returns:
         None
     """
+    from orchestration.transfer_controller import get_transfer_controller, CopyMethod
+
     logger.info("Testing transfer controllers...")
     logger.info(f"File path: {file_path}")
     logger.info(f"Test Globus: {test_globus}")
@@ -662,18 +654,13 @@ if __name__ == "__main__":
     #     test_hpss=False,
     #     test_scicat=False
     # )
-    try:
-        check_required_envvars()
-    except Exception as e:
-        logger.error(f"Error checking environment variables: {e}")
-    finally:
-        logger.info("Continuing with tests...")
+    check_required_envvars()
 
     # Test individual transfer controllers directly
-    test_transfer_controllers(
-        file_path="test.txt",
-        test_globus=False,
-        test_filesystem=False,
-        test_hpss=False,
-        config=TestConfig()
-    )
+    # test_transfer_controllers(
+    #     file_path="test.txt",
+    #     test_globus=False,
+    #     test_filesystem=False,
+    #     test_hpss=False,
+    #     config=TestConfig()
+    # )
