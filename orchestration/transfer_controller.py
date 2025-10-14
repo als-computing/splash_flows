@@ -451,27 +451,3 @@ def get_transfer_controller(
         error_msg = f"Invalid transfer type: {transfer_type}"
         logger.error(error_msg)
         raise ValueError(error_msg)
-
-
-if __name__ == "__main__":
-    from orchestration.flows.bl832.config import Config832
-    config = Config832()
-    transfer_type = CopyMethod.GLOBUS
-    globus_transfer_controller = get_transfer_controller(transfer_type, config)
-    globus_transfer_controller.copy(
-        file_path="dabramov/test.txt",
-        source=config.alcf832_raw,
-        destination=config.alcf832_scratch
-    )
-
-    simple_transfer_controller = get_transfer_controller(CopyMethod.SIMPLE, config)
-    success = simple_transfer_controller.copy(
-        file_path="test.rtf",
-        source=FileSystemEndpoint("source", "/Users/david/Documents/copy_test/test_source/"),
-        destination=FileSystemEndpoint("destination", "/Users/david/Documents/copy_test/test_destination/")
-    )
-
-    if success:
-        logger.info("Simple transfer succeeded.")
-    else:
-        logger.error("Simple transfer failed.")
