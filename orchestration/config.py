@@ -68,9 +68,9 @@ class BeamlineConfig(ABC):
         beamline_id: str
     ) -> None:
         self.beamline_id = beamline_id
-        # self.config = read_config()
         self.config = settings
         self._beam_specific_config()
+        self.config = None  # Clear reference to config after beam-specific setup
 
     @abstractmethod
     def _beam_specific_config(self) -> None:
