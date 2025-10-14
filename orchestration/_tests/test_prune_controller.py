@@ -31,15 +31,9 @@ def prefect_test_fixture():
         yield
 
 
-# class MockConfig:
-#     """Minimal config stub for controllers (only beamline_id and tc)."""
-#     def __init__(self, beamline_id: str = "test_beamline") -> None:
-#         self.beamline_id = beamline_id
-#         self.tc: Any = None  # transfer client stub
-
 class MockConfig(BeamlineConfig):
     """Minimal concrete BeamlineConfig for tests (no real I/O)."""
-    def __init__(self, beamline_id: str = "test_beamline") -> None:
+    def __init__(self, beamline_id: str = "0.0.0") -> None:
         super().__init__(beamline_id=beamline_id)
         # Test stubs that the controllers/flows expect to exist
         self.tc = None
@@ -53,7 +47,7 @@ class MockConfig(BeamlineConfig):
 @pytest.fixture
 def mock_config() -> MockConfig:
     """Provides a fresh MockConfig per test."""
-    return MockConfig(beamline_id="unittest_beamline")
+    return MockConfig(beamline_id="0.0.0")
 
 
 @pytest.fixture

@@ -3,6 +3,7 @@ import builtins
 import collections
 import os
 from pathlib import Path
+import re
 import yaml
 
 from dynaconf import Dynaconf
@@ -59,7 +60,7 @@ class BeamlineConfig(ABC):
     must override the _setup_specific_config() method to assign their own attributes.
 
     Attributes:
-        beamline_id (str): Beamline identifier (e.g. "832" or "733").
+        beamline_id (str): Beamline number identifier with periods (e.g. "8.3.2" or "7.3.3").
         config (dict): The loaded configuration dictionary.
     """
 
@@ -67,6 +68,10 @@ class BeamlineConfig(ABC):
         self,
         beamline_id: str
     ) -> None:
+        pattern = r'^\d+(\.\d+)+$'
+        if not re.match(pattern, beamline_id):
+            raise ValueError(f"Invalid beamline_id format: '{beamline_id}'."
+                             f"Expected format: digits separated by dots (e.g., '8.3.2', '7.0.1.2', '12.3')")
         self.beamline_id = beamline_id
         self.config = settings
         self._beam_specific_config()
