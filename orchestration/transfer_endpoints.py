@@ -31,7 +31,7 @@ class TransferEndpoint(ABC):
 
     def uri(self) -> str:
         """
-        Root path or base directory for this endpoint.
+        Uri for this endpoint.
         """
         return self.uri
 
