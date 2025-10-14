@@ -662,6 +662,12 @@ if __name__ == "__main__":
     #     test_hpss=False,
     #     test_scicat=False
     # )
+    try:
+        check_required_envvars()
+    except Exception as e:
+        logger.error(f"Error checking environment variables: {e}")
+    finally:
+        logger.info("Continuing with tests...")
 
     # Test individual transfer controllers directly
     test_transfer_controllers(
