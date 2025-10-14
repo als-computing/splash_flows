@@ -14,6 +14,8 @@ from orchestration.prune_controller import (
     GlobusPruneController,
     get_prune_controller,
     PruneMethod,
+    prune_filesystem_endpoint,
+    prune_globus_endpoint,
 )
 from orchestration.transfer_endpoints import FileSystemEndpoint
 from orchestration.globus.transfer import GlobusEndpoint
@@ -185,7 +187,7 @@ def test_fs_prune_immediate_deletes_file_directly(fs_controller, fs_endpoint, tm
     p.touch()
     assert p.exists()
 
-    fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
+    fn = prune_filesystem_endpoint.fn  # type: ignore
     assert fn(relative_path=rel, source_endpoint=fs_endpoint, check_endpoint=None, config=fs_controller.config)
     assert not p.exists()
 
@@ -195,7 +197,7 @@ def test_fs_prune_immediate_returns_false_if_missing(fs_controller, fs_endpoint,
     rel = "no/such/file.txt"
     assert not (tmp_path / rel).exists()
 
-    fn = fs_controller._prune_filesystem_endpoint.fn  # type: ignore
+    fn = prune_filesystem_endpoint.fn  # type: ignore
     assert fn(relative_path=rel, source_endpoint=fs_endpoint, check_endpoint=None, config=fs_controller.config) is False
 
 
@@ -279,7 +281,7 @@ def test_globus_prune_immediate_calls_prune_one_safe_directly(
     p.parent.mkdir(parents=True, exist_ok=True)
     p.touch()
 
-    fn = globus_controller._prune_globus_endpoint.fn  # type: ignore
+    fn = prune_globus_endpoint.fn  # type: ignore
     _ = fn(
         relative_path=rel,
         source_endpoint=globus_endpoint,

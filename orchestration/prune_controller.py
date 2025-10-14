@@ -135,7 +135,7 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
         if days_from_now.total_seconds() == 0:
             logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
             try:
-                self._prune_filesystem_endpoint(
+                prune_filesystem_endpoint(
                     relative_path=file_path,
                     source_endpoint=source_endpoint,
                     check_endpoint=check_endpoint,
@@ -168,57 +168,57 @@ class FileSystemPruneController(PruneController[FileSystemEndpoint]):
                 logger.error(f"Failed to schedule pruning task: {str(e)}", exc_info=True)
                 return False
 
-    @staticmethod
-    @flow(name="prune_filesystem_endpoint")
-    def _prune_filesystem_endpoint(
-        relative_path: str,
-        source_endpoint: FileSystemEndpoint,
-        check_endpoint: Optional[FileSystemEndpoint] = None,
-        config: BeamlineConfig = None
-    ) -> None:
-        """
-        Prefect flow that performs the actual filesystem pruning operation.
 
-        Args:
-            relative_path (str): The path of the file or directory to prune
-            source_endpoint (FileSystemEndpoint): The source endpoint to prune from
-            check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
-            config (Optional[BeamlineConfig]): Configuration object, if needed
+@flow(name="prune_filesystem_endpoint")
+def prune_filesystem_endpoint(
+    relative_path: str,
+    source_endpoint: FileSystemEndpoint,
+    check_endpoint: Optional[FileSystemEndpoint] = None,
+    config: BeamlineConfig = None
+) -> None:
+    """
+    Prefect flow that performs the actual filesystem pruning operation.
 
-        Returns:
-            bool: True if pruning was successful, False otherwise
-        """
-        logger.info(f"Running flow: prune_from_{source_endpoint.name}")
-        logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
+    Args:
+        relative_path (str): The path of the file or directory to prune
+        source_endpoint (FileSystemEndpoint): The source endpoint to prune from
+        check_endpoint (Optional[FileSystemEndpoint]): If provided, verify data exists here before pruning
+        config (Optional[BeamlineConfig]): Configuration object, if needed
 
-        # Check if the file exists at the source endpoint using os.path
-        source_full_path = source_endpoint.full_path(relative_path)
-        if not os.path.exists(source_full_path):
-            logger.warning(f"File {relative_path} does not exist at the source: {source_endpoint.name}.")
+    Returns:
+        bool: True if pruning was successful, False otherwise
+    """
+    logger.info(f"Running flow: prune_from_{source_endpoint.name}")
+    logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
+
+    # Check if the file exists at the source endpoint using os.path
+    source_full_path = source_endpoint.full_path(relative_path)
+    if not os.path.exists(source_full_path):
+        logger.warning(f"File {relative_path} does not exist at the source: {source_endpoint.name}.")
+        return False
+
+    # If check_endpoint is provided, verify file exists there before pruning
+    if check_endpoint is not None:
+        check_full_path = check_endpoint.full_path(relative_path)
+        if os.path.exists(check_full_path):
+            logger.info(f"File {relative_path} exists on the check point: {check_endpoint.name}.")
+            logger.info("Safe to prune.")
+        else:
+            logger.warning(f"File {relative_path} does not exist at the check point: {check_endpoint.name}.")
+            logger.warning("Not safe to prune.")
             return False
 
-        # If check_endpoint is provided, verify file exists there before pruning
-        if check_endpoint is not None:
-            check_full_path = check_endpoint.full_path(relative_path)
-            if os.path.exists(check_full_path):
-                logger.info(f"File {relative_path} exists on the check point: {check_endpoint.name}.")
-                logger.info("Safe to prune.")
-            else:
-                logger.warning(f"File {relative_path} does not exist at the check point: {check_endpoint.name}.")
-                logger.warning("Not safe to prune.")
-                return False
+    # Now perform the pruning operation
+    if os.path.isdir(source_full_path):
+        logger.info(f"Pruning directory {relative_path}")
+        import shutil
+        shutil.rmtree(source_full_path)
+    else:
+        logger.info(f"Pruning file {relative_path}")
+        os.remove(source_full_path)
 
-        # Now perform the pruning operation
-        if os.path.isdir(source_full_path):
-            logger.info(f"Pruning directory {relative_path}")
-            import shutil
-            shutil.rmtree(source_full_path)
-        else:
-            logger.info(f"Pruning file {relative_path}")
-            os.remove(source_full_path)
-
-        logger.info(f"Successfully pruned {relative_path} from {source_endpoint.name}")
-        return True
+    logger.info(f"Successfully pruned {relative_path} from {source_endpoint.name}")
+    return True
 
 
 class GlobusPruneController(PruneController[GlobusEndpoint]):
@@ -290,7 +290,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
         if days_from_now.total_seconds() == 0:
             logger.info(f"Executing immediate pruning of '{file_path}' from '{source_endpoint.name}'")
             try:
-                self._prune_globus_endpoint(
+                prune_globus_endpoint(
                     relative_path=file_path,
                     source_endpoint=source_endpoint,
                     check_endpoint=check_endpoint,
@@ -323,39 +323,39 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
                 logger.error(f"Failed to schedule pruning task: {str(e)}", exc_info=True)
                 return False
 
-    @staticmethod
-    @flow(name="prune_globus_endpoint")
-    def _prune_globus_endpoint(
-        relative_path: str,
-        source_endpoint: GlobusEndpoint,
-        check_endpoint: Optional[GlobusEndpoint] = None,
-        config: BeamlineConfig = None
-    ) -> None:
-        """
-        Prefect flow that performs the actual Globus endpoint pruning operation.
 
-        Args:
-            relative_path (str): The path of the file or directory to prune
-            source_endpoint (GlobusEndpoint): The Globus endpoint to prune from
-            check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
-            config (BeamlineConfig): Configuration object with transfer client
-        """
-        logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
+@flow(name="prune_globus_endpoint")
+def prune_globus_endpoint(
+    relative_path: str,
+    source_endpoint: GlobusEndpoint,
+    check_endpoint: Optional[GlobusEndpoint] = None,
+    config: BeamlineConfig = None
+) -> None:
+    """
+    Prefect flow that performs the actual Globus endpoint pruning operation.
 
-        globus_settings = JSON.load("globus-settings").value
-        max_wait_seconds = globus_settings["max_wait_seconds"]
-        flow_name = f"prune_from_{source_endpoint.name}"
-        logger.info(f"Running flow: {flow_name}")
-        logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
-        prune_one_safe(
-            file=relative_path,
-            if_older_than_days=0,
-            transfer_client=config.tc,
-            source_endpoint=source_endpoint,
-            check_endpoint=check_endpoint,
-            logger=logger,
-            max_wait_seconds=max_wait_seconds
-        )
+    Args:
+        relative_path (str): The path of the file or directory to prune
+        source_endpoint (GlobusEndpoint): The Globus endpoint to prune from
+        check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
+        config (BeamlineConfig): Configuration object with transfer client
+    """
+    logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
+
+    globus_settings = JSON.load("globus-settings").value
+    max_wait_seconds = globus_settings["max_wait_seconds"]
+    flow_name = f"prune_from_{source_endpoint.name}"
+    logger.info(f"Running flow: {flow_name}")
+    logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
+    prune_one_safe(
+        file=relative_path,
+        if_older_than_days=0,
+        transfer_client=config.tc,
+        source_endpoint=source_endpoint,
+        check_endpoint=check_endpoint,
+        logger=logger,
+        max_wait_seconds=max_wait_seconds
+    )
 
 
 class PruneMethod(Enum):
@@ -402,6 +402,7 @@ def get_prune_controller(
         return FileSystemPruneController(config)
     elif prune_type == PruneMethod.HPSS:
         logger.debug("Importing and returning HPSSPruneController")
+        # Import here to avoid circular dependencies
         from orchestration.hpss import HPSSPruneController
         from orchestration.sfapi import create_sfapi_client
         return HPSSPruneController(
