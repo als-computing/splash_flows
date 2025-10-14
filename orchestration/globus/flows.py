@@ -23,16 +23,14 @@ TRANSFER_ACTION_PROVIDER_SCOPE_STRING = (
 
 dotenv_file = load_dotenv()
 
-if os.getenv("PREFECT_API_URL") and os.getenv("PREFECT_API_KEY"):
-    try:
-        GLOBUS_CLIENT_ID = Secret.load("globus-client-id")
-        GLOBUS_CLIENT_SECRET = Secret.load("globus-client-secret")
-    except Exception as e:
-        logger.error(f"Error loading Globus client credentials: {e}")
-        raise e
-else:
-    logger.error("Prefect environment variables are not set.")
-    raise EnvironmentError("Prefect environment variables are not set.")
+if not os.getenv("PREFECT_API_URL") and not os.getenv("PREFECT_API_KEY"):
+    logger.warning("Prefect environment variables are not set.")
+
+try:
+    GLOBUS_CLIENT_ID = Secret.load("globus-client-id")
+    GLOBUS_CLIENT_SECRET = Secret.load("globus-client-secret")
+except Exception as e:
+    logger.warning(f"Error loading Globus client credentials: {e}")
 
 
 def get_flows_client():
