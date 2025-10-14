@@ -1,5 +1,6 @@
 # orchestration/transfer_endpoints.py
 from abc import ABC
+from pathlib import Path
 
 
 class TransferEndpoint(ABC):
@@ -63,9 +64,7 @@ class FileSystemEndpoint(TransferEndpoint):
         Returns:
             str: The full absolute path.
         """
-        if path_suffix.startswith("/"):
-            path_suffix = path_suffix[1:]
-        return f"{self.root_path.rstrip('/')}/{path_suffix}"
+        return str(Path(self.root_path) / path_suffix)
 
 
 class HPSSEndpoint(TransferEndpoint):
