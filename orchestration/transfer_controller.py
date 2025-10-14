@@ -431,6 +431,7 @@ def get_transfer_controller(
         return SimpleTransferController(config)
     elif transfer_type == CopyMethod.CFS_TO_HPSS:
         logger.debug("Importing and returning CFSToHPSSTransferController")
+        # Import here to avoid circular dependencies
         from orchestration.hpss import CFSToHPSSTransferController
         from orchestration.sfapi import create_sfapi_client
         return CFSToHPSSTransferController(
@@ -439,6 +440,7 @@ def get_transfer_controller(
         )
     elif transfer_type == CopyMethod.HPSS_TO_CFS:
         logger.debug("Importing and returning HPSSToCFSTransferController")
+        # Import here to avoid circular dependencies
         from orchestration.hpss import HPSSToCFSTransferController
         from orchestration.sfapi import create_sfapi_client
         return HPSSToCFSTransferController(
