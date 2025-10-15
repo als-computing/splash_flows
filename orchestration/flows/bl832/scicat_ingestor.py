@@ -38,7 +38,7 @@ logger = getLogger(__name__)
 
 class TomographyIngestorController(BeamlineIngestorController):
     """
-    Ingestor for Tomo832 beamline.
+    Ingestor for 8.3.2 Microtomography beamline.
     """
     DEFAULT_USER = "8.3.2"  # In case there's not proposal number
     INGEST_SPEC = "als832_dx_3"  # Where is this spec defined?
