@@ -709,8 +709,9 @@ class HPSSToCFSTransferController(TransferController[HPSSEndpoint]):
         #   - Otherwise, MODE is "single" and hsi get is used.
 
         job_script = load_slurm_job(
-            job_name="hpss_to_cfs",
+            "hpss_to_cfs",
             logs_path=logs_path,
+            file_path=file_path,
             sanitized_path=sanitized_path,
             hpss_path=hpss_path,
             dest_root=dest_root,
