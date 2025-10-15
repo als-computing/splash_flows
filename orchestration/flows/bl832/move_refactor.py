@@ -110,6 +110,15 @@ def process_new_832_file(
 
 @flow(name="test_832_transfers")
 def test_transfers_832(file_path: str = "/raw/transfer_tests/test.txt"):
+    """Test transfers between spot832, data832, and NERSC.
+    Note that the file must already exist on spot832.
+    Uses Globus transfer.
+    This flow is scheduled to run periodically to verify that transfers are working.
+
+    :param file_path: path to file on spot832
+    :return: None
+
+    """
     config = Config832()
     logger.info(f"{str(uuid.uuid4())}{file_path}")
     # copy file to a uniquely-named file in the same folder
