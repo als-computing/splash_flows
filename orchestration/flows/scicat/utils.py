@@ -133,7 +133,12 @@ def encode_image_2_thumbnail(
     filebuffer,
     imType="jpg"
 ) -> str:
-    """Encode an image file to a base 64 string for use as a thumbnail."""
+    """Encode an image file to a base 64 string for use as a thumbnail.
+
+    "encode_thumbnail()" is now part of SciCat.
+    Not sure if this would conflict with the current production version we have deployed.
+    https://www.scicatproject.org/pyscicat/howto/ingest.html?highlight=encode
+    """
     logging.info("Creating thumbnail for dataset")
     header = "data:image/{imType};base64,".format(imType=imType)
     dataBytes = base64.b64encode(filebuffer.read())
