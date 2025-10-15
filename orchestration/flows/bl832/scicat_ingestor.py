@@ -554,7 +554,7 @@ class TomographyIngestorController(BeamlineIngestorController):
             dataset = file.get(md_key)
             if not dataset:
                 issues.append(
-                    Issue(msg=f"dataset not found {md_key}", severity=Severity.warning)
+                    Issue(msg=f"dataset not found {md_key}", severity=Severity.WARNING)
                 )
                 continue
             metadata[md_key] = self._get_dataset_value(file[md_key])

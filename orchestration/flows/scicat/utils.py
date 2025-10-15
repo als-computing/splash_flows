@@ -23,8 +23,8 @@ class Severity(
     Enum
 ):
     """Enum for issue severity."""
-    warning = "warning"
-    error = "error"
+    WARNING = "warning"
+    ERROR = "error"
 
 
 @dataclass
