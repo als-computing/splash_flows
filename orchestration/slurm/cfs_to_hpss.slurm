@@ -115,6 +115,7 @@ if [ -f "$SOURCE_PATH" ]; then
     echo "[LOG] Single file detected. Transferring via hsi cput."
     FILE_NAME=$(basename "$SOURCE_PATH")
     echo "[LOG] File name: $FILE_NAME"
+    # Note about hsi cput: If the file already exists on HPSS, hsi cput will skip the transfer.
     hsi cput "$SOURCE_PATH" "$DEST_PATH/$FILE_NAME"
     echo "[LOG] (Simulated) File transfer completed for $FILE_NAME."
 elif [ -d "$SOURCE_PATH" ]; then
