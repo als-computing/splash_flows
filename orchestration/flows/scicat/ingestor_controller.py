@@ -93,9 +93,6 @@ class BeamlineIngestorController(ABC):
             # logger.info(f"SciCat token: {response.json()['access_token']}")
             return self.scicat_client
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to log in to SciCat: {e}")
-            raise e
         except Exception as e:
             logger.error(f"Failed to log in to SciCat: {e}")
             raise e
