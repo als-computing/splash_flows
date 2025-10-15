@@ -33,7 +33,7 @@ class BeamlineIngestorController(ABC):
         self.config = config
         self.scicat_client = scicat_client
 
-    def login_to_scicat(
+    def get_scicat_client(
         self,
         scicat_base_url: Optional[str] = None,
         scicat_user: Optional[str] = None,
@@ -321,7 +321,7 @@ class ConcreteBeamlineIngestorController(BeamlineIngestorController):
 if __name__ == "__main__":
     logger.info("Testing SciCat ingestor controller")
     test_ingestor = ConcreteBeamlineIngestorController(BeamlineConfig)
-    test_ingestor.login_to_scicat(
+    test_ingestor.get_scicat_client(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="ingestor",
         scicat_password="aman"

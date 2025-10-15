@@ -104,8 +104,8 @@ class TestIngestorController(BeamlineIngestorController):
             str: The SciCat ID of the created dataset.
         """
         if not self.scicat_client:
-            logger.error("SciCat client not initialized. Call login_to_scicat first.")
-            raise ValueError("SciCat client not initialized. Call login_to_scicat first.")
+            logger.error("SciCat client not initialized. Call get_scicat_client first.")
+            raise ValueError("SciCat client not initialized. Call get_scicat_client first.")
 
         # Create minimal metadata for the dataset
         from pyscicat.model import CreateDatasetOrigDatablockDto, DataFile, RawDataset
@@ -177,8 +177,8 @@ class TestIngestorController(BeamlineIngestorController):
             str: The SciCat ID of the created dataset.
         """
         if not self.scicat_client:
-            logger.error("SciCat client not initialized. Call login_to_scicat first.")
-            raise ValueError("SciCat client not initialized. Call login_to_scicat first.")
+            logger.error("SciCat client not initialized. Call get_scicat_client first.")
+            raise ValueError("SciCat client not initialized. Call get_scicat_client first.")
 
         # Create minimal metadata for the dataset
         from pyscicat.model import CreateDatasetOrigDatablockDto, DataFile, DerivedDataset
@@ -553,7 +553,7 @@ def test_scicat_ingest(
     # SCICAT_INGEST_USER="admin"
     # SCICAT_INGEST_PASSWORD="2jf70TPNZsS"
 
-    test_ingestor.login_to_scicat(
+    test_ingestor.get_scicat_client(
         scicat_base_url=os.getenv("SCICAT_API_URL"),
         scicat_user=os.getenv("SCICAT_INGEST_USER"),
         scicat_password=os.getenv("SCICAT_INGEST_PASSWORD")

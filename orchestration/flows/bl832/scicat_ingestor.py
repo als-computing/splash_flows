@@ -699,12 +699,12 @@ if __name__ == "__main__":
     proposal_id = "test832"
     ingestor = TomographyIngestorController(config)
 
-    # login_to_scicat assumes that the environment variables are set in the environment
+    # get_scicat_client assumes that the environment variables are set in the environment
     # in this test, just using the scicatlive (3.2.5) backend defaults (admin user)
 
     logger.info("Setting up metadata SciCat ingestion")
 
-    ingestor.login_to_scicat(
+    ingestor.get_scicat_client(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="admin",
         scicat_password="2jf70TPNZsS"
@@ -753,7 +753,7 @@ if __name__ == "__main__":
     )
 
     admin_ingestor = TomographyIngestorController(config)
-    admin_ingestor.login_to_scicat(
+    admin_ingestor.get_scicat_client(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="archiveManager",
         scicat_password="aman"

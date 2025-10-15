@@ -69,8 +69,8 @@ def process_new_832_file(
             logger.info(f"File successfully transferred from data832 to NERSC {file_path}. Task {task}")
             try:
                 ingestor = TomographyIngestorController(config)
-                # login_to_scicat assumes that the environment variables are set in the environment
-                ingestor.login_to_scicat()
+                # get_scicat_client assumes that the environment variables are set in the environment
+                ingestor.get_scicat_client()
                 ingestor.ingest_new_raw_dataset(file_path)
             except Exception as e:
                 logger.error(f"SciCat ingest failed with {e}")
@@ -157,9 +157,9 @@ if __name__ == "__main__":
     config = Config832()
     file_path = "/Users/david/Documents/data/tomo/raw/20241216_153047_ddd.h5"
     ingestor = TomographyIngestorController(config)
-    # login_to_scicat assumes that the environment variables are set in the environment
+    # get_scicat_client assumes that the environment variables are set in the environment
     # in this test, just using the scicatlive backend defaults (admin user)
-    ingestor.login_to_scicat(
+    ingestor.get_scicat_client(
         scicat_base_url="http://localhost:3000/api/v3/",
         scicat_user="admin",
         scicat_password="2jf70TPNZsS"
