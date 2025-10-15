@@ -187,6 +187,12 @@ class BeamlineIngestorController(ABC):
     ) -> bool:
         """
         Remove a location from an existing dataset in SciCat.
+        We might want to do this after data was moved to a new location,
+        and has been pruned from the previous location.
+
+        :param dataset_id: SciCat ID of the dataset.
+        :param source_folder_host: The source folder host to identify the location to remove.
+        :return: True if the location was successfully removed, False otherwise.
         """
         logger.info(f"Removing location with host {source_folder_host} from dataset {dataset_id}")
 
