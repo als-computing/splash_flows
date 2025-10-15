@@ -267,14 +267,14 @@ def archive_832_projects_from_previous_cycle_dispatcher(
         # config.nersc832_alsdev_scratch.path: the SCRATCH directory path.
         projects = config.tc.operation_ls(
             endpoint_id=config.nersc832.endpoint_id,
-            path=config.nersc832_alsdev_scratch.path,
+            path=config.nersc832_alsdev_raw.path,
             orderby=["name", "last_modified"],
         ).get("DATA", [])
     except Exception as e:
         logger.error(f"Failed to list projects: {e}")
         return
 
-    logger.info(f"Found {len(projects)} items in the SCRATCH directory.")
+    logger.info(f"Found {len(projects)} items in the {projects.path} directory.")
 
     # Process each project: check its modification time and trigger transfer if within the archive window.
     for project in projects:
