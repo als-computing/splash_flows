@@ -18,8 +18,6 @@ from orchestration.transfer_controller import get_transfer_controller, CopyMetho
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-API_KEY = os.getenv("API_KEY")
-
 
 @flow(name="new_832_file_flow")
 def process_new_832_file(
