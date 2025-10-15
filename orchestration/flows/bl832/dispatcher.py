@@ -305,7 +305,11 @@ def archive_832_projects_from_previous_cycle_dispatcher(
                 )
 
             except Exception as e:
-                logger.error(f"Error archiving project {project_name}: {e}")
+                logger.error(
+                    f"Error archiving project {project_name}: {e}. Logs are available on NERSCT at "
+                    f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{config.beamline_id}/{project_name}_to_hpss_*.log"
+                    f"/global/cfs/cdirs/als/data_mover/hpss_transfer_logs/{config.beamline_id}/{project_name}_to_hpss_*.err"
+                )
             try:
                 # Ingest the project into SciCat.
                 logger.info("Ingesting new file path into SciCat...")
