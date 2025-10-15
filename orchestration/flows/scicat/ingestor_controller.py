@@ -308,24 +308,3 @@ class BeamlineIngestorController(ABC):
             raise ValueError("The dataset returned does not have a valid 'pid' field.")
 
         return dataset_id
-
-
-# Concrete implementation for testing and instantiation.
-class ConcreteBeamlineIngestorController(BeamlineIngestorController):
-    def ingest_new_raw_dataset(self, file_path: str = "") -> str:
-        # Dummy implementation for testing.
-        return "raw_dataset_id_dummy"
-
-    def ingest_new_derived_dataset(self, file_path: str = "", raw_dataset_id: str = "") -> str:
-        # Dummy implementation for testing.
-        return "derived_dataset_id_dummy"
-
-
-if __name__ == "__main__":
-    logger.info("Testing SciCat ingestor controller")
-    test_ingestor = ConcreteBeamlineIngestorController(BeamlineConfig)
-    test_ingestor.get_scicat_client(
-        scicat_base_url="http://localhost:3000/api/v3/",
-        scicat_user="ingestor",
-        scicat_password="aman"
-    )
