@@ -1,4 +1,3 @@
-# import importlib
 import io
 import json
 from logging import getLogger
@@ -39,7 +38,8 @@ logger = getLogger(__name__)
 
 class TomographyIngestorController(BeamlineIngestorController):
     """
-    Ingestor for 8.3.2 Microtomography beamline.
+    Ingestor for 8.3.2 Microtomography beamline. Handles ingestion of raw and derived datasets.
+    Extends the BeamlineIngestorController with beamline-specific (8.3.2) metadata extraction
     """
     DEFAULT_USER = "8.3.2"  # In case there's not proposal number
     INGEST_SPEC = "als832_dx_3"  # Where is this spec defined?
@@ -123,6 +123,9 @@ class TomographyIngestorController(BeamlineIngestorController):
         config: Config832,
         scicat_client: Optional[ScicatClient] = None
     ) -> None:
+        """Initializes the TomographyIngestorController with beamline-specific settings.
+        :param config: Configuration object (Config832) for the 8.3.2 beamline.
+        :param scicat_client: An optional SciCat client instance. If not provided, it will be created."""
         super().__init__(config, scicat_client)
 
     def ingest_new_raw_dataset(
@@ -502,6 +505,11 @@ class TomographyIngestorController(BeamlineIngestorController):
     ) -> Dict:
         """
         Calculate access controls for a dataset.
+
+        :param username: Username of the dataset owner.
+        :param beamline: Beamline name.
+        :param proposal: Proposal number.
+        :return: Dictionary with 'owner_group' and 'access_groups'.
         """
 
         # make an access group list that includes the name of the proposal and the name of the beamline
@@ -531,7 +539,11 @@ class TomographyIngestorController(BeamlineIngestorController):
         storage_path: str
     ) -> List[DataFile]:
         """
-        Collects all fits files
+        Builds a list of DataFile objects for SciCat from a single file.
+
+        :param file_path: Path to the file.
+        :param storage_path: Path where the file is stored.
+        :return: List of DataFile objects.
         """
         datafiles = []
         datafile = DataFile(
@@ -566,6 +578,9 @@ class TomographyIngestorController(BeamlineIngestorController):
     ) -> Any:
         """
         Extracts the value of a dataset from an HDF5 file.
+
+        :param data_set: HDF5 dataset object.
+        :return: The value of the dataset, or None if extraction fails.
         """
         logger.debug(f"{data_set}  {data_set.dtype}")
         try:
@@ -592,7 +607,13 @@ class TomographyIngestorController(BeamlineIngestorController):
         file: h5py.File,
         sample_size: int = 10
     ) -> Dict[str, Any]:
-        """ Extracts a sample of the data from the HDF5 file. """
+        """
+        Extracts a sample of the data from the HDF5 file.
+
+        :param file: HDF5 file object.
+        :param sample_size: Number of samples to extract.
+        :return: Dictionary of sampled data arrays.
+        """
         data_sample = {}
         for key in self.DATA_SAMPLE_KEYS:
             data_array = file.get(key)
@@ -614,7 +635,13 @@ class TomographyIngestorController(BeamlineIngestorController):
         source_root_path: str
     ) -> Datablock:
         """
-        Creates a datablock of files
+        Creates a datablock of files associated with a dataset and uploads it to SciCat.
+
+        :param file_path: Path to the file to ingest.
+        :param dataset_id: SciCat ID of the dataset.
+        :param storage_root_path: Root path where files are stored.
+        :param source_root_path: Root path of the source files.
+        :return: Uploaded Datablock object.
         """
         # calculate the path where the file will as known to SciCat
         storage_path = str(file_path).replace(source_root_path, storage_root_path)
@@ -632,7 +659,14 @@ class TomographyIngestorController(BeamlineIngestorController):
         dataset_id: str,
         ownable: Ownable,
     ) -> None:
-        "Creates a thumbnail png"
+        """
+        Creates a thumbnail png attachment and uploads it to SciCat.
+
+        :param encoded_thumbnail: Base64 encoded thumbnail image.
+        :param dataset_id: SciCat ID of the dataset.
+        :param ownable: Ownable object.
+        :return: None
+        """
         attachment = Attachment(
             datasetId=dataset_id,
             thumbnail=encoded_thumbnail,
