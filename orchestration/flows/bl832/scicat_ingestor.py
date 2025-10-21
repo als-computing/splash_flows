@@ -1,4 +1,5 @@
 # import importlib
+import io
 import json
 from logging import getLogger
 import os
@@ -445,7 +446,7 @@ class TomographyIngestorController(BeamlineIngestorController):
 
         return dataset_id
 
-    def _generate_zarr_thumbnail(self, zarr_path: Path):
+    def _generate_zarr_thumbnail(self, zarr_path: Path) -> io.BytesIO | None:
         """
         Generate a thumbnail image from an NGFF Zarr dataset using ngff_zarr.
         This implementation extracts a mid-slice and returns a BytesIO buffer.
@@ -457,7 +458,6 @@ class TomographyIngestorController(BeamlineIngestorController):
             import ngff_zarr as nz
             from PIL import Image
             import numpy as np
-            import io
 
             # Load the multiscale image from the Zarr store
             multiscales = nz.from_ngff_zarr(str(zarr_path))
@@ -496,9 +496,9 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _calculate_access_controls(
         self,
-        username,
-        beamline,
-        proposal
+        username: str,
+        beamline: str,
+        proposal: str
     ) -> Dict:
         """
         Calculate access controls for a dataset.
@@ -545,9 +545,9 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _extract_fields(
         self,
-        file,
-        keys,
-        issues
+        file: h5py.File,
+        keys: List[str],
+        issues: List[Issue]
     ) -> Dict[str, Any]:
         metadata = {}
         for md_key in keys:
@@ -562,8 +562,8 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _get_dataset_value(
         self,
-        data_set
-    ):
+        data_set: h5py.Dataset
+    ) -> Any:
         """
         Extracts the value of a dataset from an HDF5 file.
         """
@@ -589,9 +589,9 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _get_data_sample(
         self,
-        file,
-        sample_size=10
-    ):
+        file: h5py.File,
+        sample_size: int = 10
+    ) -> Dict[str, Any]:
         """ Extracts a sample of the data from the HDF5 file. """
         data_sample = {}
         for key in self.DATA_SAMPLE_KEYS:
@@ -628,14 +628,14 @@ class TomographyIngestorController(BeamlineIngestorController):
 
     def _upload_attachment(
         self,
-        encoded_thumnbnail: str,
+        encoded_thumbnail: str,
         dataset_id: str,
         ownable: Ownable,
-    ) -> Attachment:
+    ) -> None:
         "Creates a thumbnail png"
         attachment = Attachment(
             datasetId=dataset_id,
-            thumbnail=encoded_thumnbnail,
+            thumbnail=encoded_thumbnail,
             caption="raw image",
             **ownable.dict(),
         )
