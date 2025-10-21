@@ -199,7 +199,7 @@ class TomographyIngestorController(BeamlineIngestorController):
             )
 
             # Generate and upload a thumbnail attachment
-            # The "/exchange/data" key is specific to the Tomo832 HDF5 file structure.
+            # The "/exchange/data" key is specific to the Microtomography (8.3.2) HDF5 file structure.
             thumbnail_file = build_thumbnail(file["/exchange/data"][0])
             encoded_thumbnail = encode_image_2_thumbnail(thumbnail_file)
             self._upload_attachment(
@@ -220,7 +220,7 @@ class TomographyIngestorController(BeamlineIngestorController):
         raw_dataset_id: str = "",
     ) -> str:
         """
-        Ingest a new derived dataset from the Tomo832 beamline.
+        Ingest a new derived dataset from the Microtomography (8.3.2) beamline.
 
         This method handles ingestion of derived datasets generated during tomography reconstruction:
         1. A directory of TIFF slices
