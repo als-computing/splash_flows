@@ -190,7 +190,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
     def _wait_for_globus_compute_future(
         future: Future,
         task_name: str,
-        check_interval: int = 20
+        check_interval: int = 20,
+        walltime: int = 1200  # seconds = 20 minutes
     ) -> bool:
         """
         Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
@@ -199,9 +200,10 @@ class ALCFTomographyHPCController(TomographyHPCController):
             future: The future object returned from the Globus Compute Executor submit method.
             task_name: A descriptive name for the task being executed (used for logging).
             check_interval: The interval (in seconds) between status checks.
+            walltime: The maximum time (in seconds) to wait for the task to complete.
 
         Returns:
-            bool: True if the task completed successfully, False otherwise.
+            bool: True if the task completed successfully within walltime, False otherwise.
         """
         start_time = time.time()
         success = False
@@ -209,6 +211,13 @@ class ALCFTomographyHPCController(TomographyHPCController):
         try:
             previous_state = None
             while not future.done():
+                elapsed_time = time.time() - start_time
+                if elapsed_time > walltime:
+                    logger.error(f"The {task_name} task exceeded the walltime of {walltime} seconds."
+                                 "Cancelling the Globus Compute job.")
+                    future.cancel()
+                    return False
+
                 # Check if the task was cancelled
                 if future.cancelled():
                     logger.warning(f"The {task_name} task was cancelled.")
