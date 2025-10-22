@@ -17,25 +17,25 @@ globus:
 
     # 7.3.3 ENDPOINTS
 
-    nersc733_alsdev:
+    bl733-nersc-alsdev:
       root_path: /global/cfs/cdirs/als/data_mover/7.3.3/
       uri: nersc.gov
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
-      name: nersc733_alsdev
+      name: bl733-nersc-alsdev
 
-    nersc733_alsdev_raw:
+    bl733-nersc-alsdev_raw:
       root_path: /global/cfs/cdirs/als/data_mover/7.3.3/raw
       uri: nersc.gov
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
-      name: nersc733_alsdev_raw
+      name: bl733-nersc-alsdev_raw
 
-    data733:
+    bl733-als-data733:
       root_path: /
       uri: data733.lbl.gov
       uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926
-      name: data733
+      name: bl733-als-data733
 
-    data733_raw:
+    bl733-als-data733_raw:
       root_path: /
       uri: data733.lbl.gov
       uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926

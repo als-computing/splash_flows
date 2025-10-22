@@ -9,6 +9,6 @@ class Config733:
         self.endpoints = transfer.build_endpoints(config)
         self.apps = transfer.build_apps(config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
-        self.data733 = self.endpoints["data733"]
-        self.data733_raw = self.endpoints["data733_raw"]
-        self.nersc733_alsdev_raw = self.endpoints["nersc733_alsdev_raw"]
+        self.data733 = self.endpoints["bl733-als-data733"]
+        self.data733_raw = self.endpoints["bl733-als-data733_raw"]
+        self.nersc733_alsdev_raw = self.endpoints["bl733-nersc-alsdev_raw"]
