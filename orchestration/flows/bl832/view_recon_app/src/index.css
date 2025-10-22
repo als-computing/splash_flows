@@ -1,0 +1,11 @@
+/* src/index.css */
+
+/* Reset or global styles can go here if you'd like. */
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
