@@ -31,8 +31,7 @@ It is important to clarify who users are when we talk about transferring to tape
   - Apply it across different beamlines.
 
 **Collaboration Account**
-  - We use use a collaboration account at NERSC for automating our transfers. This "service" user can perform the same sets of tasks as other NERSC users, but has wider access to data systems. ALS Users benefit from, but do not directly interact with this account. For more information, see the NERSC [documentation](https://docs.nersc.gov/accounts/collaboration_accounts/).
-
+  - We use use a collaboration account at NERSC for automating our transfers. This "service" user can perform the same sets of tasks as other NERSC users, but has wider access to data systems. ALS Users benefit from, but do not directly interact with this account. For more information, see the NERSC [documentation](https://docs.nersc.gov/accounts/collaboration_accounts/). To see how to create a NERSC SFAPI Client, check out the [Run Tomography Reconstruction Remotely at NERSC](nersc832.md) example. 
 
 In `orchestration/transfer_controller.py` we have included two transfer classes for moving data from CFS to HPSS and vice versa (HPSS to CFS). We are following the [HPSS best practices](https://docs.nersc.gov/filesystems/HPSS-best-practices/) outlined in the NERSC documentation.
 
