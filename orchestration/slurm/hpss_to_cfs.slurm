@@ -7,7 +7,7 @@
 #SBATCH --output={logs_path}/{sanitized_path}_from_hpss_%j.out   # Standard output log file.
 #SBATCH --error={logs_path}/{sanitized_path}_from_hpss_%j.err    # Standard error log file.
 #SBATCH --licenses=SCRATCH                                  # Request the SCRATCH license.
-#SBATCH --mem=20GB                                          # Request #GB of memory. Default 2GB.
+#SBATCH --mem=2GB                                          # Request #GB of memory. Default 2GB.
 set -euo pipefail                                           # Enable strict error checking.
 echo "[LOG] Job started at: $(date)"
 
