@@ -22,5 +22,7 @@ class Config832:
         self.nersc832_alsdev_recon_scripts = self.endpoints["nersc832_alsdev_recon_scripts"]
         self.alcf832_raw = self.endpoints["alcf832_raw"]
         self.alcf832_scratch = self.endpoints["alcf832_scratch"]
+        self.compute_dtn_832_raw = self.endpoints["compute_dtn_832_raw"]
+        self.compute_dtn_832_scratch = self.endpoints["compute_dtn_832_scratch"]
         self.scicat = config["scicat"]
         self.ghcr_images832 = config["ghcr_images832"]

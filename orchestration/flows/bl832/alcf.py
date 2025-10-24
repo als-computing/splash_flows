@@ -434,6 +434,15 @@ def alcf_recon_flow(
             destination=config.data832_scratch
         )
 
+        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                    f"at ALCF to {config.compute_dtn_832_scratch}")
+
+        transfer_controller.copy(
+            file_path=scratch_path_tiff,
+            source=config.alcf832_scratch,
+            destination=config.compute_dtn_832_scratch
+        )
+
     if alcf_multi_res_success:
         # Transfer B: Send reconstructed data (zarr) to data832
         logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
@@ -442,6 +451,14 @@ def alcf_recon_flow(
             file_path=scratch_path_zarr,
             source=config.alcf832_scratch,
             destination=config.data832_scratch
+        )
+
+        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                    f"at ALCF to {config.compute_dtn_832_scratch}")
+        transfer_controller.copy(
+            file_path=scratch_path_zarr,
+            source=config.alcf832_scratch,
+            destination=config.compute_dtn_832_scratch
         )
 
     # Place holder in case we want to transfer to NERSC for long term storage

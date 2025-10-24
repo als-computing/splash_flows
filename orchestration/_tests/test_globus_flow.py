@@ -233,7 +233,7 @@ def test_alcf_recon_flow(mocker: MockFixture):
 
     result = alcf_recon_flow(file_path=file_path, config=mock_config)
     assert result is True, "Flow should return True if HPC + Tiff->Zarr + transfers all succeed"
-    assert mock_transfer_controller.copy.call_count == 3, "Should do 3 transfers in success path"
+    assert mock_transfer_controller.copy.call_count == 5, "Should do 5 transfers in success path"
     mock_hpc_reconstruct.assert_called_once()
     mock_hpc_multires.assert_called_once()
     mock_schedule_pruning.assert_called_once()

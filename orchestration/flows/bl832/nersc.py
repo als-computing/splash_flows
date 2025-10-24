@@ -500,6 +500,20 @@ def nersc_recon_flow(
         destination=config.data832_scratch
     )
 
+    logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to compute-dtn.als.lbl.gov")
+
+    transfer_controller.copy(
+        file_path=tiff_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.compute_dtn_832_scratch
+    )
+
+    transfer_controller.copy(
+        file_path=zarr_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.compute_dtn_832_scratch
+    )
+
     logger.info("Scheduling pruning tasks.")
     schedule_pruning(
         config=config,
