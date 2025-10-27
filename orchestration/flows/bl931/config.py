@@ -9,6 +9,5 @@ class Config931:
         self.endpoints = transfer.build_endpoints(config)
         self.apps = transfer.build_apps(config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
-        self.data931 = self.endpoints["data931"]
-        self.data931_raw = self.endpoints["data931_raw"]
-        self.nersc931_alsdev_raw = self.endpoints["nersc931_alsdev_raw"]
+        self.bl931_compute_dtn = self.endpoints["bl931-compute-dtn"]
+        self.bl931_nersc_alsdev_raw = self.endpoints["bl931-nersc_alsdev_raw"]
