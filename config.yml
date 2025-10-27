@@ -52,6 +52,19 @@ globus:
       uri: lamarr.als.lbl.gov
       uuid: aee983fc-826e-4081-bfb2-62529970540d
       name: bl733-lamarr-beamlines
+    # 9.3.1 ENDPOINTS
+
+    bl931-compute-dtn:
+      root_path: /
+      uri: compute-dtn.als.lbl.gov
+      uuid: 23af478e-d459-4e78-9753-5091b5fb432a
+      name: bl931-compute-dtn
+
+    bl931-nersc_alsdev_raw:
+      root_path: /global/cfs/cdirs/als/data_mover/9.3.1/raw
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: bl931-nersc_alsdev_raw
 
     # 8.3.2 ENDPOINTS
 

@@ -159,8 +159,8 @@ def process_new_931_file(
 
     transfer_controller.copy(
         file_path=file_path,
-        source=config.data931_raw,
-        destination=config.nersc931_alsdev_raw
+        source=config.bl931_compute_dtn,
+        destination=config.bl931_nersc_alsdev_raw
     )
 
     # TODO: Ingest file path in SciCat
@@ -171,8 +171,8 @@ def process_new_931_file(
     # TODO: Determine scheduling days_from_now based on beamline needs
     prune(
         file_path=file_path,
-        source_endpoint=config.data931_raw,
-        check_endpoint=config.nersc931_alsdev_raw,
+        source_endpoint=config.bl931_compute_dtn,
+        check_endpoint=config.bl931_nersc_alsdev_raw,
         days_from_now=180.0  # determine appropriate value: currently 6 months
     )
 
