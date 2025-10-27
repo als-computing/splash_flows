@@ -18,7 +18,7 @@ globus:
     bl7011-compute-dtn:
       root_path: /
       uri: compute-dtn.als.lbl.gov
-      uuid: TBD
+      uuid: 5ae9485d-87a4-4349-82ac-e214963ed823
       name: bl7011-compute-dtn
 
     # 7.0.1.2 ENDPOINTS
