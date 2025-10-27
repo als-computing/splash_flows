@@ -159,7 +159,7 @@ def process_new_7011_file(
 
     transfer_controller.copy(
         file_path=file_path,
-        source=config.bl7011_als_cosmic_scattering,
+        source=config.bl7011_compute_dtn,
         destination=config.bl7011_nersc_alsdev
     )
 
@@ -171,9 +171,9 @@ def process_new_7011_file(
     # TODO: Determine scheduling days_from_now based on beamline needs
     prune(
         file_path=file_path,
-        source_endpoint=config.bl7011_als_cosmic_scattering,
+        source_endpoint=config.bl7011_compute_dtn,
         check_endpoint=config.bl7011_nersc_alsdev,
-        days_from_now=180.0  # work with Chenhui/Eric to determine appropriate value: 6 months
+        days_from_now=180.0  # work with Sofie/Sujoy to determine appropriate retention period
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
@@ -199,7 +199,7 @@ def move_7011_flight_check(
 
     success = transfer_controller.copy(
         file_path=file_path,
-        source=config.bl7011_als_cosmic_scattering,
+        source=config.bl7011_compute_dtn,
         destination=config.bl7011_nersc_alsdev
     )
     if success is True:
