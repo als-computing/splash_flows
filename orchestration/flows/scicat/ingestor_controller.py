@@ -5,7 +5,7 @@ import requests
 from typing import Optional
 from urllib.parse import urljoin
 
-from pyscicat.client import ScicatClient, from_credentials
+from pyscicat.client import ScicatClient
 from pyscicat.model import (
     CreateDatasetOrigDatablockDto,
     DataFile,
@@ -67,11 +67,16 @@ class BeamlineIngestorController(ABC):
         # This method seems deprecated, but leaving it here for backwards compatability
         # https://github.com/SciCatProject/pyscicat/issues/61
         try:
-            self.scicat_client = from_credentials(
+            self.scicat_client = ScicatClient(
                 base_url=scicat_base_url,
                 username=scicat_user,
-                password=scicat_password
+                password=scicat_password,
+                auto_login=False
             )
+            # If using scicat on localhost (i.e. scicatlive), need to set Host header to backend.localhost
+            if "localhost" in scicat_base_url:
+                self.scicat_client._headers["Host"] = "backend.localhost"
+            self.scicat_client.login()
             logger.info("Logged in to SciCat.")
             return self.scicat_client
         except Exception as e:
@@ -87,7 +92,8 @@ class BeamlineIngestorController(ABC):
                 stream=False,
                 verify=True,
             )
-            logger.info(f"Login response: {response.json()}")
+            logger.info(f"Login response: {response}")
+
             self.scicat_client = ScicatClient(scicat_base_url, response.json()["access_token"])
             logger.info("Logged in to SciCat.")
             # logger.info(f"SciCat token: {response.json()['access_token']}")
