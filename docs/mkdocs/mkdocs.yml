@@ -13,8 +13,10 @@ nav:
 - Home: index.md
 - Installation and Requirements: install.md
 - Getting Started: getting_started.md
-- Compute at ALCF: alcf832.md
-- Compute at NERSC: nersc832.md
+- Beamline Implementations:
+  - 7.3.3 COSMIC Scattering: bl7011.md
+  - 8.3.2 Micro Tomography - Compute at ALCF: alcf832.md
+  - 8.3.2 Micro Tomography - Compute at NERSC: nersc832.md
 - Orchestration: orchestration.md
 - Configuration: configuration.md
 # - Troubleshooting: troubleshooting.md

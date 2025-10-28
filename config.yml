@@ -1,5 +1,48 @@
 globus:
   globus_endpoints:
+
+    # 7.0.1.1 ENDPOINTS
+
+    nersc7011_alsdev:
+      root_path: /global/cfs/cdirs/als/data_mover/7.0.1.1/
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: nersc7011_alsdev
+
+    nersc7011_alsdev_raw:
+      root_path: /global/cfs/cdirs/als/data_mover/7.0.1.1/raw
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: nersc7011_alsdev_raw
+
+    qnap7011:
+      root_path: /
+      uri: qnap7011.lbl.gov
+      uuid: tbd
+      name: qnap7011
+
+    qnap7011_raw:
+      root_path: /data/raw
+      uri: qnap7011.lbl.gov
+      uuid: tbd
+      name: qnap7011_raw
+
+    # 7.0.1.2 ENDPOINTS
+
+    nersc7012:
+      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
+      uri: nersc.gov
+      uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
+      name: nersc7012
+
+    data7012:
+      root_path: /
+      uri: hpc.lbl.gov
+      uuid: 639c49be-604f-423c-9c5d-82a53afe1bf1
+      name: data7012
+
+    # 8.3.2 ENDPOINTS
+
     spot832:
       root_path: /
       uri: spot832.lbl.gov
@@ -89,18 +132,6 @@ globus:
       uri: nersc.gov
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
-
-    nersc7012:
-      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
-      uri: nersc.gov
-      uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
-      name: nersc7012
-
-    data7012:
-      root_path: /
-      uri: hpc.lbl.gov
-      uuid: 639c49be-604f-423c-9c5d-82a53afe1bf1
-      name: data7012
 
   globus_apps:
     als_transfer:
