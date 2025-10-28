@@ -2,6 +2,7 @@ import logging
 from prefect import flow
 from typing import Optional, Union, Any
 
+from orchestration.flows.bl931.config import Config931
 from orchestration.flows.bl931.move import process_new_931_file
 
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ def dispatcher(
         raise ValueError("Data is under export control. Processing is not allowed.")
 
     if config is None:
-        logger.error("No configuration provided to dispatcher.")
-        raise ValueError("Configuration (config) is required for processing.")
+        logger.info("No config provided, initializing default Config931.")
+        config = Config931()
 
     try:
         process_new_931_file(
