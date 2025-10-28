@@ -125,6 +125,18 @@ def test_dispatcher_7011_flow(mocker: MockFixture) -> None:
     # Generate a test file path.
     test_file_path = f"/tmp/test_file_{uuid4()}.txt"
 
+    # Patch the schedule_prefect_flow call to avoid real Prefect interaction
+    with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
+        mocker.patch(
+            "orchestration.flows.bl7011.config.transfer.init_transfer_client",
+            return_value=mocker.MagicMock()  # Return a dummy TransferClient
+        )
+    # Patch the schedule_prefect_flow call to avoid real Prefect interaction
+    mocker.patch(
+        "orchestration.flows.bl7011.move.schedule_prefect_flow",
+        return_value=None
+    )
+
     # Patch the process_new_7011_file function to monitor its calls.
     mock_process_new_7011_file = mocker.patch(
         "orchestration.flows.bl7011.dispatcher.process_new_7011_file",
