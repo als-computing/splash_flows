@@ -2,6 +2,7 @@ import logging
 from prefect import flow
 from typing import Optional, Union, Any
 
+from orchestration.flows.bl7011.config import Config7011
 from orchestration.flows.bl7011.move import process_new_7011_file
 
 logger = logging.getLogger(__name__)
@@ -39,8 +40,8 @@ def dispatcher(
         raise ValueError("Data is under export control. Processing is not allowed.")
 
     if config is None:
-        logger.error("No configuration provided to dispatcher.")
-        raise ValueError("Configuration (config) is required for processing.")
+        config = Config7011()
+        logger.info("No config provided. Using default Config7011.")
 
     try:
         process_new_7011_file(
