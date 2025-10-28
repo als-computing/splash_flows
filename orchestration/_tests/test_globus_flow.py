@@ -25,13 +25,13 @@ def prefect_test_fixture():
     """
     with prefect_test_harness():
         globus_client_id = Secret(value=str(uuid4()))
-        globus_client_id.save(name="globus-client-id")
+        globus_client_id.save(name="globus-client-id", overwrite=True)
 
         globus_client_secret = Secret(value=str(uuid4()))
-        globus_client_secret.save(name="globus-client-secret")
+        globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
         globus_compute_endpoint = Secret(value=str(uuid4()))
-        globus_compute_endpoint.save(name="globus-compute-endpoint")
+        globus_compute_endpoint.save(name="globus-compute-endpoint", overwrite=True)
 
         Variable.set(
             name="pruning-config",
