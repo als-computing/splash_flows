@@ -216,7 +216,7 @@ def archive_832_project_dispatcher(
 
     for fp, scid in projects:
         try:
-            run_specific_flow(
+            run_deployment(
                 "cfs_to_hpss_flow/cfs_to_hpss_flow",
                 {
                     "file_path": fp,
@@ -328,7 +328,7 @@ def archive_832_projects_from_previous_cycle_dispatcher(
             try:
                 # Call the transfer flow for this project.
                 # This should be blocking to ensure sequential processing (HPSS has limitations for concurrent transfers).
-                run_specific_flow(
+                run_deployment(
                     "cfs_to_hpss_flow/cfs_to_hpss_flow",
                     {
                         "file_path": config.nersc832_alsdev_raw.root_path + "/" + project['name'],
@@ -412,7 +412,7 @@ def archive_all_832_projects_dispatcher(
         try:
             # Call the transfer flow for this project.
             # This should be blocking to ensure sequential processing (HPSS has limitations for concurrent transfers).
-            run_specific_flow(
+            run_deployment(
                 "cfs_to_hpss_flow/cfs_to_hpss_flow",
                 {
                     "file_path": config.nersc832_alsdev_raw.root_path + "/" + project['name'],
