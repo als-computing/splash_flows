@@ -19,7 +19,22 @@ logger.setLevel(logging.INFO)
 
 
 @flow(name="new_832_file_flow")
-def process_new_832_file(
+def process_new_832_file_flow(
+    file_path: str,
+    is_export_control=False,
+    send_to_nersc=True,
+    config=None
+):
+    process_new_832_file_task(
+        file_path=file_path,
+        is_export_control=is_export_control,
+        send_to_nersc=send_to_nersc,
+        config=config
+    )
+
+
+@task(name="process_new_832_file_task")
+def process_new_832_file_task(
     file_path: str,
     send_to_nersc=True,
     config: Config832 = None
