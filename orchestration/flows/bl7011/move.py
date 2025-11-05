@@ -132,7 +132,7 @@ def _prune_globus_endpoint(
 
 
 @flow(name="new_7011_file_flow", flow_run_name="process_new-{file_path}")
-def process_new_7011_file(
+def process_new_7011_file_flow(
     file_path: str,
     config: Optional[Config7011] = None
 ) -> None:
@@ -217,10 +217,3 @@ def move_7011_flight_check(
         logger.info("7011 flight check: transfer successful")
     else:
         logger.error("7011 flight check: transfer failed")
-
-
-if __name__ == "__main__":
-    # Example usage
-    config = Config7011()
-    file_path = "test_directory/"
-    process_new_7011_file(file_path, config)

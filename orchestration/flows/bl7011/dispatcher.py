@@ -52,7 +52,3 @@ def dispatcher(
     except Exception as e:
         logger.error(f"Error during processing in dispatcher flow: {e}")
         raise
-
-
-if __name__ == "__main__":
-    dispatcher()
