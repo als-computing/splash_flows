@@ -1,8 +1,8 @@
 name: bl7011
 prefect-version: 3.4.2
 deployments:
-- name: new_file_7011
-  entrypoint: orchestration/flows/bl7011/move.py:process_new_7011_file
+- name: new_file_7011_flow
+  entrypoint: orchestration/flows/bl7011/move.py:process_new_7011_file_flow
   work_pool:
     name: new_file_7011_pool
     work_queue_name: new_file_7011_queue
