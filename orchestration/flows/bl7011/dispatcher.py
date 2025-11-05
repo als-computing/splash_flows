@@ -3,7 +3,7 @@ from prefect import flow
 from typing import Optional, Union, Any
 
 from orchestration.flows.bl7011.config import Config7011
-from orchestration.flows.bl7011.move import process_new_7011_file
+from orchestration.flows.bl7011.move import process_new_7011_file_task
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def dispatcher(
         logger.info("No config provided. Using default Config7011.")
 
     try:
-        process_new_7011_file(
+        process_new_7011_file_task(
             file_path=file_path,
             config=config
         )

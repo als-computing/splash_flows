@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow
+from prefect import flow, task
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl7011.config import Config7011
@@ -94,7 +94,7 @@ def prune(
 
 
 # @staticmethod
-@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{{ relative_path | basename }}")
+@flow(name="prune_globus_endpoint", flow_run_name="prune_globus-{source_endpoint.name}-{relative_path}")
 def _prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
@@ -133,6 +133,17 @@ def _prune_globus_endpoint(
 
 @flow(name="new_7011_file_flow", flow_run_name="process_new-{file_path}")
 def process_new_7011_file(
+    file_path: str,
+    config: Optional[Config7011] = None
+) -> None:
+    """
+    Flow to process a new file at BL 7.0.1.1
+    """
+    process_new_7011_file_task(file_path=file_path, config=config)
+
+
+@task(name="new_7011_file_task")
+def process_new_7011_file_task(
     file_path: str,
     config: Optional[Config7011] = None
 ) -> None:
