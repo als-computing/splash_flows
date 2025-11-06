@@ -93,7 +93,7 @@ def prune(
 
 
 # @staticmethod
-@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{{ relative_path | basename }}")
+@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{relative_path}")
 def _prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
