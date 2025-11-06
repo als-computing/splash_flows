@@ -2,7 +2,7 @@ import logging
 from prefect import flow
 from typing import Optional, Union, Any
 
-from orchestration.flows.bl531.move import process_new_531_file
+from orchestration.flows.bl531.move import process_new_531_file_task
 from orchestration.flows.bl531.config import Config531
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ def dispatcher(
         logger.info("No config provided. Using default Config531.")
 
     try:
-        process_new_531_file(
+        process_new_531_file_task(
             file_path=file_path,
             config=config
         )
@@ -52,7 +52,3 @@ def dispatcher(
     except Exception as e:
         logger.error(f"Error during processing in dispatcher flow: {e}")
         raise
-
-
-if __name__ == "__main__":
-    dispatcher()

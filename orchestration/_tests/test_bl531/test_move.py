@@ -42,9 +42,9 @@ def prefect_test_fixture():
 # Tests for 531
 # ----------------------------
 
-def test_process_new_531_file(mocker: MockFixture) -> None:
+def test_process_new_531_file_task(mocker: MockFixture) -> None:
     """
-    Test the process_new_531_file flow from orchestration.flows.bl531.move.
+    Test the process_new_531_file_task flow from orchestration.flows.bl531.move.
 
     This test verifies that:
       - The get_transfer_controller function is called (patched) with the correct parameters.
@@ -55,7 +55,7 @@ def test_process_new_531_file(mocker: MockFixture) -> None:
         mocker (MockFixture): The pytest-mock fixture for patching and mocking objects.
     """
     # Import the flow to test.
-    from orchestration.flows.bl531.move import process_new_531_file
+    from orchestration.flows.bl531.move import process_new_531_file_task
 
     # Patch the Secret.load and init_transfer_client in the configuration context.
     with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
@@ -79,14 +79,14 @@ def test_process_new_531_file(mocker: MockFixture) -> None:
         return_value=None
     )
 
-    # Patch get_transfer_controller where it is used in process_new_531_file.
+    # Patch get_transfer_controller where it is used in process_new_531_file_task.
     mocker.patch(
         "orchestration.flows.bl531.move.get_transfer_controller",
         return_value=mock_transfer_controller
     )
 
     # Execute the move flow with the test file path and mock configuration.
-    result = process_new_531_file(file_path=test_file_path, config=mock_config)
+    result = process_new_531_file_task(file_path=test_file_path, config=mock_config)
 
     # Verify that the transfer controller's copy method was called exactly once.
     assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
@@ -97,7 +97,7 @@ def test_process_new_531_file(mocker: MockFixture) -> None:
     mock_transfer_controller.copy.reset_mock()
     mock_prune.reset_mock()
 
-    result = process_new_531_file(file_path=test_file_path, config=None)
+    result = process_new_531_file_task(file_path=test_file_path, config=None)
     assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
     assert result is None, "The flow should return None"
     assert mock_prune.call_count == 1, "Prune function should be called exactly once"
@@ -108,7 +108,7 @@ def test_dispatcher_531_flow(mocker: MockFixture) -> None:
     Test the dispatcher flow for BL531.
 
     This test verifies that:
-      - The process_new_531_file function is called with the correct parameters
+      - The process_new_531_file_task function is called with the correct parameters
         when the dispatcher flow is executed.
     Parameters:
         mocker (MockFixture): The pytest-mock fixture for patching and mocking objects.
@@ -137,9 +137,9 @@ def test_dispatcher_531_flow(mocker: MockFixture) -> None:
         return_value=None
     )
 
-    # Patch the process_new_531_file function to monitor its calls.
-    mock_process_new_531_file = mocker.patch(
-        "orchestration.flows.bl531.dispatcher.process_new_531_file",
+    # Patch the process_new_531_file_task function to monitor its calls.
+    mock_process_new_531_file_task = mocker.patch(
+        "orchestration.flows.bl531.dispatcher.process_new_531_file_task",
         return_value=None
     )
 
@@ -150,37 +150,37 @@ def test_dispatcher_531_flow(mocker: MockFixture) -> None:
         config=mock_config
     )
 
-    # Verify that process_new_531_file was called exactly once with the expected arguments.
-    mock_process_new_531_file.assert_called_once_with(
+    # Verify that process_new_531_file_task was called exactly once with the expected arguments.
+    mock_process_new_531_file_task.assert_called_once_with(
         file_path=test_file_path,
         config=mock_config
     )
 
-    # Verify that process_new_531_file is called even when config is None
-    mock_process_new_531_file.reset_mock()
+    # Verify that process_new_531_file_task_task is called even when config is None
+    mock_process_new_531_file_task.reset_mock()
     dispatcher(
         file_path=test_file_path,
         is_export_control=False,
         config=None
     )
-    mock_process_new_531_file.assert_called_once()
+    mock_process_new_531_file_task.assert_called_once()
 
     # Test error handling for missing file_path
-    mock_process_new_531_file.reset_mock()
+    mock_process_new_531_file_task.reset_mock()
     with pytest.raises(ValueError):
         dispatcher(
             file_path=None,
             is_export_control=False,
             config=mock_config
         )
-    mock_process_new_531_file.assert_not_called()
+    mock_process_new_531_file_task.assert_not_called()
 
     # Test error handling for export control flag
-    mock_process_new_531_file.reset_mock()
+    mock_process_new_531_file_task.reset_mock()
     with pytest.raises(ValueError):
         dispatcher(
             file_path=test_file_path,
             is_export_control=True,
             config=mock_config
         )
-    mock_process_new_531_file.assert_not_called()
+    mock_process_new_531_file_task.assert_not_called()

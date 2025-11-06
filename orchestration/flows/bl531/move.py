@@ -2,8 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow
-# from prefect.blocks.system import JSON
+from prefect import flow, task
 
 from orchestration.flows.bl531.config import Config531
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
@@ -132,7 +131,18 @@ def _prune_globus_endpoint(
 
 
 @flow(name="new_531_file_flow", flow_run_name="process_new-{file_path}")
-def process_new_531_file(
+def process_new_531_file_flow(
+    file_path: str,
+    config: Optional[Config531] = None
+) -> None:
+    process_new_531_file_task(
+        file_path=file_path,
+        config=config
+    )
+
+
+@task(name="new_531_file_task")
+def process_new_531_file_task(
     file_path: str,
     config: Optional[Config531] = None
 ) -> None:
@@ -206,10 +216,3 @@ def move_531_flight_check(
         logger.info("531 flight check: transfer successful")
     else:
         logger.error("531 flight check: transfer failed")
-
-
-if __name__ == "__main__":
-    # Example usage
-    config = Config531()
-    file_path = "test_directory/"
-    process_new_531_file(file_path, config)

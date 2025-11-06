@@ -1,8 +1,8 @@
 name: bl531
 prefect-version: 3.4.2
 deployments:
-- name: new_file_531
-  entrypoint: orchestration/flows/bl531/move.py:process_new_531_file
+- name: new_file_531_flow
+  entrypoint: orchestration/flows/bl531/move.py:process_new_531_file_flow
   work_pool:
     name: new_file_531_pool
     work_queue_name: new_file_531_queue
