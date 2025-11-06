@@ -3,7 +3,7 @@ from prefect import flow
 from typing import Optional, Union, Any
 
 from orchestration.flows.bl931.config import Config931
-from orchestration.flows.bl931.move import process_new_931_file
+from orchestration.flows.bl931.move import process_new_931_file_task
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def dispatcher(
         config = Config931()
 
     try:
-        process_new_931_file(
+        process_new_931_file_task(
             file_path=file_path,
             config=config
         )
@@ -52,7 +52,3 @@ def dispatcher(
     except Exception as e:
         logger.error(f"Error during processing in dispatcher flow: {e}")
         raise
-
-
-if __name__ == "__main__":
-    dispatcher()

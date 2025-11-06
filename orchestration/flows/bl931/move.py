@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow
+from prefect import flow, task
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl931.config import Config931
@@ -94,7 +94,7 @@ def prune(
 
 
 # @staticmethod
-@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{{ relative_path | basename }}")
+@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{relative_path}")
 def _prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
@@ -132,7 +132,18 @@ def _prune_globus_endpoint(
 
 
 @flow(name="new_931_file_flow", flow_run_name="process_new-{file_path}")
-def process_new_931_file(
+def process_new_931_file_flow(
+    file_path: str,
+    config: Optional[Config931] = None
+) -> None:
+    process_new_931_file_task(
+        file_path=file_path,
+        config=config
+    )
+
+
+@task(name="new_931_file_task")
+def process_new_931_file_task(
     file_path: str,
     config: Optional[Config931] = None
 ) -> None:
@@ -206,10 +217,3 @@ def move_931_flight_check(
         logger.info("931 flight check: transfer successful")
     else:
         logger.error("931 flight check: transfer failed")
-
-
-if __name__ == "__main__":
-    # Example usage
-    config = Config931()
-    file_path = "test_directory/"
-    process_new_931_file(file_path, config)
