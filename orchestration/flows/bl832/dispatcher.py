@@ -1,7 +1,7 @@
 import asyncio
 from prefect import flow, task, get_run_logger
 from prefect.blocks.system import JSON
-from prefect.deployments.deployments import run_deployment
+from prefect.deployments import run_deployment
 from pydantic import BaseModel, ValidationError, Field
 from typing import Any, Optional, Union
 

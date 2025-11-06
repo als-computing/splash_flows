@@ -24,26 +24,26 @@ def prefect_test_fixture():
     """
     with prefect_test_harness():
         globus_client_id = Secret(value=str(uuid4()))
-        globus_client_id.save(name="globus-client-id")
+        globus_client_id.save(name="globus-client-id", overwrite=True)
 
         globus_client_secret = Secret(value=str(uuid4()))
-        globus_client_secret.save(name="globus-client-secret")
+        globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
         globus_compute_endpoint = Secret(value=str(uuid4()))
-        globus_compute_endpoint.save(name="globus-compute-endpoint")
+        globus_compute_endpoint.save(name="globus-compute-endpoint", overwrite=True)
 
         pruning_config = JSON(value={"max_wait_seconds": 600})
-        pruning_config.save(name="pruning-config")
+        pruning_config.save(name="pruning-config", overwrite=True)
 
         decision_settings = JSON(value={
             "alcf_recon_flow/alcf_recon_flow": True,
             "nersc_recon_flow/nersc_recon_flow": False,
             "new_832_file_flow/new_file_832": False
         })
-        decision_settings.save(name="decision-settings")
+        decision_settings.save(name="decision-settings", overwrite=True)
 
         alcf_allocation_root = JSON(value={"alcf-allocation-root-path": "/eagle/IRIProd/ALS"})
-        alcf_allocation_root.save(name="alcf-allocation-root-path")
+        alcf_allocation_root.save(name="alcf-allocation-root-path", overwrite=True)
 
         yield
 
@@ -150,7 +150,7 @@ def test_832_dispatcher(mocker: MockFixture):
     async def mock_run_deployment(*args, **kwargs):
         return None
 
-    mocker.patch('prefect.deployments.deployments.run_deployment', new=mock_run_deployment)
+    mocker.patch('prefect.deployments.run_deployment', new=mock_run_deployment)
 
     # Mock asyncio.gather to avoid actual async task execution
     async def mock_gather(*args, **kwargs):

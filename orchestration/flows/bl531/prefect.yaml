@@ -1,0 +1,31 @@
+name: bl531
+prefect-version: 3.4.2
+deployments:
+- name: new_file_531_flow
+  entrypoint: orchestration/flows/bl531/move.py:process_new_531_file_flow
+  work_pool:
+    name: new_file_531_pool
+    work_queue_name: new_file_531_queue
+
+- name: new_file_531_flight_check
+  entrypoint: orchestration/flows/bl531/move.py:move_531_flight_check
+  work_pool:
+    name: new_file_531_pool
+    work_queue_name: move_file_531_flight_check_queue
+  schedules:
+  - cron: "0 */12 * * *" # Every 12 hours
+    slug: "test-move-531-flight-check"
+    timezone: America/Los_Angeles
+    active: true
+
+- name: run_531_dispatcher
+  entrypoint: orchestration/flows/bl531/dispatcher.py:dispatcher
+  work_pool:
+    name: dispatcher_531_pool
+    work_queue_name: dispatcher_531_queue
+
+- name: prune_data531
+  entrypoint: orchestration/flows/bl531/move.py:_prune_globus_endpoint
+  work_pool:
+    name: prune_531_pool
+    work_queue_name: prune_531_queue

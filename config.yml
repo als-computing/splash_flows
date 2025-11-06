@@ -1,5 +1,22 @@
 globus:
   globus_endpoints:
+
+    # 5.3.1 ENDPOINTS
+
+    bl531-nersc_alsdev:
+      root_path: /global/cfs/cdirs/als/gsharing/data_mover/531
+      uri: nersc.gov
+      uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
+      name: bl531-nersc_alsdev
+
+    bl531-compute-dtn:
+      root_path: /
+      uri: compute-dtn.als.lbl.gov
+      uuid: TBD
+      name: bl531-compute-dtn
+
+    # 8.3.2 ENDPOINTS
+
     spot832:
       root_path: /
       uri: spot832.lbl.gov
