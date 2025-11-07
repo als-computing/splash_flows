@@ -2,7 +2,8 @@ import logging
 from prefect import flow
 from typing import Optional, Union, Any
 
-from orchestration.flows.bl733.move import process_new_733_file
+from orchestration.flows.bl733.move import process_new_733_file_task
+from orchestration.flows.bl733.config import Config733
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +40,10 @@ def dispatcher(
         raise ValueError("Data is under export control. Processing is not allowed.")
 
     if config is None:
-        logger.error("No configuration provided to dispatcher.")
-        raise ValueError("Configuration (config) is required for processing.")
-
+        config = Config733()
+        logger.info("No config provided. Using default Config733 instance.")
     try:
-        process_new_733_file(
+        process_new_733_file_task(
             file_path=file_path,
             config=config
         )
@@ -51,7 +51,3 @@ def dispatcher(
     except Exception as e:
         logger.error(f"Error during processing in dispatcher flow: {e}")
         raise
-
-
-if __name__ == "__main__":
-    dispatcher()

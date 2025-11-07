@@ -1,8 +1,8 @@
 name: bl733
 prefect-version: 3.4.2
 deployments:
-- name: new_file_733
-  entrypoint: orchestration/flows/bl733/move.py:process_new_733_file
+- name: new_file_733_flow
+  entrypoint: orchestration/flows/bl733/move.py:process_new_733_file_flow
   work_pool:
     name: new_file_733_pool
     work_queue_name: new_file_733_queue

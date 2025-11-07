@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow
+from prefect import flow, task
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl733.config import Config733
@@ -94,7 +94,7 @@ def prune(
 
 
 # @staticmethod
-@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{{ relative_path | basename }}")
+@flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{relative_path}")
 def _prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
@@ -132,12 +132,34 @@ def _prune_globus_endpoint(
 
 
 @flow(name="new_733_file_flow", flow_run_name="process_new-{file_path}")
-def process_new_733_file(
+def process_new_733_file_flow(
     file_path: str,
-    config: Config733
+    config: Optional[Config733] = None
 ) -> None:
     """
     Flow to process a new file at BL 7.3.3
+    1. Copy the file from the data733 to NERSC CFS. Ingest file path in SciCat.
+    2. Schedule pruning from data733. 6 months from now.
+    3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
+    4. Schedule pruning from NERSC CFS.
+
+    :param file_path: Path to the new file to be processed.
+    :param config: Configuration settings for processing.
+    :return: None
+    """
+    process_new_733_file_flow(
+        file_path=file_path,
+        config=config
+    )
+
+
+@task(name="new_733_file_task")
+def process_new_733_file_task(
+    file_path: str,
+    config: Optional[Config733] = None
+) -> None:
+    """
+    Task to process a new file at BL 7.3.3
     1. Copy the file from the data733 to NERSC CFS. Ingest file path in SciCat.
     2. Schedule pruning from data733. 6 months from now.
     3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
@@ -206,10 +228,3 @@ def move_733_flight_check(
         logger.info("733 flight check: transfer successful")
     else:
         logger.error("733 flight check: transfer failed")
-
-
-if __name__ == "__main__":
-    # Example usage
-    config = Config733()
-    file_path = "test_directory/"
-    process_new_733_file(file_path, config)
