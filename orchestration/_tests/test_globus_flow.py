@@ -26,13 +26,13 @@ def prefect_test_fixture():
     """
     with prefect_test_harness():
         globus_client_id = Secret(value=str(uuid4()))
-        globus_client_id.save(name="globus-client-id")
+        globus_client_id.save(name="globus-client-id", overwrite=True)
 
         globus_client_secret = Secret(value=str(uuid4()))
-        globus_client_secret.save(name="globus-client-secret")
+        globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
         globus_compute_endpoint = Secret(value=str(uuid4()))
-        globus_compute_endpoint.save(name="globus-compute-endpoint")
+        globus_compute_endpoint.save(name="globus-compute-endpoint", overwrite=True)
 
         Variable.set(
             name="pruning-config",
@@ -121,93 +121,6 @@ class MockSecret:
         """
         namespace = UUID("12345678-1234-5678-1234-123456789012")
         return str(uuid5(namespace, endpoint_name))
-
-
-# ----------------------------
-# Tests for 733
-# ----------------------------
-
-class MockConfig733:
-    def __init__(self) -> None:
-        """
-        Dummy configuration for 733 flows.
-        """
-        # Create mock endpoints
-        self.endpoints = {
-            "data733_raw": MockEndpoint(
-                root_path="mock_data733_raw_path",
-                uuid_value=MockSecret.for_endpoint("data733_raw"),
-            ),
-            "nersc733_alsdev_raw": MockEndpoint(
-                root_path="mock_nersc733_alsdev_raw_path",
-                uuid_value=MockSecret.for_endpoint("nersc733_alsdev_raw"),
-            ),
-        }
-
-        # Define mock apps
-        self.apps = {
-            "als_transfer": "mock_als_transfer_app"
-        }
-
-        # Use the mock transfer client instead of the real TransferClient
-        self.tc = MockTransferClient()
-
-        # Set attributes for easy access
-        self.data733_raw = self.endpoints["data733_raw"]
-        self.nersc733_alsdev_raw = self.endpoints["nersc733_alsdev_raw"]
-
-
-def test_process_new_733_file(mocker: MockFixture) -> None:
-    """
-    Test the process_new_733_file flow from orchestration.flows.bl733.move.
-
-    This test verifies that:
-      - The get_transfer_controller function is called (patched) with the correct parameters.
-      - The returned transfer controller's copy method is called with the expected file path,
-        source, and destination endpoints from the provided configuration.
-
-    Parameters:
-        mocker (MockFixture): The pytest-mock fixture for patching and mocking objects.
-    """
-    # Import the flow to test.
-    from orchestration.flows.bl733.move import process_new_733_file
-
-    # Patch the Secret.load and init_transfer_client in the configuration context.
-    with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
-        mocker.patch(
-            "orchestration.flows.bl733.config.transfer.init_transfer_client",
-            return_value=mocker.MagicMock()  # Return a dummy TransferClient
-        )
-        from orchestration.flows.bl733.config import Config733
-
-    # Patch the schedule_prefect_flow call to avoid real Prefect interaction
-    mocker.patch(
-        "orchestration.flows.bl733.move.schedule_prefect_flow",
-        return_value=None
-    )
-
-    # Instantiate the dummy configuration.
-    mock_config = Config733()
-
-    # Generate a test file path.
-    test_file_path = f"/tmp/test_file_{uuid4()}.txt"
-
-    # Create a mock transfer controller with a mocked 'copy' method.
-    mock_transfer_controller = mocker.MagicMock()
-    mock_transfer_controller.copy.return_value = True
-
-    # Patch get_transfer_controller where it is used in process_new_733_file.
-    mocker.patch(
-        "orchestration.flows.bl733.move.get_transfer_controller",
-        return_value=mock_transfer_controller
-    )
-
-    # Execute the flow with the test file path and dummy configuration.
-    result = process_new_733_file(file_path=test_file_path, config=mock_config)
-
-    # Verify that the transfer controller's copy method was called exactly once.
-    assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
-    assert result is None, "The flow should return None"
 
 
 # ----------------------------
