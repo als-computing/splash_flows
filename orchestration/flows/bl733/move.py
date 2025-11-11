@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl733.config import Config733
@@ -35,6 +35,8 @@ def prune(
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
     """
+    logger = get_run_logger()
+
     if not file_path:
         logger.error("No file_path provided for pruning operation")
         return False
@@ -109,6 +111,8 @@ def _prune_globus_endpoint(
         check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
         config (BeamlineConfig): Configuration object with transfer client
     """
+    logger = get_run_logger()
+
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
@@ -168,6 +172,7 @@ def process_new_733_file_task(
     :param file_path: Path to the new file to be processed.
     :param config: Configuration settings for processing.
     """
+    logger = get_run_logger()
 
     logger.info(f"Processing new 733 file: {file_path}")
 
@@ -209,7 +214,12 @@ def process_new_733_file_task(
 def move_733_flight_check(
     file_path: str = "test_directory/test.txt",
 ):
-    """Please keep your arms and legs inside the vehicle at all times."""
+    """Please keep your arms and legs inside the vehicle at all times.
+    :param file_path: Path to the test file to be transferred.
+    :raises RuntimeError: If the transfer fails.
+    :return: None
+    """
+    logger = get_run_logger()
     logger.info("733 flight check: testing transfer from data733 to NERSC CFS")
 
     config = Config733()
@@ -228,3 +238,4 @@ def move_733_flight_check(
         logger.info("733 flight check: transfer successful")
     else:
         logger.error("733 flight check: transfer failed")
+        raise RuntimeError("733 flight check: transfer failed")
