@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl7011.config import Config7011
@@ -35,6 +35,7 @@ def prune(
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
     """
+    logger = get_run_logger()
     if not file_path:
         logger.error("No file_path provided for pruning operation")
         return False
@@ -109,6 +110,7 @@ def _prune_globus_endpoint(
         check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
         config (BeamlineConfig): Configuration object with transfer client
     """
+    logger = get_run_logger()
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
@@ -157,7 +159,7 @@ def process_new_7011_file_task(
     :param file_path: Path to the new file to be processed.
     :param config: Configuration settings for processing.
     """
-
+    logger = get_run_logger()
     logger.info(f"Processing new 7011 file: {file_path}")
 
     if not config:
@@ -199,6 +201,7 @@ def move_7011_flight_check(
     file_path: str = "test_directory/test.txt",
 ):
     """Please keep your arms and legs inside the vehicle at all times."""
+    logger = get_run_logger()
     logger.info("7011 flight check: testing transfer from data7011 to NERSC CFS")
 
     config = Config7011()
@@ -213,6 +216,7 @@ def move_7011_flight_check(
         source=config.bl7011_compute_dtn,
         destination=config.bl7011_nersc_alsdev
     )
+
     if success is True:
         logger.info("7011 flight check: transfer successful")
     else:
