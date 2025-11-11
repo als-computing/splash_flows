@@ -199,8 +199,13 @@ def process_new_7011_file_task(
 @flow(name="move_7011_flight_check", flow_run_name="move_7011_flight_check-{file_path}")
 def move_7011_flight_check(
     file_path: str = "test_directory/test.txt",
-):
-    """Please keep your arms and legs inside the vehicle at all times."""
+) -> None:
+    """Please keep your arms and legs inside the vehicle at all times.
+
+    :param file_path: Path to the test file to be transferred.
+    :raises RuntimeError: If the transfer fails.
+    :return: None
+    """
     logger = get_run_logger()
     logger.info("7011 flight check: testing transfer from data7011 to NERSC CFS")
 
@@ -221,3 +226,4 @@ def move_7011_flight_check(
         logger.info("7011 flight check: transfer successful")
     else:
         logger.error("7011 flight check: transfer failed")
+        raise RuntimeError("7011 flight check: transfer failed")
