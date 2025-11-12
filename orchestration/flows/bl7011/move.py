@@ -198,7 +198,7 @@ def process_new_7011_file_task(
 
 @flow(name="move_7011_flight_check", flow_run_name="move_7011_flight_check-{file_path}")
 def move_7011_flight_check(
-    file_path: str = "test_directory/test.txt",
+    file_path: str = "test/test_065.h5",
 ) -> None:
     """Please keep your arms and legs inside the vehicle at all times.
 
