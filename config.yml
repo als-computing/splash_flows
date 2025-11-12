@@ -10,7 +10,7 @@ globus:
       name: bl7011-als-cosmic-scattering
 
     bl7011-nersc_alsdev:
-      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7011
+      root_path: /global/cfs/cdirs/als/data_mover/7.0.1.1
       uri: nersc.gov
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: bl7011-nersc_alsdev
