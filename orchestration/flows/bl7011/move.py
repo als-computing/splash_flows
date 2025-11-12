@@ -216,12 +216,16 @@ def move_7011_flight_check(
         config=config
     )
 
-    success = transfer_controller.copy(
-        file_path=file_path,
-        source=config.bl7011_compute_dtn,
-        destination=config.bl7011_nersc_alsdev
-    )
-
+    try:
+        logger.info(f"7011 flight check: transferring file {file_path}")
+        success = transfer_controller.copy(
+            file_path=file_path,
+            source=config.bl7011_compute_dtn,
+            destination=config.bl7011_nersc_alsdev
+        )
+    except Exception as e:
+        logger.error(f"7011 flight check: transfer failed with exception {e}")
+        raise RuntimeError(f"7011 flight check: transfer failed with exception {e}")
     if success is True:
         logger.info("7011 flight check: transfer successful")
     else:
