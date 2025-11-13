@@ -12,7 +12,7 @@ globus:
     bl7011-nersc_alsdev:
       root_path: /global/cfs/cdirs/als/data_mover/7.0.1.1
       uri: nersc.gov
-      uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: bl7011-nersc_alsdev
 
     bl7011-compute-dtn:
