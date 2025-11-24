@@ -188,6 +188,12 @@ def process_new_733_file_task(
     transfer_controller.copy(
         file_path=file_path,
         source=config.data733_raw,
+        destination=config.lamarr733
+    )
+
+    transfer_controller.copy(
+        file_path=file_path,
+        source=config.data733_raw,
         destination=config.nersc733_alsdev_raw
     )
 
