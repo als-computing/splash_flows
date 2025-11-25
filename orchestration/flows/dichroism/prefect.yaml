@@ -1,0 +1,56 @@
+name: dichroism
+prefect-version: 3.4.2
+deployments:
+- name: run_dichroism_dispatcher
+  entrypoint: orchestration/flows/dichroism/dispatcher.py:dispatcher
+  work_pool:
+    name: dispatcher_dichroism_pool
+    work_queue_name: dispatcher_dichroism_queue
+
+# 4.0.2 Flows
+- name: new_file_402_flow
+  entrypoint: orchestration/flows/bl402/move.py:process_new_402_file_flow
+  work_pool:
+    name: new_file_402_pool
+    work_queue_name: new_file_402_queue
+
+- name: new_file_402_flight_check
+  entrypoint: orchestration/flows/bl402/move.py:move_402_flight_check
+  work_pool:
+    name: new_file_402_pool
+    work_queue_name: move_file_402_flight_check_queue
+  schedules:
+  - cron: "0 */12 * * *" # Every 12 hours
+    slug: "test-move-402-flight-check"
+    timezone: America/Los_Angeles
+    active: true
+
+- name: prune_data402
+  entrypoint: orchestration/flows/bl402/move.py:_prune_globus_endpoint
+  work_pool:
+    name: prune_402_pool
+    work_queue_name: prune_402_queue
+
+# 6.3.1 Flows
+- name: new_file_631_flow
+  entrypoint: orchestration/flows/bl631/move.py:process_new_631_file_flow
+  work_pool:
+    name: new_file_631_pool
+    work_queue_name: new_file_631_queue
+
+- name: new_file_631_flight_check
+  entrypoint: orchestration/flows/bl631/move.py:move_631_flight_check
+  work_pool:
+    name: new_file_631_pool
+    work_queue_name: move_file_631_flight_check_queue
+  schedules:
+  - cron: "0 */12 * * *" # Every 12 hours
+    slug: "test-move-631-flight-check"
+    timezone: America/Los_Angeles
+    active: true
+
+- name: prune_data631
+  entrypoint: orchestration/flows/bl631/move.py:_prune_globus_endpoint
+  work_pool:
+    name: prune_631_pool
+    work_queue_name: prune_631_queue
