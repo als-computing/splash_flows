@@ -152,7 +152,7 @@ def process_new_402_file_task(
     config: Optional[ConfigDichroism] = None
 ) -> None:
     """
-    Flow to process a new file at BL 9.3.1
+    Flow to process a new file at BL 4.0.2
     1. Copy the file from the data402 to NERSC CFS. Ingest file path in SciCat.
     2. Schedule pruning from data402. 6 months from now.
     3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
@@ -244,9 +244,9 @@ def process_new_631_file_task(
     config: Optional[ConfigDichroism] = None
 ) -> None:
     """
-    Flow to process a new file at BL 9.3.1
-    1. Copy the file from the data402 to NERSC CFS. Ingest file path in SciCat.
-    2. Schedule pruning from data402. 6 months from now.
+    Flow to process a new file at BL 6.3.1
+    1. Copy the file from the data631 to NERSC CFS. Ingest file path in SciCat.
+    2. Schedule pruning from data631. 6 months from now.
     3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
     4. Schedule pruning from NERSC CFS.
 
@@ -254,7 +254,7 @@ def process_new_631_file_task(
     :param config: Configuration settings for processing.
     """
 
-    logger.info(f"Processing new 402 file: {file_path}")
+    logger.info(f"Processing new 631 file: {file_path}")
 
     if not config:
         config = ConfigDichroism()
@@ -273,7 +273,6 @@ def process_new_631_file_task(
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
 
-    # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
     prune(

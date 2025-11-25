@@ -1,6 +1,7 @@
+from enum import Enum
 import logging
 from prefect import flow
-from typing import Optional, Union, Any, Enum
+from typing import Optional, Union, Any
 
 from orchestration.flows.dichroism.config import ConfigDichroism
 from orchestration.flows.dichroism.move import process_new_402_file_task, process_new_631_file_task
@@ -19,7 +20,7 @@ def dispatcher(
     file_path: Optional[str] = None,
     is_export_control: bool = False,
     config: Optional[Union[dict, Any]] = None,
-    beamline: DichroismBeamlineEnum = None
+    beamline: Optional[DichroismBeamlineEnum] = None
 ) -> None:
     """
     Dispatcher flow for BL402 beamline that launches the new_402_file_flow.
