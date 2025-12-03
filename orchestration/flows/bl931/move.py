@@ -218,3 +218,4 @@ def move_931_flight_check(
         logger.info("931 flight check: transfer successful")
     else:
         logger.error("931 flight check: transfer failed")
+        raise RuntimeError("931 flight check: transfer failed")
