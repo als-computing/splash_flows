@@ -210,8 +210,8 @@ def move_931_flight_check(
 
     success = transfer_controller.copy(
         file_path=file_path,
-        source=config.data931_raw,
-        destination=config.nersc931_alsdev_raw
+        source=config.bl931_compute_dtn,
+        destination=config.bl931_nersc_alsdev_raw
     )
     if success is True:
         logger.info("931 flight check: transfer successful")
