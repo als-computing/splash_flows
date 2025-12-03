@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 # from prefect.blocks.system import JSON
 
 from orchestration.flows.bl931.config import Config931
@@ -199,6 +199,7 @@ def move_931_flight_check(
     file_path: str = "test_directory/test.txt",
 ):
     """Please keep your arms and legs inside the vehicle at all times."""
+    logger = get_run_logger()
     logger.info("931 flight check: testing transfer from data931 to NERSC CFS")
 
     config = Config931()
