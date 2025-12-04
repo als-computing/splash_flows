@@ -16,3 +16,4 @@ prefect==2.20.17
 pyscicat
 pyyaml
 sfapi_client
+scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@main#subdirectory=scicat_beamline
