@@ -196,7 +196,7 @@ def process_new_931_file_task(
 
 @flow(name="move_931_flight_check", flow_run_name="move_931_flight_check-{file_path}")
 def move_931_flight_check(
-    file_path: str = "test_directory/test.txt",
+    file_path: str = "test/",
 ):
     """Please keep your arms and legs inside the vehicle at all times."""
     logger = get_run_logger()
