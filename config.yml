@@ -99,7 +99,7 @@ globus:
     data7012:
       root_path: /
       uri: hpc.lbl.gov
-      uuid: 639c49be-604f-423c-9c5d-82a53afe1bf1
+      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
       name: data7012
 
   globus_apps:
