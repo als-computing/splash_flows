@@ -1,7 +1,7 @@
 from globus_sdk import TransferClient
 
 from orchestration.globus import transfer
-from ptycho_nersc import NerscPtychoClient
+# from ptycho_nersc import NerscPtychoClient
 
 import os
 
