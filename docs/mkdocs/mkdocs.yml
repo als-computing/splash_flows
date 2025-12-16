@@ -13,10 +13,13 @@ nav:
 - Home: index.md
 - Installation and Requirements: install.md
 - Getting Started: getting_started.md
-- Compute at ALCF: alcf832.md
-- Compute at NERSC: nersc832.md
+- Common Infrastructure: common_infrastructure.md
+- Beamline Implementations:
+  - 8.3.2 Micro Tomography - Compute at ALCF: alcf832.md
+  - 8.3.2 Micro Tomography - Compute at NERSC: nersc832.md
 - Orchestration: orchestration.md
 - Configuration: configuration.md
+- HPSS Tape Archive Access: hpss.md
 # - Troubleshooting: troubleshooting.md
 - Glossary: glossary.md
 - About: about.md

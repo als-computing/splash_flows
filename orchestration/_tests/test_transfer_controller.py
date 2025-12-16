@@ -2,7 +2,8 @@
 
 import pytest
 from pytest_mock import MockFixture
-from unittest.mock import MagicMock, patch
+import time
+from unittest.mock import MagicMock, patch, Mock
 from uuid import uuid4
 
 import globus_sdk
@@ -11,6 +12,11 @@ from prefect.testing.utilities import prefect_test_harness
 
 from .test_globus import MockTransferClient
 
+
+@pytest.fixture(autouse=True)
+def fast_sleep(monkeypatch):
+    """Patch time.sleep to return immediately to speed up tests."""
+    monkeypatch.setattr(time, "sleep", lambda x: None)
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -48,10 +54,18 @@ def transfer_controller_module():
         get_transfer_controller,
         CopyMethod,
     )
+    from orchestration.hpss import (
+        CFSToHPSSTransferController,
+        HPSSToCFSTransferController,
+        HPSSEndpoint,
+    )
     return {
         "FileSystemEndpoint": FileSystemEndpoint,
         "GlobusTransferController": GlobusTransferController,
         "SimpleTransferController": SimpleTransferController,
+        "CFSToHPSSTransferController": CFSToHPSSTransferController,
+        "HPSSToCFSTransferController": HPSSToCFSTransferController,
+        "HPSSEndpoint": HPSSEndpoint,
         "get_transfer_controller": get_transfer_controller,
         "CopyMethod": CopyMethod,
     }
@@ -103,7 +117,8 @@ def mock_file_system_endpoint(transfer_controller_module):
     FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
     endpoint = FileSystemEndpoint(
         name="mock_filesystem_endpoint",
-        root_path="/mock_fs_root"
+        root_path="/mock_fs_root",
+        uri="mock_uri"
     )
     return endpoint
 
@@ -191,7 +206,8 @@ def test_globus_transfer_controller_copy_failure(
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecretClass())
 
-    with patch("orchestration.transfer_controller.start_transfer", return_value=(False, "mock-task-id")) as mock_start_transfer:
+    with patch("orchestration.transfer_controller.start_transfer",
+               return_value=(False, "mock-task-id")) as mock_start_transfer:
         controller = GlobusTransferController(mock_config832)
         result = controller.copy(
             file_path="some_dir/test_file.txt",
@@ -226,6 +242,7 @@ def test_globus_transfer_controller_copy_exception(
         assert result is False, "Expected False when TransferAPIError is raised."
         mock_start_transfer.assert_called_once()
 
+
 def test_globus_transfer_controller_with_metrics(
     mock_config832, mock_globus_endpoint, transfer_controller_module
 ):
@@ -235,30 +252,30 @@ def test_globus_transfer_controller_with_metrics(
     GlobusTransferController = transfer_controller_module["GlobusTransferController"]
     from orchestration.prometheus_utils import PrometheusMetrics
     mock_prometheus = MagicMock(spec=PrometheusMetrics)
-    
+
     with patch("orchestration.transfer_controller.start_transfer", return_value=(True, "mock-task-id")) as mock_start_transfer:
         # Create the controller with mock prometheus metrics
         controller = GlobusTransferController(mock_config832, prometheus_metrics=mock_prometheus)
-        
+
         # Set up mock for get_transfer_file_info
         mock_transfer_info = {"bytes_transferred": 1024 * 1024}  # 1MB
         controller.get_transfer_file_info = MagicMock(return_value=mock_transfer_info)
-        
+
         # Execute the copy operation
         result = controller.copy(
             file_path="some_dir/test_file.txt",
             source=mock_globus_endpoint,
             destination=mock_globus_endpoint,
         )
-        
+
         # Verify transfer was successful
         assert result is True
         mock_start_transfer.assert_called_once()
-        
+
         # Verify metrics were collected and pushed
         controller.get_transfer_file_info.assert_called_once_with("mock-task-id")
         mock_prometheus.push_metrics_to_prometheus.assert_called_once()
-        
+
         # Verify the metrics data
         metrics_data = mock_prometheus.push_metrics_to_prometheus.call_args[0][0]
         assert metrics_data["bytes_transferred"] == 1024 * 1024
@@ -274,6 +291,7 @@ def test_globus_transfer_controller_with_metrics(
 # --------------------------------------------------------------------------
 # Tests for SimpleTransferController
 # --------------------------------------------------------------------------
+
 
 def test_simple_transfer_controller_no_file_path(
     mock_config832, mock_file_system_endpoint, transfer_controller_module
@@ -299,53 +317,361 @@ def test_simple_transfer_controller_no_source_or_destination(mock_config832, tra
     assert result is False, "Expected False when either source or destination is None."
 
 
-def test_simple_transfer_controller_copy_success(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
+def test_simple_transfer_controller_copy_success_with_real_files(
+    tmp_path, mock_config832, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", return_value=0) as mock_os_system:
+
+    # Create real directory structure
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create actual source file
+    source_file = source_dir / "experiment" / "data.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.name = "source_storage"
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.name = "dest_storage"
+    dest_endpoint.root_path = str(dest_dir)
+
+    controller = SimpleTransferController(mock_config832)
+    result = controller.copy(
+        file_path="experiment/data.txt",
+        source=source_endpoint,
+        destination=dest_endpoint,
+    )
+
+    # Verify the result and actual file operations
+    assert result is True
+
+    # Check that the file actually exists at destination
+    dest_file = dest_dir / "experiment" / "data.txt"
+    assert dest_file.exists(), "File should be copied to destination"
+    assert dest_file.read_text() == "test content", "File content should match"
+
+
+# def test_simple_transfer_controller_copy_failure(
+#     mock_config832, mock_file_system_endpoint, transfer_controller_module
+# ):
+#     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
+#     with patch("orchestration.transfer_controller.os.path.exists", return_value=True):  # ensure source file exists
+#         with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
+#             controller = SimpleTransferController(mock_config832)
+#             result = controller.copy(
+#                 file_path="some_dir/test_file.txt",
+#                 source=mock_file_system_endpoint,
+#                 destination=mock_file_system_endpoint,
+#             )
+#             assert result is False, "Expected False when os.system returns non-zero."
+#             mock_os_system.assert_called_once()
+#             command_called = mock_os_system.call_args[0][0]
+#             assert "cp -r" in command_called, "Expected cp command in os.system call."
+
+def test_simple_transfer_controller_copy_command_failure(
+    tmp_path, mock_config832, transfer_controller_module
+):
+    SimpleTransferController = transfer_controller_module["SimpleTransferController"]
+
+    # Create real directory structure and source file
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create the actual source file
+    source_file = source_dir / "some_dir" / "test_file.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.root_path = str(dest_dir)
+
+    # Mock only os.system to simulate command failure
+    with patch("orchestration.transfer_controller.os.system", return_value=1) as mock_os_system:
         controller = SimpleTransferController(mock_config832)
         result = controller.copy(
             file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
+            source=source_endpoint,
+            destination=dest_endpoint,
         )
 
-        assert result is True, "Expected True when os.system returns 0."
-        mock_os_system.assert_called_once()
-        command_called = mock_os_system.call_args[0][0]
-        assert "cp -r" in command_called, "Expected cp command in os.system call."
-
-
-def test_simple_transfer_controller_copy_failure(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
-):
-    SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", return_value=1) as mock_os_system:
-        controller = SimpleTransferController(mock_config832)
-        result = controller.copy(
-            file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
-        )
-
+        # Verify the copy failed
         assert result is False, "Expected False when os.system returns non-zero."
+
+        # Verify the command was called correctly
         mock_os_system.assert_called_once()
         command_called = mock_os_system.call_args[0][0]
-        assert "cp -r" in command_called, "Expected cp command in os.system call."
+
+        # More specific assertions about the command
+        expected_source = str(source_dir / "some_dir" / "test_file.txt")
+        expected_dest = str(dest_dir / "some_dir" / "test_file.txt")
+        expected_command = f"cp -r '{expected_source}' '{expected_dest}'"
+        assert command_called == expected_command, f"Expected exact command: {expected_command}"
+
+        # Verify the destination file was NOT created (since command failed)
+        dest_file = dest_dir / "some_dir" / "test_file.txt"
+        assert not dest_file.exists(), "File should not exist when copy command fails"
 
 
-def test_simple_transfer_controller_copy_exception(
-    mock_config832, mock_file_system_endpoint, transfer_controller_module
+def test_simple_transfer_controller_copy_exception_handling(
+    tmp_path, mock_config832, transfer_controller_module
 ):
     SimpleTransferController = transfer_controller_module["SimpleTransferController"]
-    with patch("os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
+
+    # Create real directory structure and source file
+    source_dir = tmp_path / "source"
+    dest_dir = tmp_path / "destination"
+    source_dir.mkdir()
+    dest_dir.mkdir()
+
+    # Create the actual source file
+    source_file = source_dir / "some_dir" / "test_file.txt"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("test content")
+
+    # Setup endpoints with real paths
+    source_endpoint = Mock()
+    source_endpoint.root_path = str(source_dir)
+
+    dest_endpoint = Mock()
+    dest_endpoint.root_path = str(dest_dir)
+
+    # Mock os.system to raise an exception
+    with patch("orchestration.transfer_controller.os.system", side_effect=Exception("Mocked cp error")) as mock_os_system:
         controller = SimpleTransferController(mock_config832)
         result = controller.copy(
             file_path="some_dir/test_file.txt",
-            source=mock_file_system_endpoint,
-            destination=mock_file_system_endpoint,
+            source=source_endpoint,
+            destination=dest_endpoint,
         )
 
+        # Verify the copy failed due to exception
         assert result is False, "Expected False when an exception is raised during copy."
+
+        # Verify the system command was attempted
         mock_os_system.assert_called_once()
+
+        # Verify the command that would have been called
+        command_called = mock_os_system.call_args[0][0]
+        expected_source = str(source_dir / "some_dir" / "test_file.txt")
+        expected_dest = str(dest_dir / "some_dir" / "test_file.txt")
+        expected_command = f"cp -r '{expected_source}' '{expected_dest}'"
+        assert command_called == expected_command, f"Expected exact command: {expected_command}"
+
+        # Verify the destination file was NOT created (since exception occurred)
+        dest_file = dest_dir / "some_dir" / "test_file.txt"
+        assert not dest_file.exists(), "File should not exist when copy operation raises exception"
+
+        # Verify destination directory was still created (this happens before the exception)
+        dest_parent_dir = dest_dir / "some_dir"
+        assert dest_parent_dir.exists(), "Destination directory should have been created before exception"
+
+
+# --------------------------------------------------------------------------
+# Tests for CFSToHPSSTransferController
+# --------------------------------------------------------------------------
+
+def test_cfs_to_hpss_transfer_controller_success(mock_config832, transfer_controller_module, mocker: MockFixture):
+    """
+    Test a successful copy() operation using CFSToHPSSTransferController.
+    We simulate a successful job submission and completion.
+    """
+    CFSToHPSSTransferController = transfer_controller_module["CFSToHPSSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    # Create mock endpoints for source (CFS) and destination (HPSS)
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source", "mock.uri")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest", "mock.uri")
+
+    # Create a fake job object that simulates successful completion.
+    fake_job = MagicMock()
+    fake_job.jobid = "12345"
+    fake_job.state = "COMPLETED"
+    fake_job.complete.return_value = None
+
+    # Create a fake compute object that returns the fake job.
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    # Create a fake client whose compute() returns our fake_compute.
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = CFSToHPSSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="test_dir/test_file.txt",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is True, "Expected True when CFSToHPSSTransferController transfer completes successfully."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_cfs_to_hpss_transfer_controller_failure(mock_config832, transfer_controller_module):
+    """
+    Test a failing copy() operation using CFSToHPSSTransferController when job submission raises an exception.
+    """
+    CFSToHPSSTransferController = transfer_controller_module["CFSToHPSSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = FileSystemEndpoint("mock_cfs_source", "/mock_cfs_source", "mock.uri")
+    destination_endpoint = HPSSEndpoint("mock_hpss_dest", "/mock_hpss_dest", "mock.uri")
+
+    # Create a fake client whose compute().submit_job raises an exception.
+    fake_client = MagicMock()
+    fake_compute = MagicMock()
+    fake_compute.submit_job.side_effect = Exception("Job submission failed")
+    fake_client.compute.return_value = fake_compute
+
+    controller = CFSToHPSSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="test_dir/test_file.txt",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is False, "Expected False when CFSToHPSSTransferController transfer fails due to job submission error."
+    fake_compute.submit_job.assert_called_once()
+
+
+# --------------------------------------------------------------------------
+# Tests for HPSSToCFSTransferController
+# --------------------------------------------------------------------------
+
+def test_hpss_to_cfs_transfer_controller_success(mock_config832, transfer_controller_module, mocker: MockFixture):
+    """
+    Test a successful copy() operation using HPSSToCFSTransferController.
+    We simulate a successful job submission and completion.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
+
+    # Create a fake job object for a successful transfer.
+    fake_job = MagicMock()
+    fake_job.jobid = "67890"
+    fake_job.state = "COMPLETED"
+    fake_job.complete.return_value = None
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+        files_to_extract=["file1.txt", "file2.txt"]
+    )
+    assert result is True, "Expected True when HPSSToCFSTransferController transfer completes successfully."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_hpss_to_cfs_transfer_controller_missing_params(mock_config832, transfer_controller_module):
+    """
+    Test that HPSSToCFSTransferController.copy() returns False when required parameters are missing.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    fake_client = MagicMock()  # Client is not used because the method returns early.
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+
+    result = controller.copy(file_path=None, source=None, destination=None)
+    assert result is False, "Expected False when required parameters are missing."
+
+
+def test_hpss_to_cfs_transfer_controller_job_failure(mock_config832, transfer_controller_module):
+    """
+    Test HPSSToCFSTransferController.transfer() returns False when job.complete() raises an exception.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
+
+    fake_job = MagicMock()
+    fake_job.jobid = "67891"
+    fake_job.state = "FAILED"
+    fake_job.complete.side_effect = Exception("Job completion failed")
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is False, "Expected False when HPSSToCFSTransferController job fails to complete."
+    fake_compute.submit_job.assert_called_once()
+    fake_job.complete.assert_called_once()
+
+
+def test_hpss_to_cfs_transfer_controller_recovery(mock_config832, transfer_controller_module):
+    """
+    Test HPSSToCFSTransferController recovery scenario when initial job.complete() fails with 'Job not found:'.
+    The controller should attempt to recover the job and complete successfully.
+    """
+    HPSSToCFSTransferController = transfer_controller_module["HPSSToCFSTransferController"]
+    HPSSEndpoint = transfer_controller_module["HPSSEndpoint"]
+    FileSystemEndpoint = transfer_controller_module["FileSystemEndpoint"]
+
+    source_endpoint = HPSSEndpoint("mock_hpss_source", "/mock_hpss_source", "mock.uri")
+    destination_endpoint = FileSystemEndpoint("mock_cfs_dest", "/mock_cfs_dest", "mock.uri")
+
+    # Fake job that fails initially with a "Job not found:" error.
+    fake_job_initial = MagicMock()
+    fake_job_initial.jobid = "11111"
+    fake_job_initial.state = "UNKNOWN"
+    fake_job_initial.complete.side_effect = Exception("Job not found: 11111")
+
+    fake_compute = MagicMock()
+    fake_compute.submit_job.return_value = fake_job_initial
+
+    # When recovery is attempted, return a job that completes successfully.
+    fake_job_recovered = MagicMock()
+    fake_job_recovered.jobid = "11111"
+    fake_job_recovered.state = "COMPLETED"
+    fake_job_recovered.complete.return_value = None
+
+    fake_client = MagicMock()
+    fake_client.compute.return_value = fake_compute
+    fake_client.perlmutter.job.return_value = fake_job_recovered
+
+    controller = HPSSToCFSTransferController(fake_client, mock_config832)
+    result = controller.copy(
+        file_path="archive.tar",
+        source=source_endpoint,
+        destination=destination_endpoint,
+    )
+    assert result is True, "Expected True after successful job recovery in HPSSToCFSTransferController."
+    fake_compute.submit_job.assert_called_once()
+    fake_job_initial.complete.assert_called_once()
+    fake_client.perlmutter.job.assert_called_once_with(jobid="11111")
+    fake_job_recovered.complete.assert_called_once()

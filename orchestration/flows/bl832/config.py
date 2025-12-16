@@ -1,12 +1,17 @@
 from globus_sdk import TransferClient
-from orchestration.globus import transfer, flows
+
+from orchestration.config import BeamlineConfig
+from orchestration.globus import flows, transfer
 
 
-class Config832:
+class Config832(BeamlineConfig):
     def __init__(self) -> None:
-        config = transfer.get_config()
-        self.endpoints = transfer.build_endpoints(config)
-        self.apps = transfer.build_apps(config)
+        super().__init__(beamline_id="8.3.2")
+
+    def _beam_specific_config(self) -> None:
+        # config = transfer.get_config()
+        self.endpoints = transfer.build_endpoints(self.config)
+        self.apps = transfer.build_apps(self.config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
         self.flow_client = flows.get_flows_client()
         self.spot832 = self.endpoints["spot832"]
@@ -22,5 +27,6 @@ class Config832:
         self.nersc832_alsdev_recon_scripts = self.endpoints["nersc832_alsdev_recon_scripts"]
         self.alcf832_raw = self.endpoints["alcf832_raw"]
         self.alcf832_scratch = self.endpoints["alcf832_scratch"]
-        self.scicat = config["scicat"]
-        self.ghcr_images832 = config["ghcr_images832"]
+        self.hpss_alsdev = self.config["hpss_alsdev"]
+        self.scicat = self.config["scicat"]
+        self.ghcr_images832 = self.config["ghcr_images832"]

@@ -5,75 +5,19 @@ import datetime
 import logging
 import os
 import time
-from typing import Generic, TypeVar, Optional
+from typing import Generic, Optional, TypeVar
 
 import globus_sdk
 
-from orchestration.flows.bl832.config import Config832
-from orchestration.flows.bl832.job_controller import HPC
+# Import the generic Beamline configuration class.
+from orchestration.config import BeamlineConfig
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
 from orchestration.prometheus_utils import PrometheusMetrics
+from orchestration.transfer_endpoints import FileSystemEndpoint, TransferEndpoint
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 load_dotenv()
-
-
-class TransferEndpoint(ABC):
-    """
-    Abstract base class for endpoints.
-    """
-    def __init__(
-        self,
-        name: str,
-        root_path: str
-    ) -> None:
-        self.name = name
-        self.root_path = root_path
-
-    def name(self) -> str:
-        """
-        A human-readable or reference name for the endpoint.
-        """
-        return self.name
-
-    def root_path(self) -> str:
-        """
-        Root path or base directory for this endpoint.
-        """
-        return self.root_path
-
-
-class FileSystemEndpoint(TransferEndpoint):
-    """
-    A file system endpoint.
-
-    Args:
-        TransferEndpoint: Abstract class for endpoints.
-    """
-    def __init__(
-        self,
-        name: str,
-        root_path: str
-    ) -> None:
-        super().__init__(name, root_path)
-
-    def full_path(
-        self,
-        path_suffix: str
-    ) -> str:
-        """
-        Constructs the full path by appending the path_suffix to the root_path.
-
-        Args:
-            path_suffix (str): The relative path to append.
-
-        Returns:
-            str: The full absolute path.
-        """
-        if path_suffix.startswith("/"):
-            path_suffix = path_suffix[1:]
-        return f"{self.root_path.rstrip('/')}/{path_suffix}"
 
 
 Endpoint = TypeVar("Endpoint", bound=TransferEndpoint)
@@ -81,16 +25,20 @@ Endpoint = TypeVar("Endpoint", bound=TransferEndpoint)
 
 class TransferController(Generic[Endpoint], ABC):
     """
-    Abstract class for transferring data.
+    Abstract base class for transferring data between endpoints.
+
+    This class defines the common interface that all transfer controllers must implement,
+    regardless of the specific transfer mechanism they use.
 
     Args:
-        ABC: Abstract Base Class
+        config (BeamlineConfig): Configuration object containing endpoints and credentials
     """
     def __init__(
         self,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         self.config = config
+        logger.debug(f"Initialized {self.__class__.__name__} with config for beamline {config.beamline_id}")
 
     @abstractmethod
     def copy(
@@ -103,9 +51,9 @@ class TransferController(Generic[Endpoint], ABC):
         Copy a file from a source endpoint to a destination endpoint.
 
         Args:
-            file_path (str): The path of the file to copy.
-            source (Endpoint): The source endpoint.
-            destination (Endpoint): The destination endpoint.
+            file_path (str): The path of the file to copy, relative to the endpoint's root path
+            source (Endpoint): The source endpoint from which to copy the file
+            destination (Endpoint): The destination endpoint to which to copy the file
 
         Returns:
             bool: True if the transfer was successful, False otherwise.
@@ -115,18 +63,28 @@ class TransferController(Generic[Endpoint], ABC):
 
 class GlobusTransferController(TransferController[GlobusEndpoint]):
     """
+    Use Globus Transfer to move data between Globus endpoints.
+
+    This controller handles the transfer of files between Globus endpoints using the
+    Globus Transfer API. It manages authentication, transfer submissions, and status tracking.
+
+    Args:
+        config (BeamlineConfig): Configuration object containing Globus endpoints and credentials
+    """
+
+    def __init__(
+        self,
+        config: BeamlineConfig,
+        prometheus_metrics: Optional[PrometheusMetrics] = None
+    ) -> None:
+        super().__init__(config)
+        self.prometheus_metrics = prometheus_metrics
+    """
     Use Globus Transfer to move data between endpoints.
 
     Args:
         TransferController: Abstract class for transferring data.
     """
-    def __init__(
-        self,
-        config: Config832,
-        prometheus_metrics: Optional[PrometheusMetrics] = None
-    ) -> None:
-        super().__init__(config)
-        self.prometheus_metrics = prometheus_metrics
 
     def get_transfer_file_info(
         self,
@@ -135,23 +93,23 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     ) -> Optional[dict]:
         """
         Get information about a completed transfer from the Globus API.
-        
+
         Args:
             task_id (str): The Globus transfer task ID
             transfer_client (TransferClient, optional): TransferClient instance
-            
+
         Returns:
             Optional[dict]: Task information including bytes_transferred, or None if unavailable
         """
         if transfer_client is None:
             transfer_client = self.config.tc
-            
+
         try:
             task_info = transfer_client.get_task(task_id)
             task_dict = task_info.data
 
             if task_dict.get('status') == 'SUCCEEDED':
-                bytes_transferred = task_dict.get('bytes_transferred', 0) 
+                bytes_transferred = task_dict.get('bytes_transferred', 0)
                 bytes_checksummed = task_dict.get('bytes_checksummed', 0)
                 files_transferred = task_dict.get('files_transferred', 0)
                 effective_bytes_per_second = task_dict.get('effective_bytes_per_second', 0)
@@ -161,13 +119,13 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     'files_transferred': files_transferred,
                     'effective_bytes_per_second': effective_bytes_per_second
                 }
-                
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting transfer task info: {e}")
             return None
-    
+
     def collect_and_push_metrics(
         self,
         start_time: float,
@@ -181,7 +139,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     ) -> None:
         """
         Collect transfer metrics and push them to Prometheus.
-        
+
         Args:
             start_time (float): Transfer start time as UNIX timestamp.
             end_time (float): Transfer end time as UNIX timestamp.
@@ -201,10 +159,10 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
             end_datetime = datetime.datetime.fromtimestamp(end_time, tz=datetime.timezone.utc)
             start_timestamp = start_datetime.isoformat()
             end_timestamp = end_datetime.isoformat()
-            
+
             # Calculate duration in seconds
             duration_seconds = end_time - start_time
-            
+
             # Calculate transfer speed (bytes per second)
             # transfer_speed = file_size / duration_seconds if duration_seconds > 0 and file_size > 0 else 0
 
@@ -220,13 +178,13 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                 "status": "success" if success else "failed",
                 "machine": machine_name
             }
-            
+
             # Push metrics to Prometheus
             self.prometheus_metrics.push_metrics_to_prometheus(metrics, logger)
-            
+
         except Exception as e:
             logger.error(f"Error collecting or pushing metrics: {e}")
-    
+
     def copy(
         self,
         file_path: str = None,
@@ -234,31 +192,46 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
         destination: GlobusEndpoint = None,
     ) -> bool:
         """
-        Copy a file from a source endpoint to a destination endpoint.
+        Copy a file from a source Globus endpoint to a destination Globus endpoint.
+
+        This method handles the full transfer process, including path normalization,
+        submission to the Globus Transfer API, and waiting for completion or error.
 
         Args:
-            file_path (str): The path of the file to copy.
-            source (GlobusEndpoint): The source endpoint.
-            destination (GlobusEndpoint): The destination endpoint.
+            file_path (str): The path of the file to copy, relative to the endpoint's root path
+            source (GlobusEndpoint): The source Globus endpoint from which to copy the file
+            destination (GlobusEndpoint): The destination Globus endpoint to which to copy the file
 
         Returns:
-            bool: True if the transfer was successful, False otherwise.
+            bool: True if the transfer was successful, False otherwise
+
+        Raises:
+            globus_sdk.services.transfer.errors.TransferAPIError: If there are issues with the Globus API
         """
-        
+        if not file_path:
+            logger.error("No file path provided for transfer")
+            return False
+
+        if not source or not destination:
+            logger.error("Missing source or destination endpoint for transfer")
+            return False
+
         if not file_path:
             logger.error("No file_path provided")
             return False
-            
+
         if not source or not destination:
             logger.error("Source or destination endpoint not provided")
             return False
 
         logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
 
-        # Remove leading slash if present
+        # Normalize the file path by removing leading slashes if present
         if file_path[0] == "/":
             file_path = file_path[1:]
+            logger.debug(f"Normalized file path to '{file_path}'")
 
+        # Build full paths for source and destination
         source_path = os.path.join(source.root_path, file_path)
         dest_path = os.path.join(destination.root_path, file_path)
         logger.info(f"Transferring {source_path} to {dest_path}")
@@ -268,8 +241,9 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
         success = False
         task_id = None  # Initialize task_id here to prevent UnboundLocalError
         file_size = 0   # Initialize file_size here as well
-        
+
         try:
+            logger.info(f"Submitting Globus transfer task from {source.uuid} to {destination.uuid}")
             success, task_id = start_transfer(
                 transfer_client=self.config.tc,
                 source_endpoint=source,
@@ -284,10 +258,16 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                 logger.info("Transfer completed successfully.")
             else:
                 logger.error("Transfer failed.")
-                
+
         except globus_sdk.services.transfer.errors.TransferAPIError as e:
-            logger.error(f"Failed to submit transfer: {e}")
-            
+            logger.error(f"Globus Transfer API error: {e}")
+            logger.error(f"Status code: {e.status_code if hasattr(e, 'status_code') else 'unknown'}")
+            logger.error(f"Error details: {e.data if hasattr(e, 'data') else e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error during transfer: {str(e)}", exc_info=True)
+            return False
+
         finally:
             # Stop the timer and calculate the duration
             transfer_end_time = time.time()
@@ -300,7 +280,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     transfer_speed = transfer_info.get('effective_bytes_per_second', 0)
                     logger.info(f"Globus Task Info: Transferred {file_size} bytes ")
                     logger.info(f"Globus Task Info: Effective speed: {transfer_speed} bytes/second")
-            
+
             # Collect and push metrics if enabled
             if self.prometheus_metrics and file_size > 0:
                 self.collect_and_push_metrics(
@@ -313,49 +293,61 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
                     transfer_speed=transfer_speed,
                     success=success,
                 )
-                
+
             return success
 
 
 class SimpleTransferController(TransferController[FileSystemEndpoint]):
-    def __init__(self, config: Config832) -> None:
-        super().__init__(config)
     """
     Use a simple 'cp' command to move data within the same system.
 
+    This controller is suitable for transfers between directories on the same
+    file system, where network transfer protocols are not needed.
+
     Args:
-        TransferController: Abstract class for transferring data.
+        config (BeamlineConfig): Configuration object containing file system paths
     """
+    def __init__(
+        self,
+        config: BeamlineConfig
+    ) -> None:
+        super().__init__(config)
 
     def copy(
         self,
-        file_path: str = "",
+        file_path: str = None,
         source: FileSystemEndpoint = None,
         destination: FileSystemEndpoint = None,
     ) -> bool:
         """
-        Copy a file from a source endpoint to a destination endpoint using the 'cp' command.
+        Copy a file from a source directory to a destination directory using the 'cp' command.
+
+        This method handles local file copying through the system's cp command,
+        including path normalization and status tracking.
 
         Args:
-            file_path (str): The path of the file to copy.
-            source (FileSystemEndpoint): The source endpoint.
-            destination (FileSystemEndpoint): The destination endpoint.
+            file_path (str): The path of the file to copy, relative to the endpoint's root path
+            source (FileSystemEndpoint): The source file system location
+            destination (FileSystemEndpoint): The destination file system location
 
         Returns:
             bool: True if the transfer was successful, False otherwise.
         """
         if not file_path:
-            logger.error("No file_path provided.")
+            logger.error("No file_path provided for local copy operation")
             return False
         if not source or not destination:
-            logger.error("Source or destination endpoint not provided.")
+            logger.error("Source or destination endpoint not provided for local copy operation")
             return False
 
         logger.info(f"Transferring {file_path} from {source.name} to {destination.name}")
 
+        # Normalize file path by removing leading slash if present
         if file_path.startswith("/"):
             file_path = file_path[1:]
+            logger.debug(f"Normalized file path to '{file_path}'")
 
+        # Build full paths for source and destination
         source_path = os.path.join(source.root_path, file_path)
         dest_path = os.path.join(destination.root_path, file_path)
         logger.info(f"Transferring {source_path} to {dest_path}")
@@ -364,72 +356,98 @@ class SimpleTransferController(TransferController[FileSystemEndpoint]):
         start_time = time.time()
 
         try:
+            # Check if source file/directory exists
+            if not os.path.exists(source_path):
+                logger.error(f"Source path does not exist: {source_path}")
+                return False
+
+            # Ensure destination directory exists
+            dest_dir = os.path.dirname(dest_path)
+            if not os.path.exists(dest_dir):
+                logger.debug(f"Creating destination directory: {dest_dir}")
+                os.makedirs(dest_dir, exist_ok=True)
+
+            # Execute the cp command
             result = os.system(f"cp -r '{source_path}' '{dest_path}'")
             if result == 0:
-                logger.info("Transfer completed successfully.")
+                logger.info(f"Local copy of '{file_path}' completed successfully")
                 return True
             else:
-                logger.error(f"Transfer failed with exit code {result}.")
+                logger.error(f"Local copy of '{file_path}' failed with exit code {result}")
                 return False
         except Exception as e:
-            logger.error(f"Transfer failed: {e}")
+            logger.error(f"Unexpected error during local copy: {str(e)}", exc_info=True)
             return False
         finally:
             # Stop the timer and calculate the duration
             elapsed_time = time.time() - start_time
-            logger.info(f"Transfer process took {elapsed_time:.2f} seconds.")
+            logger.info(f"Local copy process took {elapsed_time:.2f} seconds")
 
 
 class CopyMethod(Enum):
     """
     Enum representing different transfer methods.
-    Use enum names as strings to identify transfer methods, ensuring a standard set of values.
+
+    These values are used to select the appropriate transfer controller
+    through the factory function get_transfer_controller().
     """
-    GLOBUS = "globus"
-    SIMPLE = "simple"
+    GLOBUS = "globus"         # Transfer between Globus endpoints
+    SIMPLE = "simple"         # Local filesystem copy
+    CFS_TO_HPSS = "cfs_to_hpss"  # NERSC CFS to HPSS tape archive
+    HPSS_TO_CFS = "hpss_to_cfs"  # HPSS tape archive to NERSC CFS
 
 
 def get_transfer_controller(
     transfer_type: CopyMethod,
-    config: Config832,
+    config: BeamlineConfig,
     prometheus_metrics: Optional[PrometheusMetrics] = None
 ) -> TransferController:
     """
-    Get the appropriate transfer controller based on the transfer type.
+    Factory function to get the appropriate transfer controller based on the transfer type.
 
     Args:
-        transfer_type (str): The type of transfer to perform.
-        config (Config832): The configuration object.
+        transfer_type (CopyMethod): The type of transfer to perform
+        config (BeamlineConfig): The configuration object containing endpoint information
 
     Returns:
-        TransferController: The transfer controller object.
+        TransferController: The appropriate transfer controller instance
+
+    Raises:
+        ValueError: If an invalid transfer type is provided
     """
+    # Add explicit type checking to handle non-enum inputs
+    if not isinstance(transfer_type, CopyMethod):
+        error_msg = f"Invalid transfer type: {transfer_type}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    logger.debug(f"Creating transfer controller of type: {transfer_type.name}")
+
     if transfer_type == CopyMethod.GLOBUS:
+        logger.debug("Returning GlobusTransferController")
         return GlobusTransferController(config, prometheus_metrics)
     elif transfer_type == CopyMethod.SIMPLE:
+        logger.debug("Returning SimpleTransferController")
         return SimpleTransferController(config)
+    elif transfer_type == CopyMethod.CFS_TO_HPSS:
+        logger.debug("Importing and returning CFSToHPSSTransferController")
+        # Import here to avoid circular dependencies
+        from orchestration.hpss import CFSToHPSSTransferController
+        from orchestration.sfapi import create_sfapi_client
+        return CFSToHPSSTransferController(
+            client=create_sfapi_client(),
+            config=config
+        )
+    elif transfer_type == CopyMethod.HPSS_TO_CFS:
+        logger.debug("Importing and returning HPSSToCFSTransferController")
+        # Import here to avoid circular dependencies
+        from orchestration.hpss import HPSSToCFSTransferController
+        from orchestration.sfapi import create_sfapi_client
+        return HPSSToCFSTransferController(
+            client=create_sfapi_client(),
+            config=config
+        )
     else:
-        raise ValueError(f"Invalid transfer type: {transfer_type}")
-
-
-if __name__ == "__main__":
-    config = Config832()
-    transfer_type = CopyMethod.GLOBUS
-    globus_transfer_controller = get_transfer_controller(transfer_type, config)
-    globus_transfer_controller.copy(
-        file_path="dabramov/test.txt",
-        source=config.alcf832_raw,
-        destination=config.alcf832_scratch
-    )
-
-    simple_transfer_controller = get_transfer_controller(CopyMethod.SIMPLE, config)
-    success = simple_transfer_controller.copy(
-        file_path="test.rtf",
-        source=FileSystemEndpoint("source", "/Users/david/Documents/copy_test/test_source/"),
-        destination=FileSystemEndpoint("destination", "/Users/david/Documents/copy_test/test_destination/")
-    )
-
-    if success:
-        logger.info("Simple transfer succeeded.")
-    else:
-        logger.error("Simple transfer failed.")
+        error_msg = f"Invalid transfer type: {transfer_type}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)

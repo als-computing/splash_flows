@@ -1,9 +1,17 @@
-import collections
+from abc import ABC, abstractmethod
 import builtins
-from pathlib import Path
+import collections
 import os
-
+from pathlib import Path
+import re
 import yaml
+
+from dynaconf import Dynaconf
+
+# TODO: Add secrets management
+settings = Dynaconf(
+    settings_files=["config.yml"],
+)
 
 
 def get_config():
@@ -41,3 +49,41 @@ def expand_environment_variables(config):
         return type(config)([expand_environment_variables(v) for v in config])
     else:
         return config
+
+
+class BeamlineConfig(ABC):
+    """
+    Base class for beamline configurations.
+
+    This class reads the common configuration from disk, builds endpoints and apps,
+    and initializes the Globus Transfer and Flows clients. Beamline-specific subclasses
+    must override the _setup_specific_config() method to assign their own attributes.
+
+    Attributes:
+        beamline_id (str): Beamline number identifier with periods (e.g. "8.3.2" or "7.3.3").
+        config (dict): The loaded configuration dictionary.
+    """
+
+    def __init__(
+        self,
+        beamline_id: str
+    ) -> None:
+        pattern = r'^\d+(\.\d+)+$'
+        if not re.match(pattern, beamline_id):
+            raise ValueError(f"Invalid beamline_id format: '{beamline_id}'."
+                             f"Expected format: digits separated by dots (e.g., '8.3.2', '7.0.1.2', '12.3')")
+        self.beamline_id = beamline_id
+        self.config = settings
+        self._beam_specific_config()
+        self.config = None  # Clear reference to config after beam-specific setup
+
+    @abstractmethod
+    def _beam_specific_config(self) -> None:
+        """
+        Set up beamline-specific configuration attributes.
+
+        This method must be implemented by subclasses. Typical assignments
+        include selecting endpoints (using keys that include the beamline ID),
+        and other beamline-specific parameters.
+        """
+        pass

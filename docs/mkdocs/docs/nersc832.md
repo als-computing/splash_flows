@@ -13,9 +13,14 @@ NERSC user accounts are managed in the [Iris](https://iris.nersc.gov/login) syst
 Superfacility API Clients (SFAPI) is the gateway to running remote tasks on NERSC, and the method we support for scheduling jobs via SLURM. To create a new SFAPI client:
 
 1. Login to [Iris](https://iris.nersc.gov/login) and navigate to the Profile section, found either on the menu bar at the top or under Settings on the left panel.
-2. Scroll all the way to the bottom to the **Superfacility API Clients** section.
-3. Press the '+ New Client' button
-    Fill out the form
+
+![Iris Dashboard](assets/images/sfapi_step1.png)
+
+2. Scroll all the way to the bottom to the **Superfacility API Clients** section and press the '+ New Client' button
+
+![Superfacility API Clients](assets/images/sfapi_step2.png)
+
+3. Fill out the form
 
     a. Client Name (ex: 'tomo-sfapi')
     
@@ -27,7 +32,11 @@ Superfacility API Clients (SFAPI) is the gateway to running remote tasks on NERS
 
     e. IP address ranges (Your IP, perlmutter nodes)
 
+![SFAPI Client Form](assets/images/sfapi_step3.png)
+
 4. Save the SFAPI keys in a safe place. You will need these to launch jobs on NERSC.
+
+![SFAPI keys](assets/images/sfapi_step4.png)
 
 ## NERSC System Status
 
