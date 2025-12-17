@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from prefect import flow, task
-# from prefect.blocks.system import JSON
+from prefect.variables import Variable
 
 from orchestration.flows.dichroism.config import ConfigDichroism
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
@@ -48,10 +48,6 @@ def prune(
 
     if days_from_now < 0:
         raise ValueError(f"Invalid days_from_now: {days_from_now}")
-
-    # JSON blocks are deprecated, we should use what they recommend in the docs
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
 
     logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
 
@@ -114,9 +110,9 @@ def _prune_globus_endpoint(
     if not config:
         config = ConfigDichroism()
 
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
-    max_wait_seconds = 600
+    globus_settings = Variable.get("globus-settings")
+    max_wait_seconds = globus_settings["max_wait_seconds"]
+
     flow_name = f"prune_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
@@ -184,11 +180,14 @@ def process_new_402_file_task(
     # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
+
+    dichroism_settings = Variable.get("dichroism-settings")
+
     prune(
         file_path=file_path,
         source_endpoint=config.bl402_compute_dtn,
         check_endpoint=config.bl402_nersc_alsdev_raw,
-        days_from_now=180.0  # determine appropriate value: currently 6 months
+        days_from_now=dichroism_settings["delete_data402_files_after_days"]  # determine appropriate value: currently 6 months
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
@@ -275,11 +274,14 @@ def process_new_631_file_task(
 
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
+
+    dichroism_settings = Variable.get("dichroism-settings")
+
     prune(
         file_path=file_path,
         source_endpoint=config.bl631_compute_dtn,
         check_endpoint=config.bl631_nersc_alsdev_raw,
-        days_from_now=180.0  # determine appropriate value: currently 6 months
+        days_from_now=dichroism_settings["delete_data631_files_after_days"]  # determine appropriate value: currently 6 months
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
