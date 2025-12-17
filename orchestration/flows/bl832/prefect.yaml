@@ -2,103 +2,98 @@
 
 name: bl832
 prefect-version: 3.4.2
-# Ensure workers clone code and run from the repo root so imports like
-pull:
-- prefect.deployments.steps.git_clone:
-    repository: https://github.com/als-computing/splash_flows.git
-    branch: main
 
 deployments:
 # Dispatcher flow -- launches new file processing flows and downstream reconstruction
 - name: run_832_dispatcher
-  entrypoint: /splash_flows/orchestration/flows/bl832/dispatcher.py:dispatcher
+  entrypoint: orchestration/flows/bl832/dispatcher.py:dispatcher
   work_pool:
     name: dispatcher_832_pool
     work_queue_name: dispatcher_832_queue
 
 # Move new files to the appropriate locations (data832, nersc cfs) and ingest metadata in scicat
 - name: new_file_832
-  entrypoint: /splash_flows/orchestration/flows/bl832/move.py:process_new_832_file
+  entrypoint: orchestration/flows/bl832/move.py:process_new_832_file
   work_pool:
     name: new_file_832_pool
     work_queue_name: new_file_832_queue
 
 # Scheduled flow for testing file transfers
 - name: test_transfers_832
-  entrypoint: /splash_flows/orchestration/flows/bl832/move.py:test_transfers_832
+  entrypoint: orchestration/flows/bl832/move.py:test_transfers_832
   work_pool:
     name: new_file_832_pool
     work_queue_name: test_transfers_832_queue
 - name: test_832_transfers_grafana
-  entrypoint: /splash_flows/orchestration/flows/bl832/move.py:test_transfers_832_grafana
+  entrypoint: orchestration/flows/bl832/move.py:test_transfers_832_grafana
   work_pool:
     name: new_file_832_pool
     work_queue_name: test_832_transfers_grafana_queue
 
 # Reconstuction flows
 - name: nersc_recon_flow
-  entrypoint: /splash_flows/orchestration/flows/bl832/nersc.py:nersc_recon_flow
+  entrypoint: orchestration/flows/bl832/nersc.py:nersc_recon_flow
   work_pool:
     name: nersc_recon_flow_pool
     work_queue_name: nersc_recon_flow_queue
 
 - name: nersc_streaming_flow
-  entrypoint: /splash_flows/orchestration/flows/bl832/nersc.py:nersc_streaming_flow
+  entrypoint: orchestration/flows/bl832/nersc.py:nersc_streaming_flow
   work_pool:
     name: nersc_streaming_pool
     work_queue_name: nersc_832_streaming_flow_queue
 
 - name: alcf_recon_flow
-  entrypoint: /splash_flows/orchestration/flows/bl832/alcf.py:alcf_recon_flow
+  entrypoint: orchestration/flows/bl832/alcf.py:alcf_recon_flow
   work_pool:
     name: alcf_recon_flow_pool
     work_queue_name: alcf_recon_flow_queue
 
 # Pruning flows
 - name: prune_data832_raw
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_data832_raw
+  entrypoint: orchestration/flows/bl832/prune.py:prune_data832_raw
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_data832_raw_queue
 
 - name: prune_data832_scratch
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_data832_scratch
+  entrypoint: orchestration/flows/bl832/prune.py:prune_data832_scratch
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_data832_scratch_queue
 
 - name: prune_data832
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_data832
+  entrypoint: orchestration/flows/bl832/prune.py:prune_data832
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_832_queue
 
 - name: prune_spot832
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_spot832
+  entrypoint: orchestration/flows/bl832/prune.py:prune_spot832
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_832_queue
 
 - name: prune_alcf832_raw
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_alcf832_raw
+  entrypoint: orchestration/flows/bl832/prune.py:prune_alcf832_raw
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_alcf832_raw_queue
 
 - name: prune_alcf832_scratch
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_alcf832_scratch
+  entrypoint: orchestration/flows/bl832/prune.py:prune_alcf832_scratch
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_alcf832_scratch_queue
 
 - name: prune_nersc832_alsdev_pscratch_raw
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_nersc832_alsdev_pscratch_raw
+  entrypoint: orchestration/flows/bl832/prune.py:prune_nersc832_alsdev_pscratch_raw
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_nersc832_pscratch_queue
 
 - name: prune_nersc832_alsdev_pscratch_scratch
-  entrypoint: /splash_flows/orchestration/flows/bl832/prune.py:prune_nersc832_alsdev_pscratch_scratch
+  entrypoint: orchestration/flows/bl832/prune.py:prune_nersc832_alsdev_pscratch_scratch
   work_pool:
     name: prune_832_pool
     work_queue_name: prune_nersc832_pscratch_queue
