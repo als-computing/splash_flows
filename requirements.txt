@@ -8,7 +8,7 @@ numpy>=1.26.4
 pillow
 pydantic==2.11
 python-dotenv
-prefect==2.20.17
+prefect==3.4.2
 pyscicat
 pyyaml
 authlib

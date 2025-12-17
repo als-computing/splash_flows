@@ -1,4 +1,4 @@
-FROM prefecthq/prefect:2.20.17-python3.11
+FROM prefecthq/prefect:3.4.2-python3.11
 
 WORKDIR /app
 COPY ./requirements.txt /tmp/
