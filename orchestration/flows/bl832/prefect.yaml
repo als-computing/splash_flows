@@ -24,6 +24,12 @@ deployments:
   work_pool:
     name: new_file_832_pool
     work_queue_name: test_transfers_832_queue
+  schedules:
+  - cron: "0 */12 * * *" # Every 12 hours
+    slug: "test-move-733-flight-check"
+    timezone: America/Los_Angeles
+    active: true
+
 - name: test_832_transfers_grafana
   entrypoint: orchestration/flows/bl832/move.py:test_transfers_832_grafana
   work_pool:
