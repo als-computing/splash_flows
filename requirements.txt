@@ -12,7 +12,7 @@ pillow
 prometheus_client==0.21.1
 pydantic==2.11
 python-dotenv
-prefect==2.20.17
+prefect==3.4.2
 pyyaml
 sfapi_client
 scicat-beamline-ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@2025/12/10-flow

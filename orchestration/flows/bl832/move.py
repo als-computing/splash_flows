@@ -5,7 +5,7 @@ import uuid
 
 from globus_sdk import TransferClient
 from prefect import flow, task, get_run_logger
-from prefect.blocks.system import JSON
+from prefect.variables import Variable
 
 from orchestration.flows.scicat.ingest import ingest_dataset
 from orchestration.flows.bl832.config import Config832
@@ -52,6 +52,7 @@ def transfer_data_to_nersc(
     transfer_client: TransferClient,
     data832: GlobusEndpoint,
     nersc832: GlobusEndpoint,
+    config=None,
 ):
     logger = get_run_logger()
 
@@ -60,14 +61,15 @@ def transfer_data_to_nersc(
         file_path = file_path[1:]
 
     # Initialize config
-    config = Config832()
+    if not config:
+        config = Config832()
 
     # Import here to avoid circular imports
     from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 
     # Change prometheus_metrics=None if do not want to push metrics
     # prometheus_metrics = None
-    prometheus_metrics = PrometheusMetrics() 
+    prometheus_metrics = PrometheusMetrics()
     # Get a Globus transfer controller
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
@@ -142,7 +144,7 @@ def process_new_832_file_task(
 
     if not is_export_control and send_to_nersc:
         transfer_data_to_nersc(
-            relative_path, config.tc, config.data832, config.nersc832
+            relative_path, config.tc, config.data832, config.nersc832, config
         )
         logger.info(
             f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
@@ -161,7 +163,7 @@ def process_new_832_file_task(
         #     datetime.timedelta(0.0),
         # )
 
-    bl832_settings = JSON.load("bl832-settings").value
+    bl832_settings = Variable.get("bl832-settings", _sync=True)
 
     flow_name = f"delete spot832: {Path(file_path).name}"
     schedule_spot832_delete_days = bl832_settings["delete_spot832_files_after_days"]
@@ -217,7 +219,7 @@ def test_transfers_832(file_path: str = "/raw/transfer_tests/test.txt"):
     )
     logger.info(f"Transferred {spot832_path} to spot to data")
 
-    task = transfer_data_to_nersc(new_file, config.tc, config.data832, config.nersc832)
+    task = transfer_data_to_nersc(new_file, config.tc, config.data832, config.nersc832, config)
     logger.info(
         f"File successfully transferred from data832 to NERSC {spot832_path}. Task {task}"
     )
@@ -228,8 +230,17 @@ def test_transfers_832_grafana(file_path: str = "/raw/transfer_tests/test/"):
     logger = get_run_logger()
     config = Config832()
 
-    task = transfer_data_to_nersc(file_path, config.tc, config.data832, config.nersc_alsdev)
+    task = transfer_data_to_nersc(file_path, config.tc, config.data832, config.nersc_alsdev, config)
 
     logger.info(
         f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
     )
+
+
+if __name__ == "__main__":
+    import os
+    import dotenv
+
+    dotenv.load_dotenv()
+
+    file_path = "/raw/transfer_tests/test.txt"

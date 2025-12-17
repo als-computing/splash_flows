@@ -9,7 +9,7 @@ import time
 
 from authlib.jose import JsonWebKey
 from prefect import flow, get_run_logger
-from prefect.blocks.system import JSON
+from prefect.variables import Variable
 from sfapi_client import Client
 from sfapi_client.compute import Machine
 from typing import Optional
@@ -313,7 +313,7 @@ def schedule_pruning(
     # nersc/pscratch : 1 day
     # nersc832/scratch : never?
 
-    pruning_config = JSON.load("pruning-config").value
+    pruning_config = Variable.get("pruning-config", _sync=True)
     data832_delay = datetime.timedelta(days=pruning_config["delete_data832_files_after_days"])
     nersc832_delay = datetime.timedelta(days=pruning_config["delete_nersc832_files_after_days"])
 
@@ -425,7 +425,7 @@ def schedule_pruning(
         logger.error(f"Failed to schedule prune task: {e}")
 
 
-@flow(name="nersc_recon_flow")
+@flow(name="nersc_recon_flow", flow_run_name="nersc_recon-{file_path}")
 def nersc_recon_flow(
     file_path: str,
     config: Optional[Config832] = None,
