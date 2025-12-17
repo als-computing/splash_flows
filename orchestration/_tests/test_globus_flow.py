@@ -2,7 +2,8 @@ import asyncio
 from uuid import uuid4
 import warnings
 
-from prefect.blocks.system import JSON, Secret
+from prefect.blocks.system import Secret
+from prefect.variables import Variable
 from prefect.testing.utilities import prefect_test_harness
 import pytest
 from pytest_mock import MockFixture
@@ -32,18 +33,30 @@ def prefect_test_fixture():
         globus_compute_endpoint = Secret(value=str(uuid4()))
         globus_compute_endpoint.save(name="globus-compute-endpoint")
 
-        pruning_config = JSON(value={"max_wait_seconds": 600})
-        pruning_config.save(name="pruning-config")
+        Variable.set(
+            name="pruning-config",
+            value={"max_wait_seconds": 600},
+            overwrite=True,
+            _sync=True
+        )
 
-        decision_settings = JSON(value={
-            "alcf_recon_flow/alcf_recon_flow": True,
-            "nersc_recon_flow/nersc_recon_flow": True,
-            "new_832_file_flow/new_file_832": True
-        })
-        decision_settings.save(name="decision-settings")
+        Variable.set(
+            name="decision-settings",
+            value={
+                "alcf_recon_flow/alcf_recon_flow": True,
+                "nersc_recon_flow/nersc_recon_flow": True,
+                "new_832_file_flow/new_file_832": True
+            },
+            overwrite=True,
+            _sync=True
+        )
 
-        alcf_allocation_root = JSON(value={"alcf-allocation-root-path": "/eagle/IRIProd/ALS"})
-        alcf_allocation_root.save(name="alcf-allocation-root-path")
+        Variable.set(
+            name="alcf-allocation-root-path",
+            value={"alcf-allocation-root-path": "/eagle/IRIProd/ALS"},
+            overwrite=True,
+            _sync=True
+        )
 
         yield
 
