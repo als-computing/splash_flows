@@ -1,5 +1,42 @@
 globus:
   globus_endpoints:
+
+    # 7.0.1.1 ENDPOINTS
+
+    bl7011-als-cosmic-scattering:
+      root_path: /data
+      uri: bl7011-als-cosmic-scattering.lbl.gov
+      uuid: e19da22e-4af5-4901-acae-d7e702def054
+      name: bl7011-als-cosmic-scattering
+
+    bl7011-nersc_alsdev:
+      root_path: /global/cfs/cdirs/als/data_mover/7.0.1.1
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: bl7011-nersc_alsdev
+
+    bl7011-compute-dtn:
+      root_path: /
+      uri: compute-dtn.als.lbl.gov
+      uuid: 5ae9485d-87a4-4349-82ac-e214963ed823
+      name: bl7011-compute-dtn
+
+    # 7.0.1.2 ENDPOINTS
+
+    nersc7012:
+      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: nersc7012
+
+    data7012:
+      root_path: /
+      uri: hpc.lbl.gov
+      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
+      name: data7012
+
+    # 8.3.2 ENDPOINTS
+
     spot832:
       root_path: /
       uri: spot832.lbl.gov
@@ -89,18 +126,6 @@ globus:
       uri: nersc.gov
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
-
-    nersc7012:
-      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
-      uri: nersc.gov
-      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
-      name: nersc7012
-
-    data7012:
-      root_path: /
-      uri: hpc.lbl.gov
-      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
-      name: data7012
 
   globus_apps:
     als_transfer:
