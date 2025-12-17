@@ -187,7 +187,7 @@ def process_new_7011_file_task(
         file_path=file_path,
         source_endpoint=config.bl7011_compute_dtn,
         check_endpoint=config.bl7011_nersc_alsdev,
-        days_from_now=180.0  # work with Sofie/Sujoy to determine appropriate retention period
+        days_from_now=180.0  # work with Sophie/Ron to determine appropriate retention period
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
