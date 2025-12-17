@@ -43,7 +43,6 @@ def prefect_test_fixture():
         Variable.set(
             name="bl733-settings",
             value={
-                "delete_spot733_files_after_days": 1,
                 "delete_data733_files_after_days": 180
             },
             overwrite=True,
