@@ -20,10 +20,9 @@ dependencies = [
     "pydantic==2.11",
     "python-dotenv",
     "prefect==2.20.17",
-    "pyscicat @ git+https://github.com/SciCatProject/pyscicat.git@main#subdirectory=pyscicat",
     "pyyaml",
     "sfapi_client",
-    "scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@main#subdirectory=scicat_beamline"
+    "scicat_beamline_ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@2025/12/10-flow"
 ]
 
 [build-system]
@@ -32,7 +31,8 @@ requires = [
   "flake8",
   "freezegun",
   "pytest",
-  "pytest-mock"
+  "pytest-mock",
+  "setuptools"
 ]
 build-backend = "setuptools.build_meta"
 

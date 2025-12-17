@@ -13,7 +13,6 @@ prometheus_client==0.21.1
 pydantic==2.11
 python-dotenv
 prefect==2.20.17
-pyscicat
 pyyaml
 sfapi_client
-scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@main#subdirectory=scicat_beamline
+scicat-beamline-ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@2025/12/10-flow
