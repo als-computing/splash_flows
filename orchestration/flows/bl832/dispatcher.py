@@ -1,11 +1,11 @@
 import asyncio
-from prefect import flow, task, get_run_logger
-from prefect.blocks.system import JSON
-from prefect.deployments import run_deployment
 from pydantic import BaseModel, ValidationError, Field
 from typing import Any, Optional, Union
 
 from orchestration.flows.bl832.move import process_new_832_file_task
+from prefect import flow, task, get_run_logger
+from prefect.deployments import run_deployment
+from prefect.variables import Variable
 
 
 class FlowParameterMapper:
@@ -75,8 +75,7 @@ def setup_decision_settings(alcf_recon: bool, nersc_recon: bool, new_file_832: b
             "new_832_file_flow/new_file_832": new_file_832
         }
         # Save the settings in a JSON block for later retrieval by other flows
-        settings_json = JSON(value=settings)
-        settings_json.save(name="decision-settings", overwrite=True)
+        Variable.set(name="decision-settings", value=settings, overwrite=True, _sync=True)
     except Exception as e:
         logger.error(f"Failed to set up decision settings: {e}")
         raise
@@ -122,10 +121,10 @@ async def dispatcher(
         raise
 
     # Run new_file_832 first (synchronously)
-    available_params = inputs.dict()
+    available_params = inputs.model_dump()
     try:
-        decision_settings = await JSON.load("decision-settings")
-        if decision_settings.value.get("new_832_file_flow/new_file_832"):
+        decision_settings = await Variable.get("decision-settings")
+        if decision_settings.get("new_832_file_flow/new_file_832"):
             logger.info("Running new_file_832 flow...")
             process_new_832_file_task(
                 file_path=available_params.get("file_path"),
@@ -142,11 +141,11 @@ async def dispatcher(
 
     # Prepare ALCF and NERSC flows to run asynchronously, based on settings
     tasks = []
-    if decision_settings.value.get("alcf_recon_flow/alcf_recon_flow"):
+    if decision_settings.get("alcf_recon_flow/alcf_recon_flow"):
         alcf_params = FlowParameterMapper.get_flow_parameters("alcf_recon_flow/alcf_recon_flow", available_params)
         tasks.append(run_recon_flow_async("alcf_recon_flow/alcf_recon_flow", alcf_params))
 
-    if decision_settings.value.get("nersc_recon_flow/nersc_recon_flow"):
+    if decision_settings.get("nersc_recon_flow/nersc_recon_flow"):
         nersc_params = FlowParameterMapper.get_flow_parameters("nersc_recon_flow/nersc_recon_flow", available_params)
         tasks.append(run_recon_flow_async("nersc_recon_flow/nersc_recon_flow", nersc_params))
 

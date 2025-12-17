@@ -8,7 +8,8 @@ from typing import Optional
 from globus_compute_sdk import Client, Executor
 from globus_compute_sdk.serialize import CombinedCode
 from prefect import flow, task
-from prefect.blocks.system import JSON, Secret
+from prefect.blocks.system import Secret
+from prefect.variables import Variable
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
@@ -36,7 +37,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         super().__init__(config)
         # Load allocation root from the Prefect JSON block
         # The block must be registered with the name "alcf-allocation-root-path"
-        allocation_data = JSON.load("alcf-allocation-root-path").value
+        allocation_data = Variable.get("alcf-allocation-root-path", _sync=True)
         self.allocation_root = allocation_data.get("alcf-allocation-root-path")
         if not self.allocation_root:
             raise ValueError("Allocation root not found in JSON block 'alcf-allocation-root-path'")
@@ -314,7 +315,7 @@ def schedule_pruning(
     Returns:
         bool: True if the tasks were scheduled successfully, False otherwise.
     """
-    pruning_config = JSON.load("pruning-config").value
+    pruning_config = Variable.get("pruning-config", _sync=True)
 
     if one_minute:
         alcf_delay = datetime.timedelta(minutes=1)

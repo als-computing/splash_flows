@@ -5,7 +5,7 @@ import uuid
 
 from globus_sdk import TransferClient
 from prefect import flow, task, get_run_logger
-from prefect.blocks.system import JSON
+from prefect.variables import Variable
 
 from orchestration.flows.scicat.ingest import ingest_dataset
 from orchestration.flows.bl832.config import Config832
@@ -161,7 +161,7 @@ def process_new_832_file_task(
         #     datetime.timedelta(0.0),
         # )
 
-    bl832_settings = JSON.load("bl832-settings").value
+    bl832_settings = Variable.get("bl832-settings", _sync=True)
 
     flow_name = f"delete spot832: {Path(file_path).name}"
     schedule_spot832_delete_days = bl832_settings["delete_spot832_files_after_days"]
@@ -233,3 +233,12 @@ def test_transfers_832_grafana(file_path: str = "/raw/transfer_tests/test/"):
     logger.info(
         f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
     )
+
+
+if __name__ == "__main__":
+    import os
+    import dotenv
+
+    dotenv.load_dotenv()
+
+    file_path = "/raw/transfer_tests/test.txt"
