@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
-# from prefect.blocks.system import JSON
+from prefect.variables import Variable
 
 from orchestration.flows.bl733.config import Config733
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
@@ -51,10 +51,6 @@ def prune(
     if days_from_now < 0:
         raise ValueError(f"Invalid days_from_now: {days_from_now}")
 
-    # JSON blocks are deprecated, we should use what they recommend in the docs
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
-
     logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
 
     # convert float days → timedelta
@@ -96,7 +92,6 @@ def prune(
 # Note: once the PR is merged, we can import prune_controller directly instead of copying the code here.
 
 
-# @staticmethod
 @flow(name="prune_globus_endpoint", flow_run_name="prune_globus_endpoint-{relative_path}")
 def _prune_globus_endpoint(
     relative_path: str,
@@ -197,17 +192,15 @@ def process_new_733_file_task(
         destination=config.nersc733_alsdev_raw
     )
 
-    # TODO: Ingest file path in SciCat
-    # Waiting for PR #62 to be merged (scicat_controller)
-
-    # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
-    # TODO: Determine scheduling days_from_now based on beamline needs
+
+    bl733_settings = Variable.get("bl733-settings", _sync=True)
+
     prune(
         file_path=file_path,
         source_endpoint=config.data733_raw,
         check_endpoint=config.nersc733_alsdev_raw,
-        days_from_now=180.0  # work with Chenhui/Eric to determine appropriate value: 6 months
+        days_from_now=bl733_settings["delete_data733_files_after_days"]  # 180 days
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?

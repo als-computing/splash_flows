@@ -5,7 +5,8 @@ import pytest
 from uuid import uuid4
 
 from prefect.testing.utilities import prefect_test_harness
-from prefect.blocks.system import Secret, JSON
+from prefect.blocks.system import Secret
+from prefect.variables import Variable
 from pytest_mock import MockFixture
 
 from orchestration._tests.test_transfer_controller import MockSecret
@@ -32,8 +33,22 @@ def prefect_test_fixture():
         globus_client_secret = Secret(value=str(uuid4()))
         globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
-        pruning_config = JSON(value={"max_wait_seconds": 600})
-        pruning_config.save(name="pruning-config", overwrite=True)
+        Variable.set(
+            name="globus-settings",
+            value={"max_wait_seconds": 600},
+            overwrite=True,
+            _sync=True
+        )
+
+        Variable.set(
+            name="bl733-settings",
+            value={
+                "delete_spot733_files_after_days": 1,
+                "delete_data733_files_after_days": 180
+            },
+            overwrite=True,
+            _sync=True
+        )
 
         yield
 
@@ -58,11 +73,11 @@ def test_process_new_733_file_task(mocker: MockFixture) -> None:
     from orchestration.flows.bl733.move import process_new_733_file_task
 
     # Patch the Secret.load and init_transfer_client in the configuration context.
-    with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
-        mocker.patch(
-            "orchestration.flows.bl733.config.transfer.init_transfer_client",
-            return_value=mocker.MagicMock()  # Return a dummy TransferClient
-        )
+    mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.init_transfer_client",
+        return_value=mocker.MagicMock()  # Return a dummy TransferClient
+    )
 
     # Instantiate the dummy configuration.
     mock_config = Config733()
@@ -126,11 +141,11 @@ def test_dispatcher_733_flow(mocker: MockFixture) -> None:
     test_file_path = f"/tmp/test_file_{uuid4()}.txt"
 
     # Patch the schedule_prefect_flow call to avoid real Prefect interaction
-    with mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret()):
-        mocker.patch(
-            "orchestration.flows.bl733.config.transfer.init_transfer_client",
-            return_value=mocker.MagicMock()  # Return a dummy TransferClient
-        )
+    mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.init_transfer_client",
+        return_value=mocker.MagicMock()  # Return a dummy TransferClient
+    )
     # Patch the schedule_prefect_flow call to avoid real Prefect interaction
     mocker.patch(
         "orchestration.flows.bl733.move.schedule_prefect_flow",
