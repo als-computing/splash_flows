@@ -58,14 +58,25 @@ def prefect_test_fixture():
             _sync=True
         )
 
+        Variable.set(
+            name="bl832-settings",
+            value={
+                "delete_spot832_files_after_days": 1,
+                "delete_data832_files_after_days": 35
+            },
+            overwrite=True,
+            _sync=True
+        )
+
         yield
 
 
 class MockEndpoint:
-    def __init__(self, root_path, uuid_value=None):
+    def __init__(self, root_path, uuid_value=None, name=None):
         self.root_path = root_path
         self.uuid = uuid_value or str(uuid4())
         self.uri = f"mock_endpoint_uri_{self.uuid}"
+        self.name = name or f"mock_endpoint_{self.uuid[:8]}"
 
 
 class MockConfig832():
@@ -147,6 +158,8 @@ def test_832_dispatcher(mocker: MockFixture):
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
 
+    mocker.patch('orchestration.flows.bl832.move.schedule_prefect_flow', return_value=None)
+
     # Mock read_deployment_by_name with a manually defined mock class
     class MockDeployment:
         def __init__(self):
@@ -197,22 +210,22 @@ def test_alcf_recon_flow(mocker: MockFixture):
     mock_secret = mocker.MagicMock()
     mock_secret.get.return_value = str(uuid4())
 
-    with mocker.patch('prefect.blocks.system.Secret.load', return_value=mock_secret):
-        # 2) Patch out the calls in Config832 that do real Globus auth:
-        #    a) init_transfer_client(...) used in the constructor
-        mocker.patch(
-            "orchestration.flows.bl832.config.transfer.init_transfer_client",
-            return_value=mocker.MagicMock()  # pretend TransferClient
-        )
-        #    b) flows.get_flows_client(...) used in the constructor
-        mocker.patch(
-            "orchestration.flows.bl832.config.flows.get_flows_client",
-            return_value=mocker.MagicMock()  # pretend FlowsClient
-        )
+    mocker.patch('prefect.blocks.system.Secret.load', return_value=mock_secret)
+    # 2) Patch out the calls in Config832 that do real Globus auth:
+    #    a) init_transfer_client(...) used in the constructor
+    mocker.patch(
+        "orchestration.flows.bl832.config.transfer.init_transfer_client",
+        return_value=mocker.MagicMock()  # pretend TransferClient
+    )
+    #    b) flows.get_flows_client(...) used in the constructor
+    mocker.patch(
+        "orchestration.flows.bl832.config.flows.get_flows_client",
+        return_value=mocker.MagicMock()  # pretend FlowsClient
+    )
 
-        # 3) Now import the real code AFTER these patches
-        from orchestration.flows.bl832.alcf import alcf_recon_flow, ALCFTomographyHPCController
-        from orchestration.flows.bl832.config import Config832
+    # 3) Now import the real code AFTER these patches
+    from orchestration.flows.bl832.alcf import alcf_recon_flow, ALCFTomographyHPCController
+    from orchestration.flows.bl832.config import Config832
 
     # 4) Create a config => won't do real Globus calls now
     mock_config = Config832()
