@@ -49,7 +49,7 @@ set -euo pipefail
 BEAMLINE="${BEAMLINE:?Must set BEAMLINE (e.g. 832, 733)}"
 
 # Path to the Prefect project file
-PREFECT_YAML="/splash_flows/orchestration/flows/bl${BEAMLINE}/prefect.yaml"
+PREFECT_YAML="orchestration/flows/bl${BEAMLINE}/prefect.yaml"
 
 if [[ ! -f "$PREFECT_YAML" ]]; then
   echo "[Init:${BEAMLINE}] ERROR: Expected $PREFECT_YAML not found!" >&2
@@ -67,10 +67,15 @@ echo "[Init:${BEAMLINE}] Waiting for Prefect server at $PREFECT_API_URL..."
 python3 - <<EOF
 import os, time, sys
 import httpx
+beamline = "$BEAMLINE"
 
 api_url = os.environ.get("PREFECT_API_URL", "http://prefect_server:4200/api")
-health_url = f"{api_url}/health"
-beamline = "$BEAMLINE"
+if "api.prefect.cloud" in api_url:
+    print(f"[Init:{beamline}] Prefect Cloud detected — skipping health check.")
+    sys.exit(0)
+else:
+    health_url = f"{api_url}/health"
+    print(f"[Init:{beamline}] Ping self-hosted health endpoint: {health_url}")
 
 for _ in range(60):  # try for ~3 minutes
     try:
