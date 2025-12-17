@@ -5,7 +5,8 @@ import pytest
 from uuid import uuid4
 
 from prefect.testing.utilities import prefect_test_harness
-from prefect.blocks.system import Secret, JSON
+from prefect.blocks.system import Secret
+from prefect.variables import Variable
 from pytest_mock import MockFixture
 
 from orchestration._tests.test_transfer_controller import MockSecret
@@ -32,8 +33,21 @@ def prefect_test_fixture():
         globus_client_secret = Secret(value=str(uuid4()))
         globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
-        pruning_config = JSON(value={"max_wait_seconds": 600})
-        pruning_config.save(name="pruning-config", overwrite=True)
+        Variable.set(
+            name="globus-settings",
+            value={"max_wait_seconds": 600},
+            overwrite=True,
+            _sync=True
+        )
+
+        Variable.set(
+            name="bl7011-settings",
+            value={
+                "delete_data7011_files_after_days": 180,
+            },
+            overwrite=True,
+            _sync=True
+        )
 
         yield
 
