@@ -6,13 +6,13 @@ globus:
     nersc7012:
       root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
       uri: nersc.gov
-      uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: nersc7012
 
     data7012:
       root_path: /
       uri: hpc.lbl.gov
-      uuid: 639c49be-604f-423c-9c5d-82a53afe1bf1
+      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
       name: data7012
 
     # 7.3.3 ENDPOINTS
@@ -145,21 +145,6 @@ globus:
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
 
-<<<<<<< HEAD
-    nersc7012:
-      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
-      uri: nersc.gov
-      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
-      name: nersc7012
-
-    data7012:
-      root_path: /
-      uri: hpc.lbl.gov
-      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
-      name: data7012
-
-=======
->>>>>>> 3ab6d4f (Init commit for 7.3.3 workflows. Created a basic move.py script that uses the transfer_controller class. Created a Config733() class and updated config.yml with a few endpoints, anticipating a globus endpoint at the beamline. Updated the test_globus_flow.py pytest for the new move.py script.)
   globus_apps:
     als_transfer:
       client_id: ${GLOBUS_CLIENT_ID}
