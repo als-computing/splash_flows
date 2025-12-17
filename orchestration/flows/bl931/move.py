@@ -3,8 +3,7 @@ import logging
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
-# from prefect.blocks.system import JSON
-
+from prefect.variables import Variable
 from orchestration.flows.bl931.config import Config931
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
@@ -116,7 +115,8 @@ def _prune_globus_endpoint(
 
     # globus_settings = JSON.load("globus-settings").value
     # max_wait_seconds = globus_settings["max_wait_seconds"]
-    max_wait_seconds = 600
+
+    max_wait_seconds = Variable.get("globus-settings")["max_wait_seconds"]
     flow_name = f"prune_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
@@ -174,17 +174,15 @@ def process_new_931_file_task(
         destination=config.bl931_nersc_alsdev_raw
     )
 
-    # TODO: Ingest file path in SciCat
-    # Waiting for PR #62 to be merged (scicat_controller)
-
-    # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
+
+    bl931_settings = Variable.get("bl931-settings")
     prune(
         file_path=file_path,
         source_endpoint=config.bl931_compute_dtn,
         check_endpoint=config.bl931_nersc_alsdev_raw,
-        days_from_now=180.0  # determine appropriate value: currently 6 months
+        days_from_now=bl931_settings.get("delete_data931_files_after_days", 180)
     )
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
