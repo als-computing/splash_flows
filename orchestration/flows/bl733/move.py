@@ -114,9 +114,9 @@ def _prune_globus_endpoint(
     if not config:
         config = Config733()
 
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
-    max_wait_seconds = 600
+    globus_settings = Variable.get("globus-settings", _sync=True)
+    max_wait_seconds = globus_settings["max_wait_seconds"]
+
     flow_name = f"prune_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
