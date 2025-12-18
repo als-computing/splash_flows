@@ -9,10 +9,10 @@ mkdocs-material
 mkdocs-mermaid2-plugin
 numpy>=1.26.4
 pillow
+prefect==3.4.2
 prometheus_client==0.21.1
 pydantic==2.11
 python-dotenv
-prefect==3.4.2
 pyyaml
+scicat-beamline-ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@main
 sfapi_client
-scicat-beamline-ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@2025/12/10-flow
