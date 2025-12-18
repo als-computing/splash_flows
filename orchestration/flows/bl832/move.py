@@ -7,7 +7,7 @@ from globus_sdk import TransferClient
 from prefect import flow, task, get_run_logger
 from prefect.variables import Variable
 
-from scicat_beamline_ingestion.flows import scicat_ingest_flow
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.flows.bl832.config import Config832
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
 from orchestration.prefect import schedule_prefect_flow

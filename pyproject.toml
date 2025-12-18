@@ -21,7 +21,7 @@ dependencies = [
     "pydantic==2.11",
     "python-dotenv",
     "pyyaml",
-    "scicat_beamline_ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@main",
+    "scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@main",
     "sfapi_client"
 ]
 

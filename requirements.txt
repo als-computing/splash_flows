@@ -14,5 +14,5 @@ prometheus_client==0.21.1
 pydantic==2.11
 python-dotenv
 pyyaml
-scicat-beamline-ingestion @ git+https://github.com/als-computing/scicat_beamline_ingestion.git@main
+scicat-beamline @ git+https://github.com/als-computing/scicat_beamline.git@main
 sfapi_client

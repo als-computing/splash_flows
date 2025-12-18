@@ -7,8 +7,8 @@ from typing import List
 from pathlib import Path
 from pytest_mock import MockFixture
 
-from scicat_beamline_ingestion.flows import scicat_ingest_flow
-from orchestration.flows.scicat.utils import NPArrayEncoder, build_search_terms, calculate_access_controls, Issue
+from orchestration.flows.scicat.utils import Issue
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 
 from orchestration.flows.bl832.ingest_tomo832 import clean_email, UNKNOWN_EMAIL
 
@@ -158,7 +158,7 @@ def test_ingest_dataset_task(mocker: MockFixture):
     # Inject dummy ingestor module.
     dummy_ingestor = types.ModuleType("dummy_ingestor")
     dummy_ingestor.ingest = dummy_ingest
-    mocker.patch.dict(sys.modules, {"scicat_beamline_ingestion.ingesters.als_test_ingest": dummy_ingestor})
+    mocker.patch.dict(sys.modules, {"scicat_beamline.ingesters.als_test_ingest": dummy_ingestor})
 
     # Call the underlying function (.fn) of the task to bypass Prefect orchestration.
     result = scicat_ingest_flow.fn(dataset_path=Path("dummy_file.h5"), ingester_spec="bltest")
