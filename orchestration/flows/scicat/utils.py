@@ -69,26 +69,3 @@ def build_search_terms(sample_name):
     description = [term.lower() for term in terms if len(term) > 0]
     return " ".join(description)
 
-
-def encode_image_2_thumbnail(filebuffer, imType="jpg"):
-    logging.info("Creating thumbnail for dataset")
-    header = "data:image/{imType};base64,".format(imType=imType)
-    dataBytes = base64.b64encode(filebuffer.read())
-    dataStr = dataBytes.decode("UTF-8")
-    return header + dataStr
-
-
-def build_thumbnail(image_array: npt.ArrayLike):
-    image_array = image_array - np.min(image_array) + 1.001
-    image_array = np.log(image_array)
-    image_array = 205 * image_array / (np.max(image_array))
-    auto_contrast_image = Image.fromarray(image_array.astype("uint8"))
-    auto_contrast_image = ImageOps.autocontrast(auto_contrast_image, cutoff=0.1)
-    # filename = str(uuid4()) + ".png"
-    file = io.BytesIO()
-    # file = thumbnail_dir / Path(filename)
-    auto_contrast_image.save(file, format="png")
-    file.seek(0)
-    return file
-
-
