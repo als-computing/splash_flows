@@ -4,14 +4,16 @@ import os
 import sys
 import types
 from typing import List
+from pathlib import Path
 from pytest_mock import MockFixture
 
+from scicat_beamline_ingestion.flows import scicat_ingest_flow
 from orchestration.flows.scicat.utils import NPArrayEncoder, build_search_terms, calculate_access_controls, Issue
-from orchestration.flows.scicat.ingest import ingest_dataset_task
 
 from orchestration.flows.bl832.ingest_tomo832 import clean_email, UNKNOWN_EMAIL
 
 
+# TODO: Move these to scicat_beamline_ingestion
 def test_clean_email_valid():
     # Remove surrounding whitespace.
     assert clean_email("  user@example.com  ") == "user@example.com"
@@ -125,7 +127,13 @@ class DummyLogger:
     def error(self, *args, **kwargs): pass
 
 
-def dummy_ingest(scicat_client, file_path, issues: List[Issue]):
+def dummy_ingest(
+    scicat_client,
+    owner_username: str,
+    file_path: Path,
+    thumbnail_dir: Path,
+    issues: List[Issue],
+):
     issues.clear()
     return "dummy_dataset_id"
 
@@ -133,7 +141,7 @@ def dummy_ingest(scicat_client, file_path, issues: List[Issue]):
 def test_ingest_dataset_task(mocker: MockFixture):
     # Set environment variables.
     mocker.patch.dict(os.environ, {
-        "SCICAT_API_URL": "http://localhost:3000/",
+        "SCICAT_INGEST_URL": "http://localhost:3000/",
         "SCICAT_INGEST_USER": "test_user",
         "SCICAT_INGEST_PASSWORD": "test_password"
     })
@@ -150,8 +158,8 @@ def test_ingest_dataset_task(mocker: MockFixture):
     # Inject dummy ingestor module.
     dummy_ingestor = types.ModuleType("dummy_ingestor")
     dummy_ingestor.ingest = dummy_ingest
-    mocker.patch.dict(sys.modules, {"orchestration.flows.bl832.ingest_tomo832": dummy_ingestor})
+    mocker.patch.dict(sys.modules, {"scicat_beamline_ingestion.ingesters.als_test_ingest": dummy_ingestor})
 
     # Call the underlying function (.fn) of the task to bypass Prefect orchestration.
-    result = ingest_dataset_task.fn("dummy_file.h5", "orchestration.flows.bl832.ingest_tomo832")
+    result = scicat_ingest_flow.fn(dataset_path=Path("dummy_file.h5"), ingester_spec="bltest")
     assert result == "dummy_dataset_id"
