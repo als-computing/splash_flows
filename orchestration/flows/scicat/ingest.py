@@ -10,11 +10,11 @@ from scicat_beamline import ingest
 @flow(name="scicat-ingest-flow")
 def scicat_ingest_flow(
     dataset_path: Path,
-    ingester_spec: Optional[str],
-    owner_username: Optional[str],
-    scicat_url: Optional[str],
-    scicat_username: Optional[str],
-    scicat_password: Optional[str],
+    ingester_spec: str | None = None,
+    owner_username: str | None = None,
+    scicat_url: str | None = None,
+    scicat_username: str | None = None,
+    scicat_password: str | None = None,
 ) -> Dict[str, Any]:
     """
     Runs the SciCat ingestion process implemented for the given spec identifier,
