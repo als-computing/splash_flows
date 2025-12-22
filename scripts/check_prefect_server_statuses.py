@@ -138,6 +138,11 @@ class DeploymentSummary:
             return f"{days}d ago"
 
     def __str__(self) -> str:
+        """
+        String representation of the deployment summary.
+
+        :return: Formatted string.
+        """
         if self.total == 0:
             return f"{self.name}: {Color.DIM}no runs{Color.RESET}"
 
