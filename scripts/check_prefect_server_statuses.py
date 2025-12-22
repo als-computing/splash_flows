@@ -96,10 +96,12 @@ class FailedRun:
     :param name: Name of the flow run.
     :param state: State of the flow run.
     :param time: Datetime of the run end or start.
+    :param message: Error message, if any.
     """
     name: str
     state: str
     time: datetime | None
+    message: str | None = None
 
 
 @dataclass
@@ -388,10 +390,16 @@ def get_deployment_summaries(server: PrefectServer, hours: int = 24) -> list[Dep
                                     last_failure_time = run_time
                             except (ValueError, TypeError):
                                 pass
+
+                        # Extract error message from state
+                        state_obj = r.get("state", {})
+                        message = state_obj.get("message") if isinstance(state_obj, dict) else None
+
                         failed_runs.append(FailedRun(
                             name=r.get("name", "unknown"),
                             state=state_type.value,
                             time=run_time,
+                            message=message,
                         ))
 
         # Sort failed runs by time (most recent first)
@@ -453,6 +461,10 @@ def get_server_summary(server: PrefectServer, hours: int = 24, show_failed: bool
                 for run in summary.failed_runs:
                     time_str = f" ({summary.format_time_ago(run.time)})" if run.time else ""
                     print(f"      {Color.DIM}└ {run.name} [{run.state.lower()}]{time_str}{Color.RESET}")
+                    if run.message:
+                        # Indent each line of the message
+                        for line in run.message.splitlines():
+                            print(f"        {Color.DIM}{line}{Color.RESET}")
 
         healthy = all(d.healthy for d in deployments)
         return ServerSummary(server, healthy=healthy, reachable=True, auth_ok=True, deployments=deployments)
