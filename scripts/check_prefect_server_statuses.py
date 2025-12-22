@@ -12,9 +12,9 @@ These can be set in a .env file in the same directory.
 
 Usage:
     python prefect_status.py                # Last 24 hours (default)
-    python prefect_status.py --hours 168     # Last 7 days
+    python prefect_status.py --hours 168    # Last 7 days
     python prefect_status.py -H 72          # Last 3 days
-    python prefect_status.py --show-failed  # List failed flow run names
+    python prefect_status.py -f             # List failed flow run names
 """
 
 import argparse
@@ -31,6 +31,9 @@ load_dotenv()
 
 # ANSI color codes
 class Color:
+    """
+    ANSI color codes for terminal output.
+    """
     RED = "\033[91m"
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
@@ -87,7 +90,13 @@ BAD_STATES = {StateType.FAILED, StateType.CRASHED, StateType.CANCELLED}
 
 @dataclass
 class FailedRun:
-    """Info about a failed flow run."""
+    """
+    Info about a failed flow run.
+
+    :param name: Name of the flow run.
+    :param state: State of the flow run.
+    :param time: Datetime of the run end or start.
+    """
     name: str
     state: str
     time: datetime | None
@@ -109,14 +118,29 @@ class DeploymentSummary:
 
     @property
     def total(self) -> int:
+        """
+        Total number of runs.
+
+        :return: Total count of runs.
+        """
         return sum(self.counts.values())
 
     @property
     def failure_count(self) -> int:
+        """
+        Number of failed runs.
+
+        :return: Count of failed runs.
+        """
         return sum(self.counts.get(s, 0) for s in BAD_STATES)
 
     @property
     def healthy(self) -> bool:
+        """
+        Whether the deployment is healthy (no failures).
+
+        :return: True if healthy, False otherwise.
+        """
         return self.failure_count == 0
 
     def format_time_ago(self, dt: datetime) -> str:
@@ -193,10 +217,20 @@ class ServerSummary:
 
     @property
     def total_runs(self) -> int:
+        """
+        Total number of runs across all deployments.
+
+        :return: Total run count.
+        """
         return sum(d.total for d in self.deployments)
 
     @property
     def total_failures(self) -> int:
+        """
+        Total number of failed runs across all deployments.
+
+        :return: Total failure count.
+        """
         return sum(d.failure_count for d in self.deployments)
 
 
@@ -473,7 +507,14 @@ def get_all_servers_summary(hours: int = 24, show_failed: bool = False) -> dict[
     return summaries
 
 
-def main():
+def main() -> None:
+    """
+    Main function to parse arguments and run the status check.
+
+    :param hours: Number of hours to look back. (--hours or -H)
+    :param show_failed: Whether to list failed flow run names. (--show-failed or -f)
+    :return: None
+    """
     parser = argparse.ArgumentParser(description="Check Prefect server status")
     parser.add_argument(
         "--hours", "-H",
