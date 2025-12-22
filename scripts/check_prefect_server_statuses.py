@@ -17,14 +17,14 @@ Usage:
     python prefect_status.py --show-failed  # List failed flow run names
 """
 
+import argparse
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
 from enum import Enum
-import argparse
 import httpx
 import os
 
-from dotenv import load_dotenv
 
 load_dotenv()
 
