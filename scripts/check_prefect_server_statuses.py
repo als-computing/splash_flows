@@ -14,16 +14,17 @@ Usage:
     python prefect_status.py                # Last 24 hours (default)
     python prefect_status.py --hours 168     # Last 7 days
     python prefect_status.py -H 72          # Last 3 days
+    python prefect_status.py --show-failed  # List failed flow run names
 """
 
-import argparse
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from dotenv import load_dotenv
 from enum import Enum
+import argparse
 import httpx
 import os
 
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -59,20 +60,10 @@ class PrefectServer(Enum):
 
     @property
     def url(self) -> str:
-        """
-        Get the URL of the server.
-
-        :return: Server URL.
-        """
         return self.value[0]
 
     @property
     def auth_type(self) -> AuthType:
-        """
-        Get the authentication type for the server.
-
-        :return: AuthType of the server.
-        """
         return self.value[1]
 
 
@@ -95,6 +86,14 @@ BAD_STATES = {StateType.FAILED, StateType.CRASHED, StateType.CANCELLED}
 
 
 @dataclass
+class FailedRun:
+    """Info about a failed flow run."""
+    name: str
+    state: str
+    time: datetime | None
+
+
+@dataclass
 class DeploymentSummary:
     """
     Summary of a deployment's run statuses.
@@ -106,30 +105,18 @@ class DeploymentSummary:
     name: str
     counts: dict[StateType, int] = field(default_factory=dict)
     last_failure_time: datetime | None = None
+    failed_runs: list[FailedRun] = field(default_factory=list)
 
     @property
     def total(self) -> int:
-        """
-        Total number of runs.
-
-        :return: Total run count.
-        """
         return sum(self.counts.values())
 
     @property
     def failure_count(self) -> int:
-        """
-        Number of failed runs.
-        :return: Count of failed runs.
-        """
         return sum(self.counts.get(s, 0) for s in BAD_STATES)
 
     @property
     def healthy(self) -> bool:
-        """
-        Whether the deployment is healthy (no failures).
-        :return: True if healthy, False otherwise.
-        """
         return self.failure_count == 0
 
     def format_time_ago(self, dt: datetime) -> str:
@@ -151,11 +138,6 @@ class DeploymentSummary:
             return f"{days}d ago"
 
     def __str__(self) -> str:
-        """
-        String representation of the deployment summary.
-
-        :return: Formatted string.
-        """
         if self.total == 0:
             return f"{self.name}: {Color.DIM}no runs{Color.RESET}"
 
@@ -170,7 +152,11 @@ class DeploymentSummary:
                 elif state == StateType.RUNNING:
                     parts.append(f"{Color.BLUE}{state.value.lower()}: {count}{Color.RESET}")
                 elif state == StateType.SCHEDULED:
-                    parts.append(f"{Color.DIM}{state.value.lower()}: {count}{Color.RESET}")
+                    parts.append(f"{Color.YELLOW}{state.value.lower()}: {count}{Color.RESET}")
+                elif state == StateType.PENDING:
+                    parts.append(f"{Color.YELLOW}{state.value.lower()}: {count}{Color.RESET}")
+                elif state == StateType.PAUSED:
+                    parts.append(f"{Color.YELLOW}{state.value.lower()}: {count}{Color.RESET}")
                 else:
                     parts.append(f"{state.value.lower()}: {count}")
 
@@ -202,20 +188,10 @@ class ServerSummary:
 
     @property
     def total_runs(self) -> int:
-        """
-        Total number of runs across all deployments.
-
-        :return: Total run count.
-        """
         return sum(d.total for d in self.deployments)
 
     @property
     def total_failures(self) -> int:
-        """
-        Total number of failed runs across all deployments.
-
-        :return: Total failure count.
-        """
         return sum(d.failure_count for d in self.deployments)
 
 
@@ -353,6 +329,7 @@ def get_deployment_summaries(server: PrefectServer, hours: int = 24) -> list[Dep
 
         counts = {}
         last_failure_time = None
+        failed_runs = []
 
         for state_type in StateType:
             matching_runs = [r for r in runs if r["state_type"] == state_type.value]
@@ -360,19 +337,28 @@ def get_deployment_summaries(server: PrefectServer, hours: int = 24) -> list[Dep
             if count > 0:
                 counts[state_type] = count
 
-                # Track most recent failure time
+                # Track failed runs and most recent failure time
                 if state_type in BAD_STATES:
                     for r in matching_runs:
                         end_time = r.get("end_time") or r.get("start_time")
+                        run_time = None
                         if end_time:
                             try:
-                                dt = datetime.fromisoformat(end_time)
-                                if last_failure_time is None or dt > last_failure_time:
-                                    last_failure_time = dt
+                                run_time = datetime.fromisoformat(end_time)
+                                if last_failure_time is None or run_time > last_failure_time:
+                                    last_failure_time = run_time
                             except (ValueError, TypeError):
                                 pass
+                        failed_runs.append(FailedRun(
+                            name=r.get("name", "unknown"),
+                            state=state_type.value,
+                            time=run_time,
+                        ))
 
-        summary = DeploymentSummary(dep_name, counts, last_failure_time)
+        # Sort failed runs by time (most recent first)
+        failed_runs.sort(key=lambda r: r.time or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+        summary = DeploymentSummary(dep_name, counts, last_failure_time, failed_runs)
         summaries.append(summary)
 
     # Sort: unhealthy first, then by failure count descending
@@ -381,12 +367,13 @@ def get_deployment_summaries(server: PrefectServer, hours: int = 24) -> list[Dep
     return summaries
 
 
-def get_server_summary(server: PrefectServer, hours: int = 24) -> ServerSummary:
+def get_server_summary(server: PrefectServer, hours: int = 24, show_failed: bool = False) -> ServerSummary:
     """
     Get full summary for a server.
 
     :param server: PrefectServer to check.
     :param hours: Number of hours to look back for run data.
+    :param show_failed: Whether to list failed flow run names.
     :return: ServerSummary object.
     """
     print(f"\n{Color.BOLD}{server.name}{Color.RESET} ({server.url}) [{format_hours(hours)}]")
@@ -412,8 +399,8 @@ def get_server_summary(server: PrefectServer, hours: int = 24) -> ServerSummary:
 
         if total_failures > 0:
             failure_pct = total_failures / total_runs * 100 if total_runs > 0 else 0
-            print(f"  {Color.RED}{total_runs} runs, {total_failures} failures ({failure_pct:.1f}%), \
-                  {unhealthy_count} unhealthy deployments{Color.RESET}")
+            print(f"  {Color.RED}{total_runs} runs, {total_failures} failures ({failure_pct:.1f}%), "
+                  f"{unhealthy_count} unhealthy deployments{Color.RESET}")
         else:
             print(f"  {Color.GREEN}{total_runs} runs, all healthy{Color.RESET}")
 
@@ -421,6 +408,12 @@ def get_server_summary(server: PrefectServer, hours: int = 24) -> ServerSummary:
         for summary in deployments:
             status = f"{Color.GREEN}✓{Color.RESET}" if summary.healthy else f"{Color.RED}✗{Color.RESET}"
             print(f"  {status} {summary}")
+
+            # Show failed run names if requested
+            if show_failed and summary.failed_runs:
+                for run in summary.failed_runs:
+                    time_str = f" ({summary.format_time_ago(run.time)})" if run.time else ""
+                    print(f"      {Color.DIM}└ {run.name} [{run.state.lower()}]{time_str}{Color.RESET}")
 
         healthy = all(d.healthy for d in deployments)
         return ServerSummary(server, healthy=healthy, reachable=True, auth_ok=True, deployments=deployments)
@@ -431,16 +424,17 @@ def get_server_summary(server: PrefectServer, hours: int = 24) -> ServerSummary:
         return ServerSummary(server, healthy=False, reachable=True, auth_ok=True, error=error_msg)
 
 
-def get_all_servers_summary(hours: int = 24) -> dict[PrefectServer, ServerSummary]:
+def get_all_servers_summary(hours: int = 24, show_failed: bool = False) -> dict[PrefectServer, ServerSummary]:
     """
     Get summaries for all configured Prefect servers.
 
     :param hours: Number of hours to look back for run data.
+    :param show_failed: Whether to list failed flow run names.
     :return: Dictionary mapping PrefectServer to ServerSummary.
     """
     summaries = {}
     for server in PrefectServer:
-        summaries[server] = get_server_summary(server, hours)
+        summaries[server] = get_server_summary(server, hours, show_failed)
 
     # Overall summary
     print(f"\n{'=' * 50}")
@@ -482,9 +476,14 @@ def main():
         default=24,
         help="Number of hours to look back (default: 24, i.e. 1 day)"
     )
+    parser.add_argument(
+        "--show-failed", "-f",
+        action="store_true",
+        help="List failed flow run names under each unhealthy deployment"
+    )
     args = parser.parse_args()
 
-    get_all_servers_summary(hours=args.hours)
+    get_all_servers_summary(hours=args.hours, show_failed=args.show_failed)
 
 
 if __name__ == "__main__":
