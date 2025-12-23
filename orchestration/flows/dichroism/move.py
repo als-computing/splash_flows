@@ -213,8 +213,8 @@ def move_402_flight_check(
 
     success = transfer_controller.copy(
         file_path=file_path,
-        source=config.data402_raw,
-        destination=config.nersc402_alsdev_raw
+        source=config.bl402_compute_dtn,
+        destination=config.bl402_nersc_alsdev_raw
     )
     if success is True:
         logger.info("402 flight check: transfer successful")
@@ -307,8 +307,8 @@ def move_631_flight_check(
 
     success = transfer_controller.copy(
         file_path=file_path,
-        source=config.data631_raw,
-        destination=config.nersc631_alsdev_raw
+        source=config.bl631_compute_dtn,
+        destination=config.bl631_nersc_alsdev_raw
     )
     if success is True:
         logger.info("631 flight check: transfer successful")
