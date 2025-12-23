@@ -1,3 +1,4 @@
+fastapi==0.116.1
 globus-sdk>=3.0
 h5py
 httpx>=0.22.0
