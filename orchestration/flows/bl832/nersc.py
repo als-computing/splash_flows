@@ -368,12 +368,17 @@ def schedule_pruning(
         check_endpoint = None
         location = "nersc832_alsdev_pscratch_raw"
 
-        flow_name = f"delete {location}: {Path(raw_file_path).name}"
+        path = Path(raw_file_path)
+        folder_name = path.parent.name
+        file_name = path.name  # includes .h5 extension
+        pscratch_relative_path = f"{folder_name}/{file_name}"
+
+        flow_name = f"delete {location}: {file_name}"
         schedule_prefect_flow(
             deployment_name=f"prune_{location}/prune_{location}",
             flow_run_name=flow_name,
             parameters={
-                "relative_path": raw_file_path,
+                "relative_path": pscratch_relative_path,
                 "source_endpoint": source_endpoint,
                 "check_endpoint": check_endpoint
             },
