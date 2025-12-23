@@ -220,6 +220,7 @@ def move_402_flight_check(
         logger.info("402 flight check: transfer successful")
     else:
         logger.error("402 flight check: transfer failed")
+        raise RuntimeError("402 flight check: transfer failed")
 
 # ----------------------------------------------
 # Flow and task to process new files at BL 6.3.1
@@ -314,3 +315,4 @@ def move_631_flight_check(
         logger.info("631 flight check: transfer successful")
     else:
         logger.error("631 flight check: transfer failed")
+        raise RuntimeError("631 flight check: transfer failed")
