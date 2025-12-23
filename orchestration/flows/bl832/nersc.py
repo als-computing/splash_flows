@@ -373,7 +373,7 @@ def schedule_pruning(
         file_name = path.name  # includes .h5 extension
         pscratch_relative_path = f"{folder_name}/{file_name}"
 
-        flow_name = f"delete {location}: {Path(pscratch_relative_path).name}"
+        flow_name = f"delete {location}: {file_name}"
         schedule_prefect_flow(
             deployment_name=f"prune_{location}/prune_{location}",
             flow_run_name=flow_name,
