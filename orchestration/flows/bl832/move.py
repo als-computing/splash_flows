@@ -7,7 +7,7 @@ from globus_sdk import TransferClient
 from prefect import flow, task, get_run_logger
 from prefect.variables import Variable
 
-from orchestration.flows.scicat.ingest import ingest_dataset
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.flows.bl832.config import Config832
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
 from orchestration.prefect import schedule_prefect_flow
@@ -15,7 +15,7 @@ from orchestration.prometheus_utils import PrometheusMetrics
 
 
 API_KEY = os.getenv("API_KEY")
-TOMO_INGESTOR_MODULE = "orchestration.flows.bl832.ingest_tomo832"
+TOMO_INGESTOR_SPEC = "als_832_dx_4"
 
 
 @task(name="transfer_spot_to_data")
@@ -150,9 +150,9 @@ def process_new_832_file_task(
             f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
         )
         flow_name = f"ingest scicat: {Path(file_path).name}"
-        logger.info(f"Ingesting {file_path} with {TOMO_INGESTOR_MODULE}")
+        logger.info(f"Ingesting {file_path} with {TOMO_INGESTOR_SPEC}")
         try:
-            ingest_dataset(file_path, TOMO_INGESTOR_MODULE)
+            scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec=TOMO_INGESTOR_SPEC)
         except Exception as e:
             logger.error(f"SciCat ingest failed with {e}")
 

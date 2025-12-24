@@ -12,8 +12,8 @@ def get_config():
 
 def read_config(config_file="config.yml"):
     with open(config_file, "r") as end_file:
-        globus_config = yaml.safe_load(end_file)
-    return expand_environment_variables(globus_config)
+        config = yaml.safe_load(end_file)
+    return expand_environment_variables(config)
 
 
 def expand_environment_variables(config):

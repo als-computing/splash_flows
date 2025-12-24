@@ -1,108 +1,50 @@
-import importlib
-import os
-from typing import List
+from typing import Optional, Dict, Any
+from pathlib import Path
 
-from pyscicat.client import ScicatClient, from_credentials
-from prefect import flow, task, get_run_logger
-
-from orchestration.flows.scicat.utils import Issue
+from prefect import flow, get_run_logger
 
 
-@flow(name="scicat_dataset_ingest")
-def ingest_dataset(file_path: str, ingestor: str):
-    """ Ingest a file into SciCat.
+from scicat_beamline import ingest
 
-    Parameters
-    ----------
-    file_path : str
-        Path where the file can be found on whatever server is processing this task
-    ingestor_module : str
-        Thy python module that contains the ingest function, e.g. "foo.bar.ingestor"
+
+@flow(name="scicat-ingest-flow")
+def scicat_ingest_flow(
+    dataset_path: Path,
+    ingester_spec: str | None = None,
+    owner_username: str | None = None,
+    scicat_url: str | None = None,
+    scicat_username: str | None = None,
+    scicat_password: str | None = None,
+) -> Dict[str, Any]:
     """
-    ingest_dataset_task(file_path, ingestor)
-
-
-@task(name="ingest_scicat")
-def ingest_dataset_task(file_path: str, ingestor_module: str):
-    """ Ingest a file into SciCat.
-
-    Parameters
-    ----------
-    file_path : str
-        Path where the file can be found on whatever server is processing this task
-    ingestor_module : str
-        Thy python module that contains the ingest function, e.g. "foo.bar.ingestor"
+    Runs the SciCat ingestion process implemented for the given spec identifier,
+    on the given folder or file.
+    Args:
+        dataset_path: Path of the asset to ingest. May be file or directory depending on the spec.
+        If SICAT_INGEST_INTERNAL_BASE_FOLDER or SCICAT_INGEST_BASE_FOLDER is set, this path is
+        considered relative to that base folder.
+    These remaining args are optional; if not provided, environment variables will be used.
+        ingester_spec: Spec to ingest with. (or set SCICAT_INGEST_INGESTER_SPEC)
+        owner_username: User doing the ingesting. May be different from the user_name, especially if using a token (or set SCICAT_INGEST_OWNER_USERNAME)
+        scicat_url: Scicat server base url. If not provided, will try localhost default (or set SCICAT_INGEST_URL)
+        scicat_username: Scicat server username (or set SCICAT_INGEST_USERNAME)
+        scicat_password: Scicat server password (or set SCICAT_INGEST_PASSWORD)
+    Returns:
+        Dict containing task results or skip message
     """
-    logger = get_run_logger()
+    # Get the Prefect logger for the current flow run
+    prefect_adapter = get_run_logger()
 
-    SCICAT_API_URL = os.getenv("SCICAT_API_URL")
-    SCICAT_INGEST_USER = os.getenv("SCICAT_INGEST_USER")
-    SCICAT_INGEST_PASSWORD = os.getenv("SCICAT_INGEST_PASSWORD")
-
-    # files come in with the full pasth on the server that they
-    # were loaded from.
-
-    # relative path: raw/...
-    # ingestor api maps /globa/cfs/cdirs/als/data_mover to /data_mover
-    # so we want to prepend /data_mover/8.3.2
-    # if relative_path[0] == "/":
-    #     relative_path = relative_path[1:]
-    # ingest_path = os.path.join("/data_mover/8.3.2", file_path)
-    logger.info(
-        f"Sending ingest job to {SCICAT_API_URL} for file {file_path}"
+    return ingest(
+        dataset_path=dataset_path,
+        ingester_spec=ingester_spec,
+        owner_username=owner_username,
+        scicat_url=scicat_url,
+        scicat_username=scicat_username,
+        scicat_password=scicat_password,
+        logger=prefect_adapter.logger
     )
-    try:
-        scicat_client = from_credentials(
-            SCICAT_API_URL,
-            SCICAT_INGEST_USER,
-            SCICAT_INGEST_PASSWORD)
-    except Exception as e:
-        logger.warning(f"Failed to create SciCat client using pyscicat method: {e}")
-
-    # Note: the above method does not work with the current SciCat API (March 2025)
-    # The following method is used instead as a workaround, however, this will be udpated soon in pyscicat
-    # Ref: https://github.com/SciCatProject/pyscicat/pull/62
-    try:
-        import requests
-        from urllib.parse import urljoin
-
-        url = urljoin(SCICAT_API_URL, "auth/login")
-        logger.info(url)
-        response = requests.post(
-            url=url,
-            json={"username": SCICAT_INGEST_USER, "password": SCICAT_INGEST_PASSWORD},
-            stream=False,
-            verify=True,
-        )
-        # logger.info(f"Login response: {response.json()}")
-        scicat_client = ScicatClient(SCICAT_API_URL, response.json()["access_token"])
-        logger.info("Logged in to SciCat.")
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to log in to SciCat: {e}")
-        raise e
-    except Exception as e:
-        logger.error(f"Failed to log in to SciCat: {e}")
-        raise e
-
-    ingestor_module = importlib.import_module(ingestor_module)
-    issues: List[Issue] = []
-    new_dataset_id = ingestor_module.ingest(
-        scicat_client,
-        file_path,
-        issues,
-    )
-    if len(issues) > 0:
-        logger.error(f"SciCat ingest failed with {len(issues)} issues")
-        for issue in issues:
-            logger.error(issue)
-        raise Exception("SciCat ingest failed")
-    return new_dataset_id
 
 
 if __name__ == "__main__":
-    import sys
-
-    from dotenv import load_dotenv
-    load_dotenv()
-    ingest_dataset(sys.argv[1], sys.argv[2])
+    pass

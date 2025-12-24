@@ -1,0 +1,39 @@
+[project]
+name = "splash-flows"
+version = "0.1.0"
+description = "ALS configuration and code for Prefect workflows to move data and run computing tasks"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "authlib",
+    "globus-compute-sdk @ git+https://github.com/globus/globus-compute.git@d1731340074be56861ec91d732bdff44f8e2b46e#subdirectory=compute_sdk",
+    "globus-sdk>=3.0",
+    "griffe>=0.49.0,<2.0.0",
+    "h5py",
+    "httpx>=0.22.0",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocs-mermaid2-plugin",
+    "numpy>=1.26.4",
+    "pillow",
+    "prefect==3.4.2",
+    "prometheus_client==0.21.1",
+    "pydantic==2.11",
+    "python-dotenv",
+    "pyyaml",
+    "scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@main",
+    "sfapi_client"
+]
+
+[build-system]
+requires = [
+  "black",
+  "flake8",
+  "freezegun",
+  "pytest",
+  "pytest-mock",
+  "setuptools"
+]
+build-backend = "setuptools.build_meta"
+
+
