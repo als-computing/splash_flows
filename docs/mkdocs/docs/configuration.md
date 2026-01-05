@@ -1,6 +1,6 @@
-### Summary of `config.yaml`
+### Summary of `config.yml`
 
-The `config.yaml` file contains configurations for various components involved in the data management, processing, and orchestration workflows related to the ALS beamlines.
+The `config.yml` file contains configurations for various components involved in the data management, processing, and orchestration workflows related to the ALS beamlines.
 
 #### **Globus Endpoints**
 - **globus_endpoints**: Defines multiple Globus endpoints used for data transfer between various systems.
