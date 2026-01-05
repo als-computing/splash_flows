@@ -149,7 +149,7 @@ def process_new_733_file_flow(
     :param config: Configuration settings for processing.
     :return: None
     """
-    process_new_733_file_flow(
+    process_new_733_file_task(
         file_path=file_path,
         config=config
     )
