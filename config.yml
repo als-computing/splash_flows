@@ -1,5 +1,60 @@
 globus:
   globus_endpoints:
+
+    # 7.0.1.2 ENDPOINTS
+
+    nersc7012:
+      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: nersc7012
+
+    data7012:
+      root_path: /
+      uri: hpc.lbl.gov
+      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
+      name: data7012
+
+    # 7.3.3 ENDPOINTS
+
+    bl733-nersc-alsdev:
+      root_path: /global/cfs/cdirs/als/data_mover/7.3.3/
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: bl733-nersc-alsdev
+
+    bl733-nersc-alsdev_raw:
+      root_path: /global/cfs/cdirs/als/data_mover/7.3.3/raw
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: bl733-nersc-alsdev_raw
+
+    bl733-als-data733:
+      root_path: /
+      uri: data733.lbl.gov
+      uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926
+      name: bl733-als-data733
+
+    bl733-als-data733_raw:
+      root_path: /
+      uri: data733.lbl.gov
+      uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926
+      name: data733_raw
+
+    bl733-lamarr-global:
+      root_path: /bl733/
+      uri: lamarr.als.lbl.gov
+      uuid: dbaac176-b1f7-4134-979a-0b1668786d11
+      name: bl733-lamarr-global
+
+    bl733-lamarr-beamlines:
+      root_path: /bl733/
+      uri: lamarr.als.lbl.gov
+      uuid: aee983fc-826e-4081-bfb2-62529970540d
+      name: bl733-lamarr-beamlines
+
+    # 8.3.2 ENDPOINTS
+
     spot832:
       root_path: /
       uri: spot832.lbl.gov
@@ -89,18 +144,6 @@ globus:
       uri: nersc.gov
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
-
-    nersc7012:
-      root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012
-      uri: nersc.gov
-      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
-      name: nersc7012
-
-    data7012:
-      root_path: /
-      uri: hpc.lbl.gov
-      uuid: 741b96e1-1b98-42a8-918d-daacc24c145f
-      name: data7012
 
   globus_apps:
     als_transfer:

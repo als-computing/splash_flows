@@ -14,6 +14,7 @@ Behavior:
     - Deploys all flows defined in the beamline's prefect.yaml.
     - Creates/updates Prefect Secret blocks for GLOBUS_CLIENT_ID and GLOBUS_CLIENT_SECRET
       if the corresponding environment variables are present. Otherwise warns and continues.
+
 Environment Variables:
     BEAMLINE          The beamline identifier (e.g., 832). Required.
     PREFECT_API_URL   Override the Prefect server API URL.

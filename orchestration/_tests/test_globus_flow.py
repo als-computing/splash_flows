@@ -1,5 +1,6 @@
 import asyncio
-from uuid import uuid4
+# import uuid
+from uuid import UUID, uuid4, uuid5
 import warnings
 
 from prefect.blocks.system import Secret
@@ -25,13 +26,13 @@ def prefect_test_fixture():
     """
     with prefect_test_harness():
         globus_client_id = Secret(value=str(uuid4()))
-        globus_client_id.save(name="globus-client-id")
+        globus_client_id.save(name="globus-client-id", overwrite=True)
 
         globus_client_secret = Secret(value=str(uuid4()))
-        globus_client_secret.save(name="globus-client-secret")
+        globus_client_secret.save(name="globus-client-secret", overwrite=True)
 
         globus_compute_endpoint = Secret(value=str(uuid4()))
-        globus_compute_endpoint.save(name="globus-compute-endpoint")
+        globus_compute_endpoint.save(name="globus-compute-endpoint", overwrite=True)
 
         Variable.set(
             name="pruning-config",
@@ -79,49 +80,6 @@ class MockEndpoint:
         self.name = name or f"mock_endpoint_{self.uuid[:8]}"
 
 
-class MockConfig832():
-    def __init__(self) -> None:
-        # Mock configuration
-        config = {
-            "scicat": "mock_scicat_value"
-        }
-
-        # Mock endpoints with UUIDs
-        self.endpoints = {
-            "spot832": MockEndpoint(root_path="mock_spot832_path", uuid_value=str(uuid4())),
-            "data832": MockEndpoint(root_path="mock_data832_path", uuid_value=str(uuid4())),
-            "nersc832": MockEndpoint(root_path="mock_nersc832_path", uuid_value=str(uuid4())),
-            "data832_raw": MockEndpoint(root_path="mock_data832_raw_path", uuid_value=str(uuid4())),
-            "data832_scratch": MockEndpoint(root_path="mock_data832_scratch_path", uuid_value=str(uuid4())),
-            "nersc_alsdev": MockEndpoint(root_path="mock_nersc_alsdev_path", uuid_value=str(uuid4())),
-            "nersc832_alsdev_raw": MockEndpoint(root_path="mock_nersc832_alsdev_raw_path",
-                                                uuid_value=str(uuid4())),
-            "nersc832_alsdev_scratch": MockEndpoint(root_path="mock_nersc832_alsdev_scratch_path",
-                                                    uuid_value=str(uuid4())),
-            "alcf832_raw": MockEndpoint(root_path="mock_alcf832_raw_path", uuid_value=str(uuid4())),
-            "alcf832_scratch": MockEndpoint(root_path="mock_alcf832_scratch_path", uuid_value=str(uuid4())),
-        }
-
-        # Mock apps
-        self.apps = {
-            "als_transfer": "mock_als_transfer_app"
-        }
-
-        # Use the MockTransferClient instead of the real TransferClient
-        self.tc = MockTransferClient()
-
-        # Set attributes directly on the object
-        self.spot832 = self.endpoints["spot832"]
-        self.data832 = self.endpoints["data832"]
-        self.nersc832 = self.endpoints["nersc832"]
-        self.alcf832_raw = self.endpoints["alcf832_raw"]
-        self.alcf832_scratch = self.endpoints["alcf832_scratch"]
-        self.data832_raw = self.endpoints["data832_raw"]
-        self.data832_scratch = self.endpoints["data832_scratch"]
-        self.nersc832_alsdev_scratch = self.endpoints["nersc832_alsdev_scratch"]
-        self.scicat = config["scicat"]
-
-
 # Mock the Client class to avoid real network calls
 class MockGlobusComputeClient:
     def __init__(self, *args, **kwargs):
@@ -149,12 +107,74 @@ class MockGlobusComputeClient:
         return "mock_result"
 
 
+class MockSecret:
+    """
+    Deterministic secret for tests.
+    """
+    value = "550e8400-e29b-41d4-a716-446655440000"
+
+    @staticmethod
+    def for_endpoint(endpoint_name: str) -> str:
+        """
+        Generate a deterministic UUID string based on endpoint name.
+        This ensures each endpoint is unique but stable across test runs.
+        """
+        namespace = UUID("12345678-1234-5678-1234-123456789012")
+        return str(uuid5(namespace, endpoint_name))
+
+
+# ----------------------------
+# Tests for 832
+# ----------------------------
+
+
+class MockConfig832():
+    def __init__(self) -> None:
+        # Mock configuration
+        config = {
+            "scicat": "mock_scicat_value"
+        }
+
+        # Mock endpoints with UUIDs
+        self.endpoints = {
+            "spot832": MockEndpoint("mock_spot832_path", MockSecret.for_endpoint("spot832")),
+            "data832": MockEndpoint("mock_data832_path", MockSecret.for_endpoint("data832")),
+            "nersc832": MockEndpoint("mock_nersc832_path", MockSecret.for_endpoint("nersc832")),
+            "data832_raw": MockEndpoint("mock_data832_raw_path", MockSecret.for_endpoint("data832_raw")),
+            "data832_scratch": MockEndpoint("mock_data832_scratch_path", MockSecret.for_endpoint("data832_scratch")),
+            "nersc_alsdev": MockEndpoint("mock_nersc_alsdev_path", MockSecret.for_endpoint("nersc_alsdev")),
+            "nersc832_alsdev_raw": MockEndpoint("mock_nersc832_alsdev_raw_path",
+                                                MockSecret.for_endpoint("nersc832_alsdev_raw")),
+            "nersc832_alsdev_scratch": MockEndpoint("mock_nersc832_alsdev_scratch_path",
+                                                    MockSecret.for_endpoint("nersc832_alsdev_scratch")),
+            "alcf832_raw": MockEndpoint("mock_alcf832_raw_path", MockSecret.for_endpoint("alcf832_raw")),
+            "alcf832_scratch": MockEndpoint("mock_alcf832_scratch_path", MockSecret.for_endpoint("alcf832_scratch")),
+        }
+
+        # Mock apps
+        self.apps = {
+            "als_transfer": "mock_als_transfer_app"
+        }
+
+        # Use the MockTransferClient instead of the real TransferClient
+        self.tc = MockTransferClient()
+
+        # Set attributes directly on the object
+        self.spot832 = self.endpoints["spot832"]
+        self.data832 = self.endpoints["data832"]
+        self.nersc832 = self.endpoints["nersc832"]
+        self.alcf832_raw = self.endpoints["alcf832_raw"]
+        self.alcf832_scratch = self.endpoints["alcf832_scratch"]
+        self.data832_raw = self.endpoints["data832_raw"]
+        self.data832_scratch = self.endpoints["data832_scratch"]
+        self.nersc832_alsdev_scratch = self.endpoints["nersc832_alsdev_scratch"]
+        self.scicat = config["scicat"]
+
+
 def test_832_dispatcher(mocker: MockFixture):
     """Test 832 uber decision flow."""
 
     # Mock the Secret block load using a simple manual mock class
-    class MockSecret:
-        value = str(uuid4())
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
 
