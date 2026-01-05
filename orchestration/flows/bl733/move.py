@@ -161,11 +161,12 @@ def process_new_733_file_task(
     config: Optional[Config733] = None
 ) -> None:
     """
-    Task to process a new file at BL 7.3.3
-    1. Copy the file from the data733 to NERSC CFS. Ingest file path in SciCat.
-    2. Schedule pruning from data733. 6 months from now.
-    3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
-    4. Schedule pruning from NERSC CFS.
+    Task to process new data at BL 7.3.3
+    1. Copy the data from data733 to Lamarr (our common staging area).
+    2. Copy the file from the data733 to NERSC CFS.
+    3. Ingest the data from Lamarr into SciCat.
+    4. Schedule pruning from data733 for 6 months from now.
+    5. Archive the file from NERSC CFS to NERSC HPSS at some point in the future.
 
     :param file_path: Path to the new file to be processed.
     :param config: Configuration settings for processing.
@@ -194,6 +195,7 @@ def process_new_733_file_task(
         destination=config.nersc733_alsdev_raw
     )
 
+    # Note that the SciCat ingester assumes the data is on Lamarr.
     try:
         scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec="als733_saxs")
     except Exception as e:
