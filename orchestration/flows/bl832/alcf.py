@@ -1,6 +1,5 @@
 from concurrent.futures import Future
 import datetime
-import logging
 from pathlib import Path
 import time
 from typing import Optional
@@ -15,9 +14,6 @@ from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.prefect import schedule_prefect_flow
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class ALCFTomographyHPCController(TomographyHPCController):
@@ -37,6 +33,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         super().__init__(config)
         # Load allocation root from the Prefect JSON block
         # The block must be registered with the name "alcf-allocation-root-path"
+        logger = get_run_logger()
         allocation_data = Variable.get("alcf-allocation-root-path", _sync=True)
         self.allocation_root = allocation_data.get("alcf-allocation-root-path")
         if not self.allocation_root:
@@ -56,7 +53,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
-
+        logger = get_run_logger()
         file_name = Path(file_path).stem + ".h5"
         folder_name = Path(file_path).parent.name
 
@@ -131,6 +128,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
+        logger = get_run_logger()
+
         file_name = Path(file_path).stem
         folder_name = Path(file_path).parent.name
 
@@ -205,6 +204,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully within walltime, False otherwise.
         """
+        logger = get_run_logger()
+
         start_time = time.time()
         success = False
 
@@ -277,6 +278,8 @@ def schedule_prune_task(
     Returns:
         bool: True if the task was scheduled successfully, False otherwise.
     """
+    logger = get_run_logger()
+
     try:
         flow_name = f"delete {location}: {Path(path).name}"
         schedule_prefect_flow(
@@ -324,6 +327,8 @@ def schedule_pruning(
     Returns:
         bool: True if the tasks were scheduled successfully, False otherwise.
     """
+    logger = get_run_logger()
+
     pruning_config = Variable.get("pruning-config", _sync=True)
 
     if one_minute:
