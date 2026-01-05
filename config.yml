@@ -82,13 +82,13 @@ globus:
     alcf832_raw:
       root_path: /data/raw
       uri: alcf.anl.gov
-      uuid: 2f9e7035-f4d8-4aa3-a911-d110bc2c8110
+      uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
       name: alcf_raw
 
     alcf832_scratch:
       root_path: /data/scratch
       uri: alcf.anl.gov
-      uuid: 2f9e7035-f4d8-4aa3-a911-d110bc2c8110
+      uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
       name: alcf_scratch
 
     alcf_eagle832:
