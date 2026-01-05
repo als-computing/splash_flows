@@ -22,9 +22,8 @@ def dispatcher(
     :param is_export_control: Flag indicating if export control measures should be applied.
                               (Not used in the current BL733 processing)
     :param config: Configuration settings for processing.
-                   Expected to be an instance of Config733 or a dict that can be converted.
-    :raises ValueError: If no configuration is provided.
-    :raises TypeError: If the provided configuration is not a dict or Config733.
+                   If not provided, a default Config733 is instantiated.
+    :raises ValueError: If no file_path is provided.
     """
 
     logger.info("Starting dispatcher flow for BL 7.3.3")

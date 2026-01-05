@@ -1,10 +1,12 @@
 import datetime
 import logging
+from pathlib import Path
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.flows.bl733.config import Config733
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
@@ -147,7 +149,7 @@ def process_new_733_file_flow(
     :param config: Configuration settings for processing.
     :return: None
     """
-    process_new_733_file_flow(
+    process_new_733_file_task(
         file_path=file_path,
         config=config
     )
@@ -159,11 +161,12 @@ def process_new_733_file_task(
     config: Optional[Config733] = None
 ) -> None:
     """
-    Task to process a new file at BL 7.3.3
-    1. Copy the file from the data733 to NERSC CFS. Ingest file path in SciCat.
-    2. Schedule pruning from data733. 6 months from now.
-    3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
-    4. Schedule pruning from NERSC CFS.
+    Task to process new data at BL 7.3.3
+    1. Copy the data from data733 to Lamarr (our common staging area).
+    2. Copy the file from the data733 to NERSC CFS.
+    3. Ingest the data from Lamarr into SciCat.
+    4. Schedule pruning from data733 for 6 months from now.
+    5. Archive the file from NERSC CFS to NERSC HPSS at some point in the future.
 
     :param file_path: Path to the new file to be processed.
     :param config: Configuration settings for processing.
@@ -192,10 +195,14 @@ def process_new_733_file_task(
         destination=config.nersc733_alsdev_raw
     )
 
+    # Note that the SciCat ingester assumes the data is on Lamarr.
+    try:
+        scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec="als733_saxs")
+    except Exception as e:
+        logger.error(f"SciCat ingest failed with {e}")
+
     # Waiting for PR #62 to be merged (prune_controller)
-
     bl733_settings = Variable.get("bl733-settings", _sync=True)
-
     prune(
         file_path=file_path,
         source_endpoint=config.data733_raw,
@@ -205,9 +212,6 @@ def process_new_733_file_task(
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
-
-    # TODO: Ingest file path in SciCat
-    # Waiting for PR #62 to be merged (scicat_controller)
 
 
 @flow(name="move_733_flight_check", flow_run_name="move_733_flight_check-{file_path}")
