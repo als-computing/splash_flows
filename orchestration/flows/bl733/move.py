@@ -1,10 +1,12 @@
 import datetime
 import logging
+from pathlib import Path
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.flows.bl733.config import Config733
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
@@ -192,10 +194,13 @@ def process_new_733_file_task(
         destination=config.nersc733_alsdev_raw
     )
 
+    try:
+        scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec="als733_saxs")
+    except Exception as e:
+        logger.error(f"SciCat ingest failed with {e}")
+
     # Waiting for PR #62 to be merged (prune_controller)
-
     bl733_settings = Variable.get("bl733-settings", _sync=True)
-
     prune(
         file_path=file_path,
         source_endpoint=config.data733_raw,
@@ -205,9 +210,6 @@ def process_new_733_file_task(
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
-
-    # TODO: Ingest file path in SciCat
-    # Waiting for PR #62 to be merged (scicat_controller)
 
 
 @flow(name="move_733_flight_check", flow_run_name="move_733_flight_check-{file_path}")
