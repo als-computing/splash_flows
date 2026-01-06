@@ -148,8 +148,8 @@ harbor_images832:
   multires_image: tomorecon_nersc_mpi_hdf5@sha256:cc098a2cfb6b1632ea872a202c66cb7566908da066fd8f8c123b92fa95c2a43c
 
 ghcr_images832:
-  recon_image: ghcr.io/als-computing/microct:master
-  multires_image: ghcr.io/als-computing/microct:master
+  recon_image: ghcr.io/als-computing/microct@sha256:1fdfb786726ee03301d624319e3d16702045072f38e2b0cca9d6237e5ab3f5ff
+  multires_image: ghcr.io/als-computing/microct@sha256:1fdfb786726ee03301d624319e3d16702045072f38e2b0cca9d6237e5ab3f5ff
 
 prefect:
   deployments:

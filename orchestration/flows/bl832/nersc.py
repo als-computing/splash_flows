@@ -262,6 +262,7 @@ date
 #SBATCH --cpus-per-task=128
 #SBATCH --time=0:30:00
 #SBATCH --exclusive
+#SBATCH --image={recon_image}
 
 # Timing file for this job
 TIMING_FILE="{pscratch_path}/tomo_recon_logs/timing_$SLURM_JOB_ID.txt"
@@ -269,8 +270,8 @@ TIMING_FILE="{pscratch_path}/tomo_recon_logs/timing_$SLURM_JOB_ID.txt"
 echo "JOB_START=$(date +%s)" > $TIMING_FILE
 echo "Running reconstruction with {num_nodes} nodes"
 
+# No container pull needed with Shifter - image is pre-staged via --image
 echo "PREPULL_START=$(date +%s)" >> $TIMING_FILE
-podman-hpc pull {recon_image}
 echo "PREPULL_END=$(date +%s)" >> $TIMING_FILE
 
 mkdir -p {pscratch_path}/8.3.2/raw/{folder_name}
@@ -296,9 +297,8 @@ chmod 664 {pscratch_path}/8.3.2/raw/{folder_name}/{file_name}
 NNODES={num_nodes}
 
 echo "METADATA_START=$(date +%s)" >> $TIMING_FILE
-NUM_SLICES=$(podman-hpc run --rm \
-    --volume {pscratch_path}/8.3.2:/alsdata \
-    {recon_image} \
+NUM_SLICES=$(shifter \
+    --volume={pscratch_path}/8.3.2:/alsdata \
     python -c "
 import h5py
 with h5py.File('/alsdata/raw/{folder_name}/{file_name}', 'r') as f:
@@ -329,6 +329,9 @@ SLICES_PER_NODE=$((NUM_SLICES / NNODES))
 
 echo "RECON_START=$(date +%s)" >> $TIMING_FILE
 
+# Create symlink so folder_name resolves correctly (like podman mount did)
+ln -sfn {pscratch_path}/8.3.2/raw/{folder_name} {pscratch_path}/8.3.2/{folder_name}
+
 for i in $(seq 0 $((NNODES - 1))); do
     SINO_START=$((i * SLICES_PER_NODE))
 
@@ -338,16 +341,15 @@ for i in $(seq 0 $((NNODES - 1))); do
         SINO_END=$(((i + 1) * SLICES_PER_NODE))
     fi
 
-    srun --nodes=1 --ntasks=1 --exclusive podman-hpc run \
-        --env NUMEXPR_MAX_THREADS=128 \
-        --env NUMEXPR_NUM_THREADS=128 \
-        --env OMP_NUM_THREADS=128 \
-        --env MKL_NUM_THREADS=128 \
-        --volume {recon_scripts_dir}/sfapi_reconstruction_multinode.py:/alsuser/sfapi_reconstruction_multinode.py \
-        --volume {pscratch_path}/8.3.2/raw/{folder_name}:/alsuser/{folder_name} \
-        --volume {pscratch_path}/8.3.2/scratch:/scratch \
-        {recon_image} \
-        bash -c "cd /alsuser && python sfapi_reconstruction_multinode.py {file_name} {folder_name} $SINO_START $SINO_END" &
+    srun --nodes=1 --ntasks=1 --exclusive shifter \
+        --env=NUMEXPR_MAX_THREADS=128 \
+        --env=NUMEXPR_NUM_THREADS=128 \
+        --env=OMP_NUM_THREADS=128 \
+        --env=MKL_NUM_THREADS=128 \
+        --volume={pscratch_path}/8.3.2:/alsuser \
+        --volume={pscratch_path}/8.3.2/scratch:/scratch \
+        --volume={recon_scripts_dir}:/opt/scripts \
+        /bin/bash -c "cd /alsuser && python /opt/scripts/sfapi_reconstruction_multinode.py {file_name} {folder_name} $SINO_START $SINO_END" &
 done
 
 wait
@@ -465,6 +467,134 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
             import traceback
             logger.warning(traceback.format_exc())
             return None
+
+    def pull_shifter_image(
+        self,
+        image: str = None,
+        wait: bool = True,
+    ) -> bool:
+        """
+        Pull a container image into NERSC's Shifter cache.
+
+        This should be run once when the image is updated, not before every reconstruction.
+        After the image is cached, jobs using --image= will start much faster.
+
+        :param image: Container image to pull (defaults to recon_image from config)
+        :param wait: Whether to wait for the pull to complete
+        :return: True if successful, False otherwise
+        """
+        logger.info("Starting Shifter image pull.")
+
+        user = self.client.user()
+        pscratch_path = f"/pscratch/sd/{user.name[0]}/{user.name}"
+
+        if image is None:
+            image = self.config.ghcr_images832["recon_image"]
+
+        logger.info(f"Pulling image: {image}")
+
+        job_script = f"""#!/bin/bash
+#SBATCH -q debug
+#SBATCH -A als
+#SBATCH -C cpu
+#SBATCH --job-name=shifter_pull
+#SBATCH --output={pscratch_path}/tomo_recon_logs/shifter_pull_%j.out
+#SBATCH --error={pscratch_path}/tomo_recon_logs/shifter_pull_%j.err
+#SBATCH -N 1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=0:15:00
+
+echo "Starting Shifter image pull at $(date)"
+echo "Image: {image}"
+
+# Check if image already exists
+echo "Checking existing images..."
+shifterimg images | grep -E "$(echo {image} | sed 's/:/.*/')" || true
+
+# Pull the image
+echo "Pulling image..."
+shifterimg -v pull {image}
+PULL_STATUS=$?
+
+if [ $PULL_STATUS -eq 0 ]; then
+    echo "Image pull successful"
+else
+    echo "Image pull failed with status $PULL_STATUS"
+    exit 1
+fi
+
+# Verify the image is now available
+echo "Verifying image..."
+shifterimg images | grep -E "$(echo {image} | sed 's/:/.*/')"
+
+echo "Completed at $(date)"
+"""
+
+        try:
+            logger.info("Submitting Shifter image pull job to Perlmutter.")
+            perlmutter = self.client.compute(Machine.perlmutter)
+            job = perlmutter.submit_job(job_script)
+            logger.info(f"Submitted job ID: {job.jobid}")
+
+            if wait:
+                try:
+                    job.update()
+                except Exception as update_err:
+                    logger.warning(f"Initial job update failed, continuing: {update_err}")
+
+                time.sleep(30)
+                logger.info(f"Job {job.jobid} current state: {job.state}")
+
+                job.complete()
+                logger.info("Shifter image pull completed successfully.")
+                return True
+            else:
+                logger.info(f"Job submitted. Check status with job ID: {job.jobid}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Error during Shifter image pull: {e}")
+            return False
+
+    def check_shifter_image(
+        self,
+        image: str = None,
+    ) -> bool:
+        """
+        Check if a container image is already in NERSC's Shifter cache.
+
+        :param image: Container image to check (defaults to recon_image from config)
+        :return: True if image exists in cache, False otherwise
+        """
+        logger.info("Checking Shifter image cache.")
+
+        if image is None:
+            image = self.config.ghcr_images832["recon_image"]
+
+        try:
+            perlmutter = self.client.compute(Machine.perlmutter)
+
+            # Run shifterimg images command
+            result = perlmutter.run(f"shifterimg images | grep -E \"$(echo {image} | sed 's/:/.*/g')\"")
+
+            if isinstance(result, str):
+                output = result
+            elif hasattr(result, 'output'):
+                output = result.output
+            else:
+                output = str(result)
+
+            if output.strip():
+                logger.info(f"Image found in Shifter cache: {output.strip()}")
+                return True
+            else:
+                logger.info(f"Image not found in Shifter cache: {image}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"Error checking Shifter cache: {e}")
+            return False
 
     def build_multi_resolution(
         self,
@@ -847,11 +977,48 @@ def nersc_streaming_flow(
     return success
 
 
+@flow(name="pull_shifter_image_flow", flow_run_name="pull_shifter_image")
+def pull_shifter_image_flow(
+    image: Optional[str] = None,
+    config: Optional[Config832] = None,
+) -> bool:
+    """
+    Pull a container image into NERSC's Shifter cache.
+
+    Run this once when the container image is updated.
+    """
+    logger = get_run_logger()
+
+    if config is None:
+        config = Config832()
+
+    if image is None:
+        image = config.ghcr_images832["recon_image"]
+
+    logger.info(f"Pulling Shifter image: {image}")
+
+    controller = get_controller(
+        hpc_type=HPC.NERSC,
+        config=config
+    )
+
+    # Check if already cached
+    if controller.check_shifter_image(image):
+        logger.info("Image already in cache, pulling anyway to update...")
+
+    success = controller.pull_shifter_image(image)
+    logger.info(f"Shifter image pull success: {success}")
+
+    return success
+
+
 if __name__ == "__main__":
 
     config = Config832()
 
-    # Fibers ------------------------------------------
+    # pull_shifter_image_flow(config=config)
+
+    # # Fibers ------------------------------------------
 
     start = time.time()
     nersc_recon_flow(
@@ -893,7 +1060,7 @@ if __name__ == "__main__":
     logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
     print(f"Total reconstruction time with 1 node: {end - start} seconds")
 
-    # # Fungi ------------------------------------------
+    # # # Fungi ------------------------------------------
 
     start = time.time()
     nersc_recon_flow(
@@ -935,7 +1102,7 @@ if __name__ == "__main__":
     logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
     print(f"Total reconstruction time with 1 node: {end - start} seconds")
 
-    # # Silk ------------------------------------------
+    # # # Silk ------------------------------------------
 
     start = time.time()
     nersc_recon_flow(
