@@ -123,7 +123,7 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
 #SBATCH --error={pscratch_path}/tomo_recon_logs/%x_%j.err
 #SBATCH -N 1
 #SBATCH --ntasks-per-node 1
-#SBATCH --cpus-per-task 64
+#SBATCH --cpus-per-task 128
 #SBATCH --time=0:15:00
 #SBATCH --exclusive
 
@@ -150,6 +150,10 @@ ls -l {pscratch_path}/8.3.2/raw/{folder_name}/
 
 echo "Running reconstruction container..."
 srun podman-hpc run \
+--env NUMEXPR_MAX_THREADS=128 \\
+--env NUMEXPR_NUM_THREADS=128 \\
+--env OMP_NUM_THREADS=128 \\
+--env MKL_NUM_THREADS=128 \\
 --volume {recon_scripts_dir}/sfapi_reconstruction.py:/alsuser/sfapi_reconstruction.py \
 --volume {pscratch_path}/8.3.2:/alsdata \
 --volume {pscratch_path}/8.3.2:/alsuser/ \
@@ -194,6 +198,200 @@ date
                     return False
             else:
                 # Unknown error: cannot recover
+                return False
+
+    def reconstruct_multinode(
+        self,
+        file_path: str = "",
+        num_nodes: int = 2,
+    ) -> bool:
+
+        """
+        Use NERSC for tomography reconstruction
+
+        :param file_path: Path to the file to reconstruct
+        :param num_nodes: Number of nodes to use for parallel reconstruction
+        """
+        logger.info("Starting NERSC reconstruction process.")
+
+        user = self.client.user()
+
+        raw_path = self.config.nersc832_alsdev_raw.root_path
+        logger.info(f"{raw_path=}")
+
+        recon_image = self.config.ghcr_images832["recon_image"]
+        logger.info(f"{recon_image=}")
+
+        recon_scripts_dir = self.config.nersc832_alsdev_recon_scripts.root_path
+        logger.info(f"{recon_scripts_dir=}")
+
+        scratch_path = self.config.nersc832_alsdev_scratch.root_path
+        logger.info(f"{scratch_path=}")
+
+        pscratch_path = f"/pscratch/sd/{user.name[0]}/{user.name}"
+        logger.info(f"{pscratch_path=}")
+
+        path = Path(file_path)
+        folder_name = path.parent.name
+        if not folder_name:
+            folder_name = ""
+
+        file_name = f"{path.stem}.h5"
+
+        logger.info(f"File name: {file_name}")
+        logger.info(f"Folder name: {folder_name}")
+        logger.info(f"Number of nodes: {num_nodes}")
+
+        # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
+        job_script = f"""#!/bin/bash
+#SBATCH -q realtime
+#SBATCH -A als
+#SBATCH -C cpu
+#SBATCH --job-name=tomo_recon_{folder_name}_{file_name}
+#SBATCH --output={pscratch_path}/tomo_recon_logs/%x_%j.out
+#SBATCH --error={pscratch_path}/tomo_recon_logs/%x_%j.err
+#SBATCH -N {num_nodes}
+#SBATCH --ntasks={num_nodes}
+#SBATCH --cpus-per-task=128
+#SBATCH --time=0:15:00
+#SBATCH --exclusive
+
+date
+echo "Running reconstruction with {num_nodes} nodes"
+
+echo "Pre-pulling container image..."
+podman-hpc pull {recon_image}
+
+echo "Creating directory {pscratch_path}/8.3.2/raw/{folder_name}"
+mkdir -p {pscratch_path}/8.3.2/raw/{folder_name}
+mkdir -p {pscratch_path}/8.3.2/scratch/{folder_name}
+
+echo "Copying file {raw_path}/{folder_name}/{file_name} to {pscratch_path}/8.3.2/raw/{folder_name}/"
+cp {raw_path}/{folder_name}/{file_name} {pscratch_path}/8.3.2/raw/{folder_name}
+if [ $? -ne 0 ]; then
+    echo "Failed to copy data to pscratch."
+    exit 1
+fi
+
+chmod 2775 {pscratch_path}/8.3.2/raw/{folder_name}
+chmod 2775 {pscratch_path}/8.3.2/scratch/{folder_name}
+chmod 664 {pscratch_path}/8.3.2/raw/{folder_name}/{file_name}
+
+echo "Verifying copied files..."
+ls -l {pscratch_path}/8.3.2/raw/{folder_name}/
+
+NNODES={num_nodes}
+RAW_FILE="{pscratch_path}/8.3.2/raw/{folder_name}/{file_name}"
+
+# Get the number of slices from the HDF5 file using the container
+echo "Reading slice count from HDF5 file..."
+
+NUM_SLICES=$(podman-hpc run --rm \\
+    --volume {pscratch_path}/8.3.2:/alsdata \\
+    {recon_image} \\
+    python -c "
+import h5py
+with h5py.File('/alsdata/raw/{folder_name}/{file_name}', 'r') as f:
+    if '/exchange/data' in f:
+        print(f['/exchange/data'].shape[1])
+    else:
+        for key in f.keys():
+            grp = f[key]
+            if 'nslices' in grp.attrs:
+                print(int(grp.attrs['nslices']))
+                break
+" 2>&1 | grep -E '^[0-9]+$' | head -1)
+
+echo "Detected NUM_SLICES: $NUM_SLICES"
+
+if [ -z "$NUM_SLICES" ]; then
+    echo "Failed to read number of slices from HDF5 file"
+    exit 1
+fi
+
+if ! [[ "$NUM_SLICES" =~ ^[0-9]+$ ]]; then
+    echo "Failed to read number of slices. Got: $NUM_SLICES"
+    exit 1
+fi
+
+echo "Total slices: $NUM_SLICES"
+echo "Distributing across $NNODES nodes"
+
+SLICES_PER_NODE=$((NUM_SLICES / NNODES))
+echo "Slices per node: ~$SLICES_PER_NODE"
+
+# Launch reconstruction on each node
+for i in $(seq 0 $((NNODES - 1))); do
+    SINO_START=$((i * SLICES_PER_NODE))
+
+    # Last node takes any remainder slices
+    if [ $i -eq $((NNODES - 1)) ]; then
+        SINO_END=$NUM_SLICES
+    else
+        SINO_END=$(((i + 1) * SLICES_PER_NODE))
+    fi
+
+    echo "Launching node $i: slices $SINO_START to $SINO_END"
+
+    srun --nodes=1 --ntasks=1 --exclusive podman-hpc run \
+        --env NUMEXPR_MAX_THREADS=128 \
+        --env NUMEXPR_NUM_THREADS=128 \
+        --env OMP_NUM_THREADS=128 \
+        --env MKL_NUM_THREADS=128 \
+        --volume {recon_scripts_dir}/sfapi_reconstruction_multinode.py:/alsuser/sfapi_reconstruction_multinode.py \
+        --volume {pscratch_path}/8.3.2/raw/{folder_name}:/alsuser/{folder_name} \
+        --volume {pscratch_path}/8.3.2/scratch:/scratch \
+        {recon_image} \
+        bash -c "cd /alsuser && python sfapi_reconstruction_multinode.py {file_name} {folder_name} $SINO_START $SINO_END" &
+done
+
+echo "Waiting for all $NNODES nodes to complete..."
+wait
+WAIT_STATUS=$?
+
+if [ $WAIT_STATUS -ne 0 ]; then
+    echo "One or more reconstruction tasks failed"
+    exit 1
+fi
+
+echo "All nodes completed successfully"
+date
+"""
+        try:
+            logger.info("Submitting reconstruction job script to Perlmutter.")
+            perlmutter = self.client.compute(Machine.perlmutter)
+            job = perlmutter.submit_job(job_script)
+            logger.info(f"Submitted job ID: {job.jobid}")
+
+            try:
+                job.update()
+            except Exception as update_err:
+                logger.warning(f"Initial job update failed, continuing: {update_err}")
+
+            time.sleep(60)
+            logger.info(f"Job {job.jobid} current state: {job.state}")
+
+            job.complete()  # Wait until the job completes
+            logger.info("Reconstruction job completed successfully.")
+            return True
+
+        except Exception as e:
+            logger.info(f"Error during job submission or completion: {e}")
+            match = re.search(r"Job not found:\s*(\d+)", str(e))
+
+            if match:
+                jobid = match.group(1)
+                logger.info(f"Attempting to recover job {jobid}.")
+                try:
+                    job = self.client.perlmutter.job(jobid=jobid)
+                    time.sleep(30)
+                    job.complete()
+                    logger.info("Reconstruction job completed successfully after recovery.")
+                    return True
+                except Exception as recovery_err:
+                    logger.error(f"Failed to recover job {jobid}: {recovery_err}")
+                    return False
+            else:
                 return False
 
     def build_multi_resolution(
@@ -433,6 +631,7 @@ def schedule_pruning(
 @flow(name="nersc_recon_flow", flow_run_name="nersc_recon-{file_path}")
 def nersc_recon_flow(
     file_path: str,
+    num_nodes: int = 1,
     config: Optional[Config832] = None,
 ) -> bool:
     """
@@ -453,68 +652,80 @@ def nersc_recon_flow(
     )
     logger.info("NERSC reconstruction controller initialized")
 
-    nersc_reconstruction_success = controller.reconstruct(
-        file_path=file_path,
-    )
+    if num_nodes > 1:
+        nersc_reconstruction_success = controller.reconstruct_multinode(
+            file_path=file_path,
+            num_nodes=num_nodes
+        )
+    elif num_nodes == 1:
+        nersc_reconstruction_success = controller.reconstruct(
+            file_path=file_path,
+        )
+    else:
+        raise ValueError("num_nodes must be at least 1")
+
     logger.info(f"NERSC reconstruction success: {nersc_reconstruction_success}")
-    nersc_multi_res_success = controller.build_multi_resolution(
-        file_path=file_path,
-    )
-    logger.info(f"NERSC multi-resolution success: {nersc_multi_res_success}")
 
-    path = Path(file_path)
-    folder_name = path.parent.name
-    file_name = path.stem
+    # Commented out for testing purposes -- should be re-enabled for production
 
-    tiff_file_path = f"{folder_name}/rec{file_name}"
-    zarr_file_path = f"{folder_name}/rec{file_name}.zarr"
+    # nersc_multi_res_success = controller.build_multi_resolution(
+    #     file_path=file_path,
+    # )
+    # logger.info(f"NERSC multi-resolution success: {nersc_multi_res_success}")
 
-    logger.info(f"{tiff_file_path=}")
-    logger.info(f"{zarr_file_path=}")
+    # path = Path(file_path)
+    # folder_name = path.parent.name
+    # file_name = path.stem
+
+    # tiff_file_path = f"{folder_name}/rec{file_name}"
+    # zarr_file_path = f"{folder_name}/rec{file_name}.zarr"
+
+    # logger.info(f"{tiff_file_path=}")
+    # logger.info(f"{zarr_file_path=}")
 
     # Transfer reconstructed data
-    logger.info("Preparing transfer.")
-    transfer_controller = get_transfer_controller(
-        transfer_type=CopyMethod.GLOBUS,
-        config=config
-    )
+    # logger.info("Preparing transfer.")
+    # transfer_controller = get_transfer_controller(
+    #     transfer_type=CopyMethod.GLOBUS,
+    #     config=config
+    # )
 
-    logger.info("Copy from /pscratch/sd/a/alsdev/8.3.2 to /global/cfs/cdirs/als/data_mover/8.3.2/scratch.")
-    transfer_controller.copy(
-        file_path=tiff_file_path,
-        source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.nersc832_alsdev_scratch
-    )
+    # logger.info("Copy from /pscratch/sd/a/alsdev/8.3.2 to /global/cfs/cdirs/als/data_mover/8.3.2/scratch.")
+    # transfer_controller.copy(
+    #     file_path=tiff_file_path,
+    #     source=config.nersc832_alsdev_pscratch_scratch,
+    #     destination=config.nersc832_alsdev_scratch
+    # )
 
-    transfer_controller.copy(
-        file_path=zarr_file_path,
-        source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.nersc832_alsdev_scratch
-    )
+    # transfer_controller.copy(
+    #     file_path=zarr_file_path,
+    #     source=config.nersc832_alsdev_pscratch_scratch,
+    #     destination=config.nersc832_alsdev_scratch
+    # )
 
-    logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to data832")
-    transfer_controller.copy(
-        file_path=tiff_file_path,
-        source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.data832_scratch
-    )
+    # logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to data832")
+    # transfer_controller.copy(
+    #     file_path=tiff_file_path,
+    #     source=config.nersc832_alsdev_pscratch_scratch,
+    #     destination=config.data832_scratch
+    # )
 
-    transfer_controller.copy(
-        file_path=zarr_file_path,
-        source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.data832_scratch
-    )
+    # transfer_controller.copy(
+    #     file_path=zarr_file_path,
+    #     source=config.nersc832_alsdev_pscratch_scratch,
+    #     destination=config.data832_scratch
+    # )
 
-    logger.info("Scheduling pruning tasks.")
-    schedule_pruning(
-        config=config,
-        raw_file_path=file_path,
-        tiff_file_path=tiff_file_path,
-        zarr_file_path=zarr_file_path
-    )
+    # logger.info("Scheduling pruning tasks.")
+    # schedule_pruning(
+    #     config=config,
+    #     raw_file_path=file_path,
+    #     tiff_file_path=tiff_file_path,
+    #     zarr_file_path=zarr_file_path
+    # )
 
     # TODO: Ingest into SciCat
-    if nersc_reconstruction_success and nersc_multi_res_success:
+    if nersc_reconstruction_success:
         return True
     else:
         return False
@@ -549,10 +760,66 @@ def nersc_streaming_flow(
 if __name__ == "__main__":
 
     config = Config832()
+
+    start = time.time()
     nersc_recon_flow(
-        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+        file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+        num_nodes=8,
         config=config
     )
+    end = time.time()
+    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+
+    start = time.time()
+    nersc_recon_flow(
+        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+        num_nodes=8,
+        config=config
+    )
+    end = time.time()
+    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+
+    start = time.time()
+    nersc_recon_flow(
+        file_path="dabramov/20251218_111600_silkraw.h5",
+        num_nodes=8,
+        config=config
+    )
+    end = time.time()
+    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=4,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=2,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=1,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
+    # print(f"Total reconstruction time with 1 node: {end - start} seconds")
     # nersc_streaming_flow(
     #     config=config,
     #     walltime=datetime.timedelta(minutes=5)
