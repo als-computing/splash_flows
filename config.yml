@@ -42,7 +42,7 @@ globus:
       name: data733_raw
 
     bl733-lamarr-data:
-      root_path: /beamlines/bl733/
+      root_path: /beamlines/7.3.3/
       uri: lamarr.als.lbl.gov
       uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
       name: bl733-lamarr-data
