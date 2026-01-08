@@ -74,7 +74,7 @@ def prune(
 
         try:
             schedule_prefect_flow(
-                deployment_name="_prune_globus_endpoint/prune_data733",
+                deployment_name="prune_globus_endpoint/prune_data733",
                 flow_run_name=f"prune_globus-{source_endpoint.name}-{file_path}",
                 parameters={
                     "relative_path": file_path,
