@@ -80,7 +80,6 @@ def prune(
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
                     "check_endpoint": check_endpoint,
-                    "config": config
                 },
                 duration_from_now=delay,
             )
