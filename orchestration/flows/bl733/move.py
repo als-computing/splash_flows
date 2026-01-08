@@ -175,30 +175,41 @@ def process_new_733_file_task(
     logger.info(f"Processing new 733 file: {file_path}")
 
     if not config:
+        logger.info("No config provided, creating default Config733")
         config = Config733()
 
+    logger.info("Initializing Globus transfer controller")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
+    logger.info(f"Step 1: Copying {file_path} from data733 to Lamarr ({config.lamarr733.name})")
     transfer_controller.copy(
         file_path=file_path,
         source=config.data733_raw,
         destination=config.lamarr733
     )
+    logger.info("Step 1 complete: File copied to Lamarr")
 
+    logger.info(f"Step 2: Copying {file_path} from data733 to NERSC CFS ({config.nersc733_alsdev_raw.name})")
     transfer_controller.copy(
         file_path=file_path,
         source=config.data733_raw,
         destination=config.nersc733_alsdev_raw
     )
 
+    logger.info("Step 2 complete: File copied to NERSC CFS")
+
+    logger.info(f"Step 3: Ingesting {file_path} into SciCat")
     # Note that the SciCat ingester assumes the data is on Lamarr.
     try:
         scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec="als733_saxs")
+        logger.info("Step 3 complete: SciCat ingest successful")
     except Exception as e:
         logger.error(f"SciCat ingest failed with {e}")
+
+    logger.info("Step 4: Scheduling pruning from data733")
 
     # Waiting for PR #62 to be merged (prune_controller)
     bl733_settings = Variable.get("bl733-settings", _sync=True)
@@ -208,6 +219,9 @@ def process_new_733_file_task(
         check_endpoint=config.nersc733_alsdev_raw,
         days_from_now=bl733_settings["delete_data733_files_after_days"]  # 180 days
     )
+
+    logger.info("Step 4 complete: Pruning scheduled")
+    logger.info(f"All steps complete for {file_path}")
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
