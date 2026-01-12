@@ -41,12 +41,11 @@ globus:
       uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926
       name: data733_raw
 
-    bl733-lamarr-data:
+    bl733-beegfs-data:
       root_path: /beamlines/7.3.3/
-      uri: lamarr.als.lbl.gov
+      uri: beegfs.als.lbl.gov
       uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
-      name: bl733-lamarr-data
-
+      name: bl733-beegfs-data
     # 8.3.2 ENDPOINTS
 
     spot832:
