@@ -42,7 +42,7 @@ globus:
       name: data733_raw
 
     bl733-beegfs-data:
-      root_path: /beamlines/7.3.3/
+      root_path: /beamline_staging/bl733/raw/
       uri: beegfs.als.lbl.gov
       uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
       name: bl733-beegfs-data
