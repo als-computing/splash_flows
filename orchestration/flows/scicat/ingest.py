@@ -1,8 +1,7 @@
-from typing import Optional, Dict, Any
 from pathlib import Path
+from typing import Dict, Any
 
 from prefect import flow, get_run_logger
-
 
 from scicat_beamline import ingest
 
@@ -19,18 +18,20 @@ def scicat_ingest_flow(
     """
     Runs the SciCat ingestion process implemented for the given spec identifier,
     on the given folder or file.
-    Args:
-        dataset_path: Path of the asset to ingest. May be file or directory depending on the spec.
+
+    :param dataset_path: Path or list of Paths of the asset(s) to ingest. May be file or directory depending on the spec.
         If SICAT_INGEST_INTERNAL_BASE_FOLDER or SCICAT_INGEST_BASE_FOLDER is set, this path is
         considered relative to that base folder.
-    These remaining args are optional; if not provided, environment variables will be used.
-        ingester_spec: Spec to ingest with. (or set SCICAT_INGEST_INGESTER_SPEC)
-        owner_username: User doing the ingesting. May be different from the user_name, especially if using a token (or set SCICAT_INGEST_OWNER_USERNAME)
-        scicat_url: Scicat server base url. If not provided, will try localhost default (or set SCICAT_INGEST_URL)
-        scicat_username: Scicat server username (or set SCICAT_INGEST_USERNAME)
-        scicat_password: Scicat server password (or set SCICAT_INGEST_PASSWORD)
-    Returns:
-        Dict containing task results or skip message
+
+    These remaining args are optional; if not provided, environment variables will be used:
+
+    :param ingester_spec: Spec to ingest with. (or set SCICAT_INGEST_INGESTER_SPEC)
+    :param owner_username: User doing the ingesting. May be different from the user_name, especially if using a token
+                        (or set SCICAT_INGEST_OWNER_USERNAME)
+    :param scicat_url: Scicat server base url. If not provided, will try localhost default (or set SCICAT_INGEST_URL)
+    :param scicat_username: Scicat server username (or set SCICAT_INGEST_USERNAME)
+    :param scicat_password: Scicat server password (or set SCICAT_INGEST_PASSWORD)
+    :returns: Dict containing task results or skip message
     """
     # Get the Prefect logger for the current flow run
     prefect_adapter = get_run_logger()
