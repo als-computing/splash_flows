@@ -1,13 +1,13 @@
 import datetime
 import logging
-# from pathlib import Path
+from pathlib import Path
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 
 from orchestration.flows.bl931.config import Config931
-# from orchestration.flows.scicat.ingest import scicat_ingest_flow
+from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.transfer_controller import CopyMethod, get_transfer_controller
@@ -177,18 +177,18 @@ def process_new_931_file_task(
         config=config
     )
 
-    # logger.info(f"Step 1: Copying {file_path} from data931 to beegfs ({config.bl931_beegfs.name})")
+    logger.info(f"Step 1: Copying {file_path} from data931 to beegfs ({config.bl931_beegfs.name})")
 
-    # beegfs_transfer_success = transfer_controller.copy(
-    #     file_path=file_path,
-    #     source=config.bl931_compute_dtn,
-    #     destination=config.bl931_beegfs
-    # )
-    # if not beegfs_transfer_success:
-    #     logger.error("Step 1 failed: Beegfs transfer was not successful")
-    #     raise Warning("Beegfs transfer failed")
-    # else:
-    #     logger.info("Step 1 complete: File copied to beegfs")
+    beegfs_transfer_success = transfer_controller.copy(
+        file_path=file_path,
+        source=config.bl931_compute_dtn,
+        destination=config.bl931_beegfs
+    )
+    if not beegfs_transfer_success:
+        logger.error("Step 1 failed: Beegfs transfer was not successful")
+        raise Warning("Beegfs transfer failed")
+    else:
+        logger.info("Step 1 complete: File copied to beegfs")
 
     logger.info(f"Step 2: Copying {file_path} from data931 ({config.bl931_compute_dtn.name}) "
                 f"to NERSC CFS ({config.bl931_nersc_alsdev_raw.name})")
@@ -208,10 +208,30 @@ def process_new_931_file_task(
         logger.error(f"Step 2 failed: Could not copy file to NERSC CFS: {e}", exc_info=True)
         raise
 
+    # logger.info(f"Step 3: Ingesting {file_path} into SciCat")
+
+    # Build beegfs path for SciCat ingestion
+    # Get relative path from source root
+    # try:
+    #     rel_path = str(Path(file_path).relative_to(config.bl931_compute_dtn.root_path))
+    # except ValueError:
+    #     # Already a relative path
+    #     rel_path = file_path.lstrip("/")
+
+    # # Build full beegfs path
+    # beegfs_path = "/global/" + config.bl931_beegfs.root_path.strip("/") + "/" + rel_path
+
+    # logger.info(f"Beegfs path: {beegfs_path}")
+    # try:
+    #     scicat_ingest_flow(dataset_path=beegfs_path, ingester_spec="als931_ingester")
+    #     logger.info("Step 3 complete: SciCat ingest successful")
+    # except Exception as e:
+    #     logger.error(f"SciCat ingest failed with {e}")
+
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
-    logger.info("Step 3: Scheduling pruning from data931")
+    logger.info("Step 4: Scheduling pruning from data931")
     try:
         bl931_settings = Variable.get("bl931-settings", _sync=True)
         days_from_now = bl931_settings.get("delete_data931_files_after_days", 180)
@@ -223,38 +243,15 @@ def process_new_931_file_task(
             check_endpoint=config.bl931_nersc_alsdev_raw,
             days_from_now=days_from_now
         )
-        logger.info("Step 3 complete: Pruning scheduled")
+        logger.info("Step 4 complete: Pruning scheduled")
     except Exception as e:
-        logger.error(f"Step 3 failed: Could not schedule pruning: {e}", exc_info=True)
+        logger.error(f"Step 4 failed: Could not schedule pruning: {e}", exc_info=True)
         raise
 
     logger.info(f"All steps complete for file: {file_path}")
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
-
-    # TODO: Ingest file path in SciCat
-    # Waiting for PR #62 to be merged (scicat_controller)
-
-    # logger.info(f"Step 3: Ingesting {file_path} into SciCat")
-
-    # # Build beegfs path for SciCat ingestion
-    # # Get relative path from source root
-    # try:
-    #     rel_path = str(Path(file_path).relative_to(config.data733_raw.root_path))
-    # except ValueError:
-    #     # Already a relative path
-    #     rel_path = file_path.lstrip("/")
-
-    # # Build full beegfs path
-    # beegfs_path = "/global/" + config.beegfs931.root_path.strip("/") + "/" + rel_path
-
-    # logger.info(f"Beegfs path: {beegfs_path}")
-    # try:
-    #     scicat_ingest_flow(file_path=beegfs_path, ingester_spec="als931_ingester")
-    #     logger.info("Step 3 complete: SciCat ingest successful")
-    # except Exception as e:
-    #     logger.error(f"SciCat ingest failed with {e}")
 
 
 @flow(name="move_931_flight_check", flow_run_name="move_931_flight_check-{file_path}")
