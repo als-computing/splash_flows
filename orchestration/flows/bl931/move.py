@@ -34,6 +34,8 @@ def prune(
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
     """
+    logger = get_run_logger()
+
     if not file_path:
         logger.error("No file_path provided for pruning operation")
         return False
@@ -47,10 +49,6 @@ def prune(
 
     if days_from_now < 0:
         raise ValueError(f"Invalid days_from_now: {days_from_now}")
-
-    # JSON blocks are deprecated, we should use what they recommend in the docs
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
 
     logger.info(f"Setting up pruning of '{file_path}' from '{source_endpoint.name}'")
 
