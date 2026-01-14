@@ -179,11 +179,15 @@ def process_new_931_file_task(
                 f"to NERSC CFS ({config.bl931_nersc_alsdev_raw.name})")
 
     try:
-        transfer_controller.copy(
+        transfer_success = transfer_controller.copy(
             file_path=file_path,
             source=config.bl931_compute_dtn,
             destination=config.bl931_nersc_alsdev_raw
         )
+        if not transfer_success:
+            logger.error("Step 1 failed: Transfer was not successful")
+            raise RuntimeError("Transfer failed")
+
         logger.info("Step 1 complete: File copied to NERSC CFS")
     except Exception as e:
         logger.error(f"Step 1 failed: Could not copy file to NERSC CFS: {e}", exc_info=True)
