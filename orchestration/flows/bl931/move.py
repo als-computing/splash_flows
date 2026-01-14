@@ -175,28 +175,41 @@ def process_new_931_file_task(
         config=config
     )
 
-    logger.info(f"Step 1: Copying {file_path} from data931 ({config.bl931_compute_dtn.name}) "
+    # logger.info(f"Step 1: Copying {file_path} from data931 to beegfs ({config.bl931_beegfs.name})")
+
+    # beegfs_transfer_success = transfer_controller.copy(
+    #     file_path=file_path,
+    #     source=config.bl931_compute_dtn,
+    #     destination=config.bl931_beegfs
+    # )
+    # if not beegfs_transfer_success:
+    #     logger.error("Step 1 failed: Beegfs transfer was not successful")
+    #     raise Warning("Beegfs transfer failed")
+    # else:
+    #     logger.info("Step 1 complete: File copied to beegfs")
+
+    logger.info(f"Step 2: Copying {file_path} from data931 ({config.bl931_compute_dtn.name}) "
                 f"to NERSC CFS ({config.bl931_nersc_alsdev_raw.name})")
 
     try:
-        transfer_success = transfer_controller.copy(
+        nersc_transfer_success = transfer_controller.copy(
             file_path=file_path,
             source=config.bl931_compute_dtn,
             destination=config.bl931_nersc_alsdev_raw
         )
-        if not transfer_success:
-            logger.error("Step 1 failed: Transfer was not successful")
+        if not nersc_transfer_success:
+            logger.error("Step 2 failed: NERSC transfer was not successful")
             raise RuntimeError("Transfer failed")
 
-        logger.info("Step 1 complete: File copied to NERSC CFS")
+        logger.info("Step 2 complete: File copied to NERSC CFS")
     except Exception as e:
-        logger.error(f"Step 1 failed: Could not copy file to NERSC CFS: {e}", exc_info=True)
+        logger.error(f"Step 2 failed: Could not copy file to NERSC CFS: {e}", exc_info=True)
         raise
 
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
-    logger.info("Step 2: Scheduling pruning from data931")
+    logger.info("Step 3: Scheduling pruning from data931")
     try:
         bl931_settings = Variable.get("bl931-settings", _sync=True)
         days_from_now = bl931_settings.get("delete_data931_files_after_days", 180)
@@ -208,9 +221,9 @@ def process_new_931_file_task(
             check_endpoint=config.bl931_nersc_alsdev_raw,
             days_from_now=days_from_now
         )
-        logger.info("Step 2 complete: Pruning scheduled")
+        logger.info("Step 3 complete: Pruning scheduled")
     except Exception as e:
-        logger.error(f"Step 2 failed: Could not schedule pruning: {e}", exc_info=True)
+        logger.error(f"Step 3 failed: Could not schedule pruning: {e}", exc_info=True)
         raise
 
     logger.info(f"All steps complete for file: {file_path}")
