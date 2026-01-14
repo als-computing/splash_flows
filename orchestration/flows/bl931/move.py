@@ -80,7 +80,6 @@ def prune(
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
                     "check_endpoint": check_endpoint,
-                    "config": config
                 },
                 duration_from_now=delay,
             )
@@ -256,7 +255,6 @@ def process_new_931_file_task(
     #     logger.info("Step 3 complete: SciCat ingest successful")
     # except Exception as e:
     #     logger.error(f"SciCat ingest failed with {e}")
-
 
 
 @flow(name="move_931_flight_check", flow_run_name="move_931_flight_check-{file_path}")
