@@ -108,7 +108,7 @@ def test_process_new_931_file_task(mocker: MockFixture) -> None:
     result = process_new_931_file_task(file_path=test_file_path, config=mock_config)
 
     # Verify that the transfer controller's copy method was called exactly once.
-    assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
+    assert mock_transfer_controller.copy.call_count == 2, "Transfer controller copy method should be called exactly twice"
     assert result is None, "The flow should return None"
     assert mock_prune.call_count == 1, "Prune function should be called exactly once"
 
@@ -117,7 +117,7 @@ def test_process_new_931_file_task(mocker: MockFixture) -> None:
     mock_prune.reset_mock()
 
     result = process_new_931_file_task(file_path=test_file_path, config=None)
-    assert mock_transfer_controller.copy.call_count == 1, "Transfer controller copy method should be called exactly once"
+    assert mock_transfer_controller.copy.call_count == 2, "Transfer controller copy method should be called exactly twice"
     assert result is None, "The flow should return None"
     assert mock_prune.call_count == 1, "Prune function should be called exactly once"
 
