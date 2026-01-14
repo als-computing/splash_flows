@@ -9,7 +9,7 @@ from scicat_beamline import ingest
 
 @flow(name="scicat-ingest-flow")
 def scicat_ingest_flow(
-    dataset_path: Path,
+    dataset_path: Path | list[Path],
     ingester_spec: str | None = None,
     owner_username: str | None = None,
     scicat_url: str | None = None,
