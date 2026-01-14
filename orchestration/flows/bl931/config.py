@@ -11,3 +11,4 @@ class Config931:
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
         self.bl931_compute_dtn = self.endpoints["bl931-compute-dtn"]
         self.bl931_nersc_alsdev_raw = self.endpoints["bl931-nersc_alsdev_raw"]
+        self.bl931_beegfs = self.endpoints["bl931-beegfs-data"]

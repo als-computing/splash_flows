@@ -54,6 +54,12 @@ globus:
       name: bl733-lamarr-beamlines
     # 9.3.1 ENDPOINTS
 
+    bl931-beegfs-data:
+      root_path: /beamline_staging/bl931/raw/
+      uri: beegfs.als.lbl.gov
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl931-beegfs-data
+
     bl931-compute-dtn:
       root_path: /
       uri: compute-dtn.als.lbl.gov
