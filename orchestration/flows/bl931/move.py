@@ -72,6 +72,7 @@ def prune(
         try:
             schedule_prefect_flow(
                 deployment_name="prune_globus_endpoint/prune_globus_endpoint",
+                flow_run_name=f"prune_globus-{source_endpoint.name}-{file_path}",
                 parameters={
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
@@ -106,15 +107,16 @@ def _prune_globus_endpoint(
         check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
         config (BeamlineConfig): Configuration object with transfer client
     """
+    logger = get_run_logger()
+
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
         config = Config931()
 
-    # globus_settings = JSON.load("globus-settings").value
-    # max_wait_seconds = globus_settings["max_wait_seconds"]
+    globus_settings = Variable.get("globus-settings", _sync=True)
+    max_wait_seconds = globus_settings["max_wait_seconds"]
 
-    max_wait_seconds = Variable.get("globus-settings")["max_wait_seconds"]
     flow_name = f"prune_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
