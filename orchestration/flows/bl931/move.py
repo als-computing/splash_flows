@@ -157,33 +157,59 @@ def process_new_931_file_task(
     :param file_path: Path to the new file to be processed.
     :param config: Configuration settings for processing.
     """
+    logger = get_run_logger()
+
+    if not file_path:
+        logger.error("No file_path provided")
+        raise ValueError("No file_path provided")
 
     logger.info(f"Processing new 931 file: {file_path}")
 
     if not config:
+        logger.info("No config provided, creating default Config931")
         config = Config931()
 
+    logger.info("Initializing Globus transfer controller")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
-    transfer_controller.copy(
-        file_path=file_path,
-        source=config.bl931_compute_dtn,
-        destination=config.bl931_nersc_alsdev_raw
-    )
+    logger.info(f"Step 1: Copying {file_path} from data931 ({config.bl931_compute_dtn.name}) "
+                f"to NERSC CFS ({config.bl931_nersc_alsdev_raw.name})")
+
+    try:
+        transfer_controller.copy(
+            file_path=file_path,
+            source=config.bl931_compute_dtn,
+            destination=config.bl931_nersc_alsdev_raw
+        )
+        logger.info("Step 1 complete: File copied to NERSC CFS")
+    except Exception as e:
+        logger.error(f"Step 1 failed: Could not copy file to NERSC CFS: {e}", exc_info=True)
+        raise
 
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
-    bl931_settings = Variable.get("bl931-settings")
-    prune(
-        file_path=file_path,
-        source_endpoint=config.bl931_compute_dtn,
-        check_endpoint=config.bl931_nersc_alsdev_raw,
-        days_from_now=bl931_settings.get("delete_data931_files_after_days", 180)
-    )
+    logger.info("Step 2: Scheduling pruning from data931")
+    try:
+        bl931_settings = Variable.get("bl931-settings", _sync=True)
+        days_from_now = bl931_settings.get("delete_data931_files_after_days", 180)
+        logger.info(f"Pruning scheduled for {days_from_now} days from now")
+
+        prune(
+            file_path=file_path,
+            source_endpoint=config.bl931_compute_dtn,
+            check_endpoint=config.bl931_nersc_alsdev_raw,
+            days_from_now=days_from_now
+        )
+        logger.info("Step 2 complete: Pruning scheduled")
+    except Exception as e:
+        logger.error(f"Step 2 failed: Could not schedule pruning: {e}", exc_info=True)
+        raise
+
+    logger.info(f"All steps complete for file: {file_path}")
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
