@@ -1,10 +1,13 @@
 import datetime
 import logging
+# from pathlib import Path
 from typing import Optional
 
 from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
+
 from orchestration.flows.bl931.config import Config931
+# from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.transfer_controller import CopyMethod, get_transfer_controller
@@ -233,6 +236,27 @@ def process_new_931_file_task(
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
+
+    # logger.info(f"Step 3: Ingesting {file_path} into SciCat")
+
+    # # Build beegfs path for SciCat ingestion
+    # # Get relative path from source root
+    # try:
+    #     rel_path = str(Path(file_path).relative_to(config.data733_raw.root_path))
+    # except ValueError:
+    #     # Already a relative path
+    #     rel_path = file_path.lstrip("/")
+
+    # # Build full beegfs path
+    # beegfs_path = "/global/" + config.beegfs931.root_path.strip("/") + "/" + rel_path
+
+    # logger.info(f"Beegfs path: {beegfs_path}")
+    # try:
+    #     scicat_ingest_flow(file_path=beegfs_path, ingester_spec="als931_ingester")
+    #     logger.info("Step 3 complete: SciCat ingest successful")
+    # except Exception as e:
+    #     logger.error(f"SciCat ingest failed with {e}")
+
 
 
 @flow(name="move_931_flight_check", flow_run_name="move_931_flight_check-{file_path}")
