@@ -12,4 +12,4 @@ class Config733:
         self.data733 = self.endpoints["bl733-als-data733"]
         self.data733_raw = self.endpoints["bl733-als-data733_raw"]
         self.nersc733_alsdev_raw = self.endpoints["bl733-nersc-alsdev_raw"]
-        self.lamarr733 = self.endpoints["bl733-lamarr-beamlines"]
+        self.beegfs733 = self.endpoints["bl733-beegfs-data"]
