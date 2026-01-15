@@ -77,7 +77,7 @@ def test_process_new_733_file_task(mocker: MockFixture) -> None:
             "bl733-als-data733": mocker.MagicMock(root_path="/mock/data733"),
             "bl733-als-data733_raw": mocker.MagicMock(root_path="/mock/data733_raw"),
             "bl733-nersc-alsdev_raw": mocker.MagicMock(root_path="/mock/nersc_raw"),
-            "bl733-lamarr-beamlines": mocker.MagicMock(root_path="/mock/lamarr"),
+            "bl733-beegfs-data": mocker.MagicMock(root_path="/mock/beegfs"),
         }
     )
     mocker.patch(
@@ -161,7 +161,7 @@ def test_dispatcher_733_flow(mocker: MockFixture) -> None:
             "bl733-als-data733": mocker.MagicMock(root_path="/mock/data733"),
             "bl733-als-data733_raw": mocker.MagicMock(root_path="/mock/data733_raw"),
             "bl733-nersc-alsdev_raw": mocker.MagicMock(root_path="/mock/nersc_raw"),
-            "bl733-lamarr-beamlines": mocker.MagicMock(root_path="/mock/lamarr"),
+            "bl733-beegfs-data": mocker.MagicMock(root_path="/mock/beegfs"),
         }
     )
     mocker.patch(
