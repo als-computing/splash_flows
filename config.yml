@@ -138,6 +138,26 @@ globus:
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
 
+    # 9.3.1 ENDPOINTS
+
+    bl931-beegfs-data:
+      root_path: /beamline_staging/bl931/raw/
+      uri: beegfs.als.lbl.gov
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl931-beegfs-data
+
+    bl931-compute-dtn:
+      root_path: /
+      uri: compute-dtn.als.lbl.gov
+      uuid: 23af478e-d459-4e78-9753-5091b5fb432a
+      name: bl931-compute-dtn
+
+    bl931-nersc_alsdev_raw:
+      root_path: /global/cfs/cdirs/als/data_mover/9.3.1/raw
+      uri: nersc.gov
+      uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
+      name: bl931-nersc_alsdev_raw
+
   globus_apps:
     als_transfer:
       client_id: ${GLOBUS_CLIENT_ID}
