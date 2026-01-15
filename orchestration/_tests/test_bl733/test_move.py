@@ -68,17 +68,30 @@ def test_process_new_733_file_task(mocker: MockFixture) -> None:
     Parameters:
         mocker (MockFixture): The pytest-mock fixture for patching and mocking objects.
     """
-    # Import the flow to test.
-    from orchestration.flows.bl733.move import process_new_733_file_task
-
     # Patch the Secret.load and init_transfer_client in the configuration context.
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
+    # Patch ALL three transfer functions BEFORE importing/instantiating Config733
     mocker.patch(
-        "orchestration.flows.bl733.config.transfer.init_transfer_client",
-        return_value=mocker.MagicMock()  # Return a dummy TransferClient
+        "orchestration.flows.bl733.config.transfer.build_endpoints",
+        return_value={
+            "bl733-als-data733": mocker.MagicMock(root_path="/mock/data733"),
+            "bl733-als-data733_raw": mocker.MagicMock(root_path="/mock/data733_raw"),
+            "bl733-nersc-alsdev_raw": mocker.MagicMock(root_path="/mock/nersc_raw"),
+            "bl733-lamarr-beamlines": mocker.MagicMock(root_path="/mock/lamarr"),
+        }
+    )
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.build_apps",
+        return_value={"als_transfer": "mock_app"}
     )
 
-    # Instantiate the dummy configuration.
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.init_transfer_client",
+        return_value=mocker.MagicMock()  # Return a mock TransferClient
+    )
+
+    from orchestration.flows.bl733.move import process_new_733_file_task
+    # Instantiate the mock configuration.
     mock_config = Config733()
 
     # Generate a test file path.
@@ -88,11 +101,11 @@ def test_process_new_733_file_task(mocker: MockFixture) -> None:
     mock_transfer_controller = mocker.MagicMock()
     mock_transfer_controller.copy.return_value = True
 
-    mock_prune = mocker.patch(
-        "orchestration.flows.bl733.move.prune",
-        return_value=None
+    mock_prune_controller = mocker.MagicMock()
+    mocker.patch(
+        "orchestration.flows.bl733.move.get_prune_controller",
+        return_value=mock_prune_controller
     )
-
     # Patch get_transfer_controller where it is used in process_new_733_file_task.
     mocker.patch(
         "orchestration.flows.bl733.move.get_transfer_controller",
@@ -105,16 +118,15 @@ def test_process_new_733_file_task(mocker: MockFixture) -> None:
     # Verify that the transfer controller's copy method was called exactly twice.
     assert mock_transfer_controller.copy.call_count == 2, "Transfer controller copy method should be called exactly twice"
     assert result is None, "The flow should return None"
-    assert mock_prune.call_count == 1, "Prune function should be called exactly once"
+    assert mock_prune_controller.prune.call_count == 1, "Prune function should be called exactly once"
 
     # Reset mocks and test with config=None
     mock_transfer_controller.copy.reset_mock()
-    mock_prune.reset_mock()
-
+    mock_prune_controller.prune.reset_mock()
     result = process_new_733_file_task(file_path=test_file_path, config=None)
     assert mock_transfer_controller.copy.call_count == 2, "Transfer controller copy method should be called exactly twice"
     assert result is None, "The flow should return None"
-    assert mock_prune.call_count == 1, "Prune function should be called exactly once"
+    assert mock_prune_controller.prune.call_count == 1, "Prune function should be called exactly once"
 
 
 def test_dispatcher_733_flow(mocker: MockFixture) -> None:
@@ -141,14 +153,25 @@ def test_dispatcher_733_flow(mocker: MockFixture) -> None:
 
     # Patch the schedule_prefect_flow call to avoid real Prefect interaction
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
+
+    # Patch ALL three transfer functions BEFORE importing Config733
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.build_endpoints",
+        return_value={
+            "bl733-als-data733": mocker.MagicMock(root_path="/mock/data733"),
+            "bl733-als-data733_raw": mocker.MagicMock(root_path="/mock/data733_raw"),
+            "bl733-nersc-alsdev_raw": mocker.MagicMock(root_path="/mock/nersc_raw"),
+            "bl733-lamarr-beamlines": mocker.MagicMock(root_path="/mock/lamarr"),
+        }
+    )
+    mocker.patch(
+        "orchestration.flows.bl733.config.transfer.build_apps",
+        return_value={"als_transfer": "mock_app"}
+    )
+
     mocker.patch(
         "orchestration.flows.bl733.config.transfer.init_transfer_client",
-        return_value=mocker.MagicMock()  # Return a dummy TransferClient
-    )
-    # Patch the schedule_prefect_flow call to avoid real Prefect interaction
-    mocker.patch(
-        "orchestration.flows.bl733.move.schedule_prefect_flow",
-        return_value=None
+        return_value=mocker.MagicMock()  # Return a mock TransferClient
     )
 
     # Patch the process_new_733_file_task function to monitor its calls.
