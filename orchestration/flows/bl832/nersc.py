@@ -80,6 +80,9 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
     ) -> bool:
         """
         Use NERSC for tomography reconstruction
+
+        :param file_path: Path to the file to reconstruct
+        :return: True if successful, False otherwise
         """
         logger.info("Starting NERSC reconstruction process.")
 
@@ -211,6 +214,7 @@ date
 
         :param file_path: Path to the file to reconstruct
         :param num_nodes: Number of nodes to use for parallel reconstruction
+        :return: True if successful, False otherwise
         """
         logger.info("Starting NERSC reconstruction process.")
 
@@ -247,7 +251,7 @@ date
         if num_nodes < 8:
             qos = "realtime"
         if num_nodes > 8:
-            qos = "preempt"
+            qos = "premium"
 
         # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
         job_script = f"""#!/bin/bash
@@ -349,7 +353,9 @@ for i in $(seq 0 $((NNODES - 1))); do
         --volume={pscratch_path}/8.3.2:/alsuser \
         --volume={pscratch_path}/8.3.2/scratch:/scratch \
         --volume={recon_scripts_dir}:/opt/scripts \
-        /bin/bash -c "cd /alsuser && python /opt/scripts/sfapi_reconstruction_multinode.py {file_name} {folder_name} $SINO_START $SINO_END" &
+        /bin/bash -c "cd /alsuser && python /opt/scripts/sfapi_reconstruction_multinode.py \
+{file_name} {folder_name} $SINO_START $SINO_END" &
+
 done
 
 wait
@@ -410,7 +416,14 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
                 return False
 
     def _fetch_timing_data(self, perlmutter, pscratch_path: str, job_id: str) -> dict:
-        """Fetch and parse timing data from the SLURM job."""
+        """
+        Fetch and parse timing data from the SLURM job.
+
+        :param perlmutter: SFAPI compute object for Perlmutter
+        :param pscratch_path: Path to the user's pscratch directory
+        :param job_id: SLURM job ID
+        :return: Dictionary with timing breakdown
+        """
         timing_file = f"{pscratch_path}/tomo_recon_logs/timing_{job_id}.txt"
 
         try:
@@ -467,6 +480,117 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
             import traceback
             logger.warning(traceback.format_exc())
             return None
+
+    def build_multi_resolution(
+        self,
+        file_path: str = "",
+    ) -> bool:
+        """
+        Use NERSC to make multiresolution version of tomography results.
+
+        :param file_path: Path to the file to process
+        :return: True if successful, False otherwise
+        """
+
+        logger.info("Starting NERSC multiresolution process.")
+
+        user = self.client.user()
+
+        multires_image = self.config.ghcr_images832["multires_image"]
+        logger.info(f"{multires_image=}")
+
+        recon_scripts_dir = self.config.nersc832_alsdev_recon_scripts.root_path
+        logger.info(f"{recon_scripts_dir=}")
+
+        scratch_path = self.config.nersc832_alsdev_scratch.root_path
+        logger.info(f"{scratch_path=}")
+
+        pscratch_path = f"/pscratch/sd/{user.name[0]}/{user.name}"
+        logger.info(f"{pscratch_path=}")
+
+        path = Path(file_path)
+        folder_name = path.parent.name
+        file_name = path.stem
+
+        recon_path = f"scratch/{folder_name}/rec{file_name}/"
+        logger.info(f"{recon_path=}")
+
+        raw_path = f"raw/{folder_name}/{file_name}.h5"
+        logger.info(f"{raw_path=}")
+
+        # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
+        job_script = f"""#!/bin/bash
+#SBATCH -q realtime
+#SBATCH -A als
+#SBATCH -C cpu
+#SBATCH --job-name=tomo_multires_{folder_name}_{file_name}
+#SBATCH --output={pscratch_path}/tomo_recon_logs/%x_%j.out
+#SBATCH --error={pscratch_path}/tomo_recon_logs/%x_%j.err
+#SBATCH -N 1
+#SBATCH --ntasks-per-node 1
+#SBATCH --cpus-per-task 128
+#SBATCH --time=0:15:00
+#SBATCH --exclusive
+
+date
+
+echo "Running multires container..."
+srun podman-hpc run \
+--volume {recon_scripts_dir}/tiff_to_zarr.py:/alsuser/tiff_to_zarr.py \
+--volume {pscratch_path}/8.3.2:/alsdata \
+--volume {pscratch_path}/8.3.2:/alsuser/ \
+{multires_image} \
+bash -c "python tiff_to_zarr.py {recon_path} --raw_file {raw_path}"
+
+date
+"""
+        try:
+            logger.info("Submitting Tiff to Zarr job script to Perlmutter.")
+            perlmutter = self.client.compute(Machine.perlmutter)
+            job = perlmutter.submit_job(job_script)
+            logger.info(f"Submitted job ID: {job.jobid}")
+
+            try:
+                job.update()
+            except Exception as update_err:
+                logger.warning(f"Initial job update failed, continuing: {update_err}")
+
+            time.sleep(60)
+            logger.info(f"Job {job.jobid} current state: {job.state}")
+
+            job.complete()  # Wait until the job completes
+            logger.info("Reconstruction job completed successfully.")
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Error during job submission or completion: {e}")
+            match = re.search(r"Job not found:\s*(\d+)", str(e))
+
+            if match:
+                jobid = match.group(1)
+                logger.info(f"Attempting to recover job {jobid}.")
+                try:
+                    job = self.client.perlmutter.job(jobid=jobid)
+                    time.sleep(30)
+                    job.complete()
+                    logger.info("Reconstruction job completed successfully after recovery.")
+                    return True
+                except Exception as recovery_err:
+                    logger.error(f"Failed to recover job {jobid}: {recovery_err}")
+                    return False
+            else:
+                return False
+
+    def start_streaming_service(
+        self,
+        walltime: datetime.timedelta = datetime.timedelta(minutes=30),
+    ) -> str:
+        return NerscStreamingMixin.start_streaming_service(
+            self,
+            client=self.client,
+            walltime=walltime
+        )
 
     def pull_shifter_image(
         self,
@@ -595,112 +719,6 @@ echo "Completed at $(date)"
         except Exception as e:
             logger.warning(f"Error checking Shifter cache: {e}")
             return False
-
-    def build_multi_resolution(
-        self,
-        file_path: str = "",
-    ) -> bool:
-        """Use NERSC to make multiresolution version of tomography results."""
-
-        logger.info("Starting NERSC multiresolution process.")
-
-        user = self.client.user()
-
-        multires_image = self.config.ghcr_images832["multires_image"]
-        logger.info(f"{multires_image=}")
-
-        recon_scripts_dir = self.config.nersc832_alsdev_recon_scripts.root_path
-        logger.info(f"{recon_scripts_dir=}")
-
-        scratch_path = self.config.nersc832_alsdev_scratch.root_path
-        logger.info(f"{scratch_path=}")
-
-        pscratch_path = f"/pscratch/sd/{user.name[0]}/{user.name}"
-        logger.info(f"{pscratch_path=}")
-
-        path = Path(file_path)
-        folder_name = path.parent.name
-        file_name = path.stem
-
-        recon_path = f"scratch/{folder_name}/rec{file_name}/"
-        logger.info(f"{recon_path=}")
-
-        raw_path = f"raw/{folder_name}/{file_name}.h5"
-        logger.info(f"{raw_path=}")
-
-        # IMPORTANT: job script must be deindented to the leftmost column or it will fail immediately
-        job_script = f"""#!/bin/bash
-#SBATCH -q realtime
-#SBATCH -A als
-#SBATCH -C cpu
-#SBATCH --job-name=tomo_multires_{folder_name}_{file_name}
-#SBATCH --output={pscratch_path}/tomo_recon_logs/%x_%j.out
-#SBATCH --error={pscratch_path}/tomo_recon_logs/%x_%j.err
-#SBATCH -N 1
-#SBATCH --ntasks-per-node 1
-#SBATCH --cpus-per-task 64
-#SBATCH --time=0:15:00
-#SBATCH --exclusive
-
-date
-
-echo "Running multires container..."
-srun podman-hpc run \
---volume {recon_scripts_dir}/tiff_to_zarr.py:/alsuser/tiff_to_zarr.py \
---volume {pscratch_path}/8.3.2:/alsdata \
---volume {pscratch_path}/8.3.2:/alsuser/ \
-{multires_image} \
-bash -c "python tiff_to_zarr.py {recon_path} --raw_file {raw_path}"
-
-date
-"""
-        try:
-            logger.info("Submitting Tiff to Zarr job script to Perlmutter.")
-            perlmutter = self.client.compute(Machine.perlmutter)
-            job = perlmutter.submit_job(job_script)
-            logger.info(f"Submitted job ID: {job.jobid}")
-
-            try:
-                job.update()
-            except Exception as update_err:
-                logger.warning(f"Initial job update failed, continuing: {update_err}")
-
-            time.sleep(60)
-            logger.info(f"Job {job.jobid} current state: {job.state}")
-
-            job.complete()  # Wait until the job completes
-            logger.info("Reconstruction job completed successfully.")
-
-            return True
-
-        except Exception as e:
-            logger.warning(f"Error during job submission or completion: {e}")
-            match = re.search(r"Job not found:\s*(\d+)", str(e))
-
-            if match:
-                jobid = match.group(1)
-                logger.info(f"Attempting to recover job {jobid}.")
-                try:
-                    job = self.client.perlmutter.job(jobid=jobid)
-                    time.sleep(30)
-                    job.complete()
-                    logger.info("Reconstruction job completed successfully after recovery.")
-                    return True
-                except Exception as recovery_err:
-                    logger.error(f"Failed to recover job {jobid}: {recovery_err}")
-                    return False
-            else:
-                return False
-
-    def start_streaming_service(
-        self,
-        walltime: datetime.timedelta = datetime.timedelta(minutes=30),
-    ) -> str:
-        return NerscStreamingMixin.start_streaming_service(
-            self,
-            client=self.client,
-            walltime=walltime
-        )
 
 
 def schedule_pruning(
@@ -840,6 +858,9 @@ def nersc_recon_flow(
     Perform tomography reconstruction on NERSC.
 
     :param file_path: Path to the file to reconstruct.
+    :param num_nodes: Number of nodes to use for parallel reconstruction.
+    :param config: Configuration object (if None, a default Config832 will be created).
+    :return: True if successful, False otherwise.
     """
     logger = get_run_logger()
 
@@ -854,10 +875,17 @@ def nersc_recon_flow(
     )
     logger.info("NERSC reconstruction controller initialized")
 
-    nersc_reconstruction_success = controller.reconstruct_multinode(
-        file_path=file_path,
-        num_nodes=num_nodes
-    )
+    if num_nodes == 1:
+        logger.info("Using single-node reconstruction")
+        nersc_reconstruction_success = controller.reconstruct(
+            file_path=file_path,
+        )
+    else:
+        logger.info(f"Using multi-node reconstruction with {num_nodes} nodes")
+        nersc_reconstruction_success = controller.reconstruct_multinode(
+            file_path=file_path,
+            num_nodes=num_nodes
+        )
 
     if isinstance(nersc_reconstruction_success, dict):
         success = nersc_reconstruction_success.get('success', False)
@@ -869,7 +897,10 @@ def nersc_recon_flow(
             logger.info("=" * 50)
             logger.info(f"  Total job time:      {timing.get('total', 'N/A')}s")
             logger.info(f"  Container pull:      {timing.get('container_pull', 'N/A')}s")
-            logger.info(f"  File copy:           {timing.get('file_copy', 'N/A')}s (skipped: {timing.get('copy_skipped', 'N/A')})")
+            logger.info(
+                f"  File copy:           {timing.get('file_copy', 'N/A')}s "
+                f"(skipped: {timing.get('copy_skipped', 'N/A')})"
+            )
             logger.info(f"  Metadata detection:  {timing.get('metadata', 'N/A')}s")
             logger.info(f"  RECONSTRUCTION:      {timing.get('reconstruction', 'N/A')}s  <-- actual recon time")
             logger.info(f"  Num slices:          {timing.get('num_slices', 'N/A')}")
@@ -886,63 +917,61 @@ def nersc_recon_flow(
 
     logger.info(f"NERSC reconstruction success: {success}")
 
-    # Commented out for testing purposes -- should be re-enabled for production
+    nersc_multi_res_success = controller.build_multi_resolution(
+        file_path=file_path,
+    )
+    logger.info(f"NERSC multi-resolution success: {nersc_multi_res_success}")
 
-    # nersc_multi_res_success = controller.build_multi_resolution(
-    #     file_path=file_path,
-    # )
-    # logger.info(f"NERSC multi-resolution success: {nersc_multi_res_success}")
+    path = Path(file_path)
+    folder_name = path.parent.name
+    file_name = path.stem
 
-    # path = Path(file_path)
-    # folder_name = path.parent.name
-    # file_name = path.stem
+    tiff_file_path = f"{folder_name}/rec{file_name}"
+    zarr_file_path = f"{folder_name}/rec{file_name}.zarr"
 
-    # tiff_file_path = f"{folder_name}/rec{file_name}"
-    # zarr_file_path = f"{folder_name}/rec{file_name}.zarr"
-
-    # logger.info(f"{tiff_file_path=}")
-    # logger.info(f"{zarr_file_path=}")
+    logger.info(f"{tiff_file_path=}")
+    logger.info(f"{zarr_file_path=}")
 
     # Transfer reconstructed data
-    # logger.info("Preparing transfer.")
-    # transfer_controller = get_transfer_controller(
-    #     transfer_type=CopyMethod.GLOBUS,
-    #     config=config
-    # )
+    logger.info("Preparing transfer.")
+    transfer_controller = get_transfer_controller(
+        transfer_type=CopyMethod.GLOBUS,
+        config=config
+    )
 
-    # logger.info("Copy from /pscratch/sd/a/alsdev/8.3.2 to /global/cfs/cdirs/als/data_mover/8.3.2/scratch.")
-    # transfer_controller.copy(
-    #     file_path=tiff_file_path,
-    #     source=config.nersc832_alsdev_pscratch_scratch,
-    #     destination=config.nersc832_alsdev_scratch
-    # )
+    logger.info("Copy from /pscratch/sd/a/alsdev/8.3.2 to /global/cfs/cdirs/als/data_mover/8.3.2/scratch.")
+    transfer_controller.copy(
+        file_path=tiff_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.nersc832_alsdev_scratch
+    )
 
-    # transfer_controller.copy(
-    #     file_path=zarr_file_path,
-    #     source=config.nersc832_alsdev_pscratch_scratch,
-    #     destination=config.nersc832_alsdev_scratch
-    # )
+    transfer_controller.copy(
+        file_path=zarr_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.nersc832_alsdev_scratch
+    )
 
-    # logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to data832")
-    # transfer_controller.copy(
-    #     file_path=tiff_file_path,
-    #     source=config.nersc832_alsdev_pscratch_scratch,
-    #     destination=config.data832_scratch
-    # )
+    logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to data832")
+    transfer_controller.copy(
+        file_path=tiff_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.data832_scratch
+    )
 
-    # transfer_controller.copy(
-    #     file_path=zarr_file_path,
-    #     source=config.nersc832_alsdev_pscratch_scratch,
-    #     destination=config.data832_scratch
-    # )
+    transfer_controller.copy(
+        file_path=zarr_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.data832_scratch
+    )
 
-    # logger.info("Scheduling pruning tasks.")
-    # schedule_pruning(
-    #     config=config,
-    #     raw_file_path=file_path,
-    #     tiff_file_path=tiff_file_path,
-    #     zarr_file_path=zarr_file_path
-    # )
+    logger.info("Scheduling pruning tasks.")
+    schedule_pruning(
+        config=config,
+        raw_file_path=file_path,
+        tiff_file_path=tiff_file_path,
+        zarr_file_path=zarr_file_path
+    )
 
     # TODO: Ingest into SciCat
     if nersc_reconstruction_success:
@@ -1022,100 +1051,6 @@ if __name__ == "__main__":
 
     start = time.time()
     nersc_recon_flow(
-        file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
-        num_nodes=8,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
-        num_nodes=4,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
-        num_nodes=2,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
-        num_nodes=1,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
-    print(f"Total reconstruction time with 1 node: {end - start} seconds")
-
-    # # # Fungi ------------------------------------------
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
-        num_nodes=8,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
-        num_nodes=4,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
-        num_nodes=2,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
-        num_nodes=1,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
-    print(f"Total reconstruction time with 1 node: {end - start} seconds")
-
-    # # # Silk ------------------------------------------
-
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20251218_111600_silkraw.h5",
-        num_nodes=8,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
-
-    start = time.time()
-    nersc_recon_flow(
         file_path="dabramov/20251218_111600_silkraw.h5",
         num_nodes=4,
         config=config
@@ -1124,22 +1059,126 @@ if __name__ == "__main__":
     logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
     print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
 
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20251218_111600_silkraw.h5",
-        num_nodes=2,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=8,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
 
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20251218_111600_silkraw.h5",
-        num_nodes=1,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
-    print(f"Total reconstruction time with 1 node: {end - start} seconds")
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=4,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=2,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230215_135338_PET_Al_PP_Al2O3_fibers_in_glass_pipette.h5",
+    #     num_nodes=1,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
+    # print(f"Total reconstruction time with 1 node: {end - start} seconds")
+
+    # # # # Fungi ------------------------------------------
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+    #     num_nodes=8,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+    #     num_nodes=4,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+    #     num_nodes=2,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast.h5",
+    #     num_nodes=1,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
+    # print(f"Total reconstruction time with 1 node: {end - start} seconds")
+
+    # # # # Silk ------------------------------------------
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20251218_111600_silkraw.h5",
+    #     num_nodes=8,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 8 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20251218_111600_silkraw.h5",
+    #     num_nodes=4,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20251218_111600_silkraw.h5",
+    #     num_nodes=2,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 2 nodes: {end - start} seconds")
+
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20251218_111600_silkraw.h5",
+    #     num_nodes=1,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 1 node: {end - start} seconds")
+    # print(f"Total reconstruction time with 1 node: {end - start} seconds")
