@@ -851,14 +851,12 @@ def schedule_pruning(
 @flow(name="nersc_recon_flow", flow_run_name="nersc_recon-{file_path}")
 def nersc_recon_flow(
     file_path: str,
-    num_nodes: int = 1,
     config: Optional[Config832] = None,
 ) -> bool:
     """
     Perform tomography reconstruction on NERSC.
 
     :param file_path: Path to the file to reconstruct.
-    :param num_nodes: Number of nodes to use for parallel reconstruction.
     :param config: Configuration object (if None, a default Config832 will be created).
     :return: True if successful, False otherwise.
     """
@@ -874,7 +872,8 @@ def nersc_recon_flow(
         config=config
     )
     logger.info("NERSC reconstruction controller initialized")
-
+    num_nodes = config.nersc_recon_num_nodes
+    logger.info(f"Configured to use {num_nodes} nodes for reconstruction")
     if num_nodes == 1:
         logger.info("Using single-node reconstruction")
         nersc_reconstruction_success = controller.reconstruct(

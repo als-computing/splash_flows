@@ -24,3 +24,4 @@ class Config832:
         self.alcf832_scratch = self.endpoints["alcf832_scratch"]
         self.scicat = config["scicat"]
         self.ghcr_images832 = config["ghcr_images832"]
+        self.nersc_recon_num_nodes = 4
