@@ -231,6 +231,29 @@ def test_alcf_recon_flow(mocker: MockFixture):
     mock_secret.get.return_value = str(uuid4())
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=mock_secret)
+    mocker.patch(
+        "orchestration.flows.bl832.config.transfer.build_endpoints",
+        return_value={
+            "spot832": mocker.MagicMock(),
+            "data832": mocker.MagicMock(),
+            "data832_raw": mocker.MagicMock(),
+            "data832_scratch": mocker.MagicMock(),
+            "nersc832": mocker.MagicMock(),
+            "nersc_alsdev": mocker.MagicMock(),
+            "nersc832_alsdev_raw": mocker.MagicMock(),
+            "nersc832_alsdev_scratch": mocker.MagicMock(),
+            "nersc832_alsdev_pscratch_raw": mocker.MagicMock(),
+            "nersc832_alsdev_pscratch_scratch": mocker.MagicMock(),
+            "nersc832_alsdev_recon_scripts": mocker.MagicMock(),
+            "alcf832_raw": mocker.MagicMock(),
+            "alcf832_scratch": mocker.MagicMock(),
+        }
+    )
+    mocker.patch(
+        "orchestration.flows.bl832.config.transfer.build_apps",
+        return_value={"als_transfer": "mock_app"}
+    )
+
     # 2) Patch out the calls in Config832 that do real Globus auth:
     #    a) init_transfer_client(...) used in the constructor
     mocker.patch(
@@ -241,6 +264,13 @@ def test_alcf_recon_flow(mocker: MockFixture):
     mocker.patch(
         "orchestration.flows.bl832.config.flows.get_flows_client",
         return_value=mocker.MagicMock()  # pretend FlowsClient
+    )
+
+    mock_settings = mocker.MagicMock()
+    mock_settings.__getitem__ = lambda self, key: {"scicat": "mock_scicat", "ghcr_images832": "mock_ghcr"}[key]
+    mocker.patch(
+        "orchestration.config.settings",
+        mock_settings
     )
 
     # 3) Now import the real code AFTER these patches

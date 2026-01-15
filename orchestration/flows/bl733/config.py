@@ -1,13 +1,16 @@
 from globus_sdk import TransferClient
+
+from orchestration.config import BeamlineConfig
 from orchestration.globus import transfer
 
 
-# TODO: Use BeamlineConfig base class (Waiting for PR #62 to be merged)
-class Config733:
+class Config733(BeamlineConfig):
     def __init__(self) -> None:
-        config = transfer.get_config()
-        self.endpoints = transfer.build_endpoints(config)
-        self.apps = transfer.build_apps(config)
+        super().__init__(beamline_id="7.3.3")
+
+    def _beam_specific_config(self) -> None:
+        self.endpoints = transfer.build_endpoints(self.config)
+        self.apps = transfer.build_apps(self.config)
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
         self.data733 = self.endpoints["bl733-als-data733"]
         self.data733_raw = self.endpoints["bl733-als-data733_raw"]

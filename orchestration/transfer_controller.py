@@ -9,7 +9,7 @@ from typing import Generic, TypeVar, Optional
 
 import globus_sdk
 
-from orchestration.flows.bl832.config import Config832
+from orchestration.config import BeamlineConfig
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
 from orchestration.prometheus_utils import PrometheusMetrics
 
@@ -87,7 +87,7 @@ class TransferController(Generic[Endpoint], ABC):
     """
     def __init__(
         self,
-        config: Config832
+        config: BeamlineConfig
     ) -> None:
         self.config = config
 
@@ -121,7 +121,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
     """
     def __init__(
         self,
-        config: Config832,
+        config: BeamlineConfig,
         prometheus_metrics: Optional[PrometheusMetrics] = None
     ) -> None:
         super().__init__(config)
@@ -317,7 +317,7 @@ class GlobusTransferController(TransferController[GlobusEndpoint]):
 
 
 class SimpleTransferController(TransferController[FileSystemEndpoint]):
-    def __init__(self, config: Config832) -> None:
+    def __init__(self, config: BeamlineConfig) -> None:
         super().__init__(config)
     """
     Use a simple 'cp' command to move data within the same system.
@@ -390,7 +390,7 @@ class CopyMethod(Enum):
 
 def get_transfer_controller(
     transfer_type: CopyMethod,
-    config: Config832,
+    config: BeamlineConfig,
     prometheus_metrics: Optional[PrometheusMetrics] = None
 ) -> TransferController:
     """
@@ -409,26 +409,3 @@ def get_transfer_controller(
         return SimpleTransferController(config)
     else:
         raise ValueError(f"Invalid transfer type: {transfer_type}")
-
-
-if __name__ == "__main__":
-    config = Config832()
-    transfer_type = CopyMethod.GLOBUS
-    globus_transfer_controller = get_transfer_controller(transfer_type, config)
-    globus_transfer_controller.copy(
-        file_path="dabramov/test.txt",
-        source=config.alcf832_raw,
-        destination=config.alcf832_scratch
-    )
-
-    simple_transfer_controller = get_transfer_controller(CopyMethod.SIMPLE, config)
-    success = simple_transfer_controller.copy(
-        file_path="test.rtf",
-        source=FileSystemEndpoint("source", "/Users/david/Documents/copy_test/test_source/"),
-        destination=FileSystemEndpoint("destination", "/Users/david/Documents/copy_test/test_destination/")
-    )
-
-    if success:
-        logger.info("Simple transfer succeeded.")
-    else:
-        logger.error("Simple transfer failed.")
