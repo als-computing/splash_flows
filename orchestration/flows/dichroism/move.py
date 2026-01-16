@@ -1,5 +1,7 @@
 import datetime
 import logging
+import os
+from pathlib import Path
 from typing import Optional
 
 from prefect import flow, task
@@ -14,6 +16,24 @@ logger = logging.getLogger(__name__)
 
 # Prune code is from the prune_controller in this PR: https://github.com/als-computing/splash_flows_globus/pulls
 # Note: once the PR is merged, we can import prune_controller directly instead of copying the code here.
+
+
+def get_common_parent_path(file_paths: list[str]) -> str:
+    """
+    Find the highest common parent directory for a list of file paths.
+
+    :param file_paths: List of file paths
+    :return: Common parent directory path
+    """
+    if not file_paths:
+        raise ValueError("No file paths provided")
+
+    if len(file_paths) == 1:
+        # Single file - return its parent directory
+        return str(Path(file_paths[0]).parent)
+
+    # Use os.path.commonpath for multiple files
+    return os.path.commonpath(file_paths)
 
 
 def prune(
