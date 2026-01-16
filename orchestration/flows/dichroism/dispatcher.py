@@ -1,7 +1,9 @@
 from enum import Enum
 import logging
-from prefect import flow
+from pathlib import Path
 from typing import Optional, Union, Any
+
+from prefect import flow, runtime
 
 from orchestration.flows.dichroism.config import ConfigDichroism
 from orchestration.flows.dichroism.move import process_new_402_file_task, process_new_631_file_task
@@ -14,18 +16,32 @@ class DichroismBeamlineEnum(str, Enum):
     BL631 = "BL631"
 
 
+def generate_flow_run_name() -> str:
+    """Generate flow run name from runtime parameters."""
+    params = runtime.flow_run.parameters
+    file_path = params.get("file_path")
+    if file_path is None:
+        return "dispatcher-no_file"
+    elif isinstance(file_path, str):
+        return f"dispatcher-{Path(file_path).name}"
+    elif len(file_path) == 1:
+        return f"dispatcher-{Path(file_path[0]).name}"
+    else:
+        return f"dispatcher-{Path(file_path[0]).name}_+{len(file_path)-1}_more"
+
+
 # TODO Once this PR (https://github.com/als-computing/splash_flows/pull/62) is merged, we can use config: Config402
-@flow(name="dispatcher", flow_run_name="dispatcher-{file_path}")
+@flow(name="dispatcher", flow_run_name=generate_flow_run_name)
 def dispatcher(
-    file_path: Optional[str] = None,
+    file_path: Optional[Union[str, list[str]]] = None,
     is_export_control: bool = False,
     config: Optional[Union[dict, Any]] = None,
     beamline: Optional[DichroismBeamlineEnum] = None
 ) -> None:
     """
-    Dispatcher flow for BL402 beamline that launches the new_402_file_flow.
+    Dispatcher flow for BL402 and BL631 beamlines that launches the new_402_file_flow.
 
-    :param file_path: Path to the file to be processed.
+    :param file_path: Path(s) to the file(s) to be processed.
     :param is_export_control: Flag indicating if export control measures should be applied.
                               (Not used in the current BL402 processing)
     :param config: Configuration settings for processing.
@@ -35,11 +51,21 @@ def dispatcher(
     :raises TypeError: If the provided configuration is not a dict or ConfigDichroism.
     """
 
-    logger.info("Starting dispatcher flow for Dichroism.")
-    logger.info(f"Parameters received: file_path={file_path}, is_export_control={is_export_control}", beamline=beamline)
+    # Normalize file_path to a list
+    if file_path is None:
+        file_paths = []
+    elif isinstance(file_path, str):
+        file_paths = [file_path]
+    else:
+        file_paths = file_path
+
+    num_files = len(file_paths)
+
+    logger.info(f"Starting dispatcher flow for Dichroism with {num_files} file(s)")
+    logger.info(f"Parameters received: file_path={file_path}, is_export_control={is_export_control}, beamline={beamline}")
 
     # Validate inputs and raise errors if necessary. The ValueErrors prevent the rest of the flow from running.
-    if file_path is None:
+    if not file_paths:  # returns True for empty list
         logger.error("No file_path provided to dispatcher.")
         raise ValueError("File path is required for processing.")
 
