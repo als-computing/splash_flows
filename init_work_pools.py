@@ -49,10 +49,15 @@ def check_env() -> tuple[str, str, str]:
     """Validate required environment variables and paths."""
     beamline = os.environ.get("BEAMLINE")
     if not beamline:
-        logger.error("Must set BEAMLINE (e.g., 832, 733)")
+        logger.error("Must set BEAMLINE (e.g., 832, 733, dichroism)")
         sys.exit(1)
 
-    prefect_yaml = f"orchestration/flows/bl{beamline}/prefect.yaml"
+    # Check if the beamline identifier is a number or a string to get the correct flows folder name
+    if beamline.isdigit():
+        prefect_yaml = f"orchestration/flows/bl{beamline}/prefect.yaml"
+    else:
+        prefect_yaml = f"orchestration/flows/{beamline}/prefect.yaml"
+
     if not os.path.isfile(prefect_yaml):
         logger.error(f"[Init:{beamline}] Expected {prefect_yaml} not found!")
         sys.exit(1)
