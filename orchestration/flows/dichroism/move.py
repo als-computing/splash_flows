@@ -353,7 +353,7 @@ def process_new_631_file_task(
         config=config
     )
 
-    logger.info(f"Step 1: Copying {common_path} from data402 to beegfs ({config.bl402_beegfs_raw.name})")
+    logger.info(f"Step 1: Copying {common_path} from data631 to beegfs ({config.bl631_beegfs_raw.name})")
     transfer_controller.copy(
         file_path=common_path,
         source=config.bl631_compute_dtn,
@@ -361,7 +361,7 @@ def process_new_631_file_task(
     )
     logger.info("Step 1 complete: File(s) copied to beegfs")
 
-    logger.info(f"Step 2: Copying {common_path} from data402 to NERSC CFS ({config.bl631_nersc_alsdev_raw.name})")
+    logger.info(f"Step 2: Copying {common_path} from data631 to NERSC CFS ({config.bl631_nersc_alsdev_raw.name})")
     transfer_controller.copy(
         file_path=common_path,
         source=config.bl631_compute_dtn,
