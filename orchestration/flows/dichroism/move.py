@@ -2,9 +2,9 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
-from prefect import flow, task
+from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 
 from orchestration.flows.dichroism.config import ConfigDichroism
@@ -153,9 +153,16 @@ def _prune_globus_endpoint(
 
 @flow(name="new_402_file_flow", flow_run_name="process_new-{file_path}")
 def process_new_402_file_flow(
-    file_path: str,
+    file_path: Union[str, list[str]],
     config: Optional[ConfigDichroism] = None
 ) -> None:
+    """
+    process_new_402_file_flow calls the task to process a new file at BL 4.0.2
+
+    :param file_path: Path to the new file to be processed.
+    :param config: Beamline configuration settings for processing.
+    :return: None
+    """
     process_new_402_file_task(
         file_path=file_path,
         config=config
@@ -164,35 +171,63 @@ def process_new_402_file_flow(
 
 @task(name="new_402_file_task")
 def process_new_402_file_task(
-    file_path: str,
+    file_path: Union[str, list[str]],
     config: Optional[ConfigDichroism] = None
 ) -> None:
     """
     Flow to process a new file at BL 4.0.2
-    1. Copy the file from the data402 to NERSC CFS. Ingest file path in SciCat.
+    1. Copy the file(s) from the data402 to NERSC CFS. Ingest file path in SciCat.
     2. Schedule pruning from data402. 6 months from now.
-    3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
+    3. Copy the file(s) from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
     4. Schedule pruning from NERSC CFS.
 
-    :param file_path: Path to the new file to be processed.
+    :param file_path: Path to the new file(s) to be processed.
     :param config: Configuration settings for processing.
     """
+    logger = get_run_logger()
 
-    logger.info(f"Processing new 402 file: {file_path}")
+    # Normalize file_path to a list
+    if file_path is None:
+        file_paths = []
+    elif isinstance(file_path, str):
+        file_paths = [file_path]
+    else:
+        file_paths = file_path
+
+    if not file_paths:
+        logger.error("No file_paths provided")
+        raise ValueError("No file_paths provided")
+
+    logger.info(f"Processing new 402 file(s): {file_paths}")
 
     if not config:
+        logger.info("No config provided, initializing default ConfigDichroism")
         config = ConfigDichroism()
 
+    common_path = get_common_parent_path(file_paths)
+    logger.info(f"Common parent path: {common_path}")
+
+    logger.info("Initializing Globus transfer controller")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
+    logger.info(f"Step 1: Copying {common_path} from data402 to beegfs ({config.bl402_beegfs_raw.name})")
     transfer_controller.copy(
-        file_path=file_path,
+        file_path=common_path,
+        source=config.bl402_compute_dtn,
+        destination=config.bl402_beegfs_raw
+    )
+    logger.info("Step 1 complete: File(s) copied to beegfs")
+
+    logger.info(f"Step 2: Copying {common_path} from data402 to NERSC CFS ({config.bl402_nersc_alsdev_raw.name})")
+    transfer_controller.copy(
+        file_path=common_path,
         source=config.bl402_compute_dtn,
         destination=config.bl402_nersc_alsdev_raw
     )
+    logger.info("Step 2 complete: File(s) copied to NERSC CFS")
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
@@ -201,14 +236,19 @@ def process_new_402_file_task(
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
-    dichroism_settings = Variable.get("dichroism-settings")
+    logger.info("Step 3: Scheduling pruning from data402 endpoint")
+    dichroism_settings = Variable.get("dichroism-settings", _sync=True)
 
-    prune(
-        file_path=file_path,
-        source_endpoint=config.bl402_compute_dtn,
-        check_endpoint=config.bl402_nersc_alsdev_raw,
-        days_from_now=dichroism_settings["delete_data402_files_after_days"]  # determine appropriate value: currently 6 months
-    )
+    for fp in file_paths:
+        prune(
+            file_path=fp,
+            source_endpoint=config.bl402_compute_dtn,
+            check_endpoint=config.bl402_nersc_alsdev_raw,
+            days_from_now=dichroism_settings["delete_data402_files_after_days"],
+            config=config
+        )
+
+    logger.info("Step 3 complete: Pruning from data402 scheduled")
 
     # TODO: Copy the file from NERSC CFS to NERSC HPSS.. after 2 years?
     # Waiting for PR #62 to be merged (transfer_controller)
@@ -249,9 +289,15 @@ def move_402_flight_check(
 
 @flow(name="new_631_file_flow", flow_run_name="process_new-{file_path}")
 def process_new_631_file_flow(
-    file_path: str,
+    file_path: Union[str, list[str]],
     config: Optional[ConfigDichroism] = None
 ) -> None:
+    """
+    process_new_631_file_flow calls the task to process a new file at BL 6.3.1
+    :param file_path: Path to the new file(s) to be processed.
+    :param config: Beamline configuration settings for processing.
+    :return: None
+    """
     process_new_631_file_task(
         file_path=file_path,
         config=config
@@ -260,17 +306,17 @@ def process_new_631_file_flow(
 
 @task(name="new_631_file_task")
 def process_new_631_file_task(
-    file_path: str,
+    file_path: Union[str, list[str]],
     config: Optional[ConfigDichroism] = None
 ) -> None:
     """
     Flow to process a new file at BL 6.3.1
-    1. Copy the file from the data631 to NERSC CFS. Ingest file path in SciCat.
+    1. Copy the file(s) from the data631 to NERSC CFS. Ingest file path in SciCat.
     2. Schedule pruning from data631. 6 months from now.
-    3. Copy the file from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
+    3. Copy the file(s) from NERSC CFS to NERSC HPSS. Ingest file path in SciCat.
     4. Schedule pruning from NERSC CFS.
 
-    :param file_path: Path to the new file to be processed.
+    :param file_path: Path to the new file(s) to be processed.
     :param config: Configuration settings for processing.
     """
 
