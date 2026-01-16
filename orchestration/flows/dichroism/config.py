@@ -11,5 +11,7 @@ class ConfigDichroism:
         self.tc: TransferClient = transfer.init_transfer_client(self.apps["als_transfer"])
         self.bl402_compute_dtn = self.endpoints["bl402-compute-dtn"]
         self.bl402_nersc_alsdev_raw = self.endpoints["bl402-nersc_alsdev_raw"]
+        self.bl402_beegfs_raw = self.endpoints["bl402-beegfs_raw"]
         self.bl631_compute_dtn = self.endpoints["bl631-compute-dtn"]
         self.bl631_nersc_alsdev_raw = self.endpoints["bl631-nersc_alsdev_raw"]
+        self.bl631_beegfs_raw = self.endpoints["bl631-beegfs_raw"]

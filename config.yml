@@ -15,6 +15,12 @@ globus:
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: bl402-nersc_alsdev_raw
 
+    bl402-beegfs_raw:
+      root_path: /beamline_staging/bl402/raw/
+      uri: beegfs.als.lbl.gov
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl402-beegfs_raw
+
     bl631-compute-dtn:
       root_path: /
       uri: compute-dtn.als.lbl.gov
@@ -26,6 +32,12 @@ globus:
       uri: nersc.gov
       uuid: d40248e6-d874-4f7b-badd-2c06c16f1a58
       name: bl631-nersc_alsdev_raw
+
+    bl631-beegfs_raw:
+      root_path: /beamline_staging/bl631/raw/
+      uri: beegfs.als.lbl.gov
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl631-beegfs_raw
 
     # 7.0.1.2 ENDPOINTS
 
