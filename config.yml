@@ -90,17 +90,17 @@ globus:
       uuid: df82346e-9a15-11ea-b3c4-0ae144191ee3
       name: nersc832
 
-    compute_dtn_832_raw:
-      root_path: /beamlines/bl832/raw/
+    bl832_beegfs_raw:
+      root_path: /beamline_staging/bl832/raw/
       uri: computeDTN.als.lbl.gov
-      uuid: TBD
-      name: compute_dtn_832_raw
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl832_beegfs_raw
 
-    compute_dtn_832_scratch:
-      root_path: /beamlines/bl832/processed/
+    bl832_beegfs_processed:
+      root_path: /beamline_staging/bl832/processed/
       uri: computeDTN.als.lbl.gov
-      uuid: TBD
-      name: compute_dtn_832_scratch
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl832_beegfs_processed
 
     nersc7012:
       root_path: /global/cfs/cdirs/als/gsharing/data_mover/7012

@@ -505,13 +505,13 @@ def nersc_recon_flow(
     transfer_controller.copy(
         file_path=tiff_file_path,
         source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.compute_dtn_832_scratch
+        destination=config.bl832_beegfs_processed
     )
 
     transfer_controller.copy(
         file_path=zarr_file_path,
         source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.compute_dtn_832_scratch
+        destination=config.bl832_beegfs_processed
     )
 
     logger.info("Scheduling pruning tasks.")
