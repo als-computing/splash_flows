@@ -24,7 +24,7 @@ globus:
     bl631-compute-dtn:
       root_path: /
       uri: compute-dtn.als.lbl.gov
-      uuid: 23af478e-d459-4e78-9753-5091b5fb432a
+      uuid: TBD
       name: bl631-compute-dtn
 
     bl631-nersc_alsdev_raw:
