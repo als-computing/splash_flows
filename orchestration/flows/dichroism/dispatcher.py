@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Union, Any
 
-from prefect import flow, runtime
+from prefect import flow, get_run_logger, runtime
 
 from orchestration.flows.dichroism.config import ConfigDichroism
 from orchestration.flows.dichroism.move import process_new_402_file_task, process_new_631_file_task
@@ -19,15 +19,16 @@ class DichroismBeamlineEnum(str, Enum):
 def generate_flow_run_name() -> str:
     """Generate flow run name from runtime parameters."""
     params = runtime.flow_run.parameters
+    beamline = params.get("beamline")
     file_path = params.get("file_path")
     if file_path is None:
         return "dispatcher-no_file"
     elif isinstance(file_path, str):
-        return f"dispatcher-{Path(file_path).name}"
+        return f"dispatcher-{beamline}-{Path(file_path).name}"
     elif len(file_path) == 1:
-        return f"dispatcher-{Path(file_path[0]).name}"
+        return f"dispatcher-{beamline}-{Path(file_path[0]).name}"
     else:
-        return f"dispatcher-{Path(file_path[0]).name}_+{len(file_path)-1}_more"
+        return f"dispatcher-{beamline}-{Path(file_path[0]).name}_+{len(file_path)-1}_more"
 
 
 # TODO Once this PR (https://github.com/als-computing/splash_flows/pull/62) is merged, we can use config: Config402
@@ -50,6 +51,7 @@ def dispatcher(
     :raises ValueError: If no configuration is provided.
     :raises TypeError: If the provided configuration is not a dict or ConfigDichroism.
     """
+    logger = get_run_logger()
 
     # Normalize file_path to a list
     if file_path is None:
