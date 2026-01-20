@@ -219,20 +219,28 @@ def process_new_402_file_task(
     )
 
     logger.info(f"Step 1: Copying {common_path} from data402 to beegfs ({config.bl402_beegfs_raw.name})")
-    transfer_controller.copy(
+    beegfs_transfer_success = transfer_controller.copy(
         file_path=common_path,
         source=config.bl402_compute_dtn,
         destination=config.bl402_beegfs_raw
     )
-    logger.info("Step 1 complete: File(s) copied to beegfs")
+    if not beegfs_transfer_success:
+        logger.error("Step 1 failed: Beegfs transfer was not successful")
+        raise Warning("Beegfs transfer failed")
+    else:
+        logger.info("Step 1 complete: File(s) copied to beegfs")
 
     logger.info(f"Step 2: Copying {common_path} from data402 to NERSC CFS ({config.bl402_nersc_alsdev_raw.name})")
-    transfer_controller.copy(
+    nersc_transfer_success = transfer_controller.copy(
         file_path=common_path,
         source=config.bl402_compute_dtn,
         destination=config.bl402_nersc_alsdev_raw
     )
-    logger.info("Step 2 complete: File(s) copied to NERSC CFS")
+    if not nersc_transfer_success:
+        logger.error("Step 2 failed: NERSC transfer was not successful")
+        raise Warning("NERSC transfer failed")
+    else:
+        logger.info("Step 2 complete: File(s) copied to NERSC CFS")
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
@@ -364,20 +372,28 @@ def process_new_631_file_task(
     )
 
     logger.info(f"Step 1: Copying {common_path} from data631 to beegfs ({config.bl631_beegfs_raw.name})")
-    transfer_controller.copy(
+    beegfs_transfer_success = transfer_controller.copy(
         file_path=common_path,
         source=config.bl631_compute_dtn,
         destination=config.bl631_beegfs_raw
     )
-    logger.info("Step 1 complete: File(s) copied to beegfs")
+    if not beegfs_transfer_success:
+        logger.error("Step 1 failed: Beegfs transfer was not successful")
+        raise Warning("Beegfs transfer failed")
+    else:
+        logger.info("Step 1 complete: File(s) copied to beegfs")
 
     logger.info(f"Step 2: Copying {common_path} from data631 to NERSC CFS ({config.bl631_nersc_alsdev_raw.name})")
-    transfer_controller.copy(
+    nersc_transfer_success = transfer_controller.copy(
         file_path=common_path,
         source=config.bl631_compute_dtn,
         destination=config.bl631_nersc_alsdev_raw
     )
-    logger.info("Step 2 complete: File(s) copied to NERSC CFS")
+    if not nersc_transfer_success:
+        logger.error("Step 2 failed: NERSC transfer was not successful")
+        raise Warning("NERSC transfer failed")
+    else:
+        logger.info("Step 2 complete: File(s) copied to NERSC CFS")
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
