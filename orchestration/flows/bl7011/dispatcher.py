@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 @flow(name="dispatcher", flow_run_name="dispatcher-{file_path}")
 def dispatcher(
     file_path: Optional[str] = None,
+    metadata: Optional[dict] = None,
     is_export_control: bool = False,
     config: Optional[Union[dict, Any]] = None,
 ) -> None:
@@ -46,6 +47,7 @@ def dispatcher(
     try:
         process_new_7011_file_task(
             file_path=file_path,
+            metadata=metadata,
             config=config
         )
         logger.info("Dispatcher flow completed successfully.")

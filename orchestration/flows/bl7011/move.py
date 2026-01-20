@@ -2,7 +2,7 @@ import datetime
 import logging
 from typing import Optional
 
-from prefect import flow, task, get_run_logger
+from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 
 from orchestration.flows.bl7011.config import Config7011
@@ -137,17 +137,24 @@ def _prune_globus_endpoint(
 @flow(name="new_7011_file_flow", flow_run_name="process_new-{file_path}")
 def process_new_7011_file_flow(
     file_path: str,
+    metadata: Optional[dict] = None,
     config: Optional[Config7011] = None
 ) -> None:
     """
     Flow to process a new file at BL 7.0.1.1
+
+    :param file_path: Path to the new file to be processed.
+    :param metadata: Optional metadata associated with the file.
+    :param config: Configuration settings for processing.
+    :return: None
     """
-    process_new_7011_file_task(file_path=file_path, config=config)
+    process_new_7011_file_task(file_path=file_path, metadata=metadata, config=config)
 
 
 @task(name="new_7011_file_task")
 def process_new_7011_file_task(
     file_path: str,
+    metadata: Optional[dict] = None,
     config: Optional[Config7011] = None
 ) -> None:
     """
@@ -158,29 +165,40 @@ def process_new_7011_file_task(
     4. Schedule pruning from NERSC CFS.
 
     :param file_path: Path to the new file to be processed.
+    :param metadata: Optional metadata associated with the file.
     :param config: Configuration settings for processing.
     """
     logger = get_run_logger()
     logger.info(f"Processing new 7011 file: {file_path}")
 
     if not config:
+        logger.info("No config provided, using default Config7011")
         config = Config7011()
 
+    logger.info("Initializing transfer controller for Globus transfers")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
-    transfer_controller.copy(
+    logger.info(f"Transferring file {file_path} from data7011 to NERSC CFS")
+    nersc_transfer_success = transfer_controller.copy(
         file_path=file_path,
         source=config.bl7011_compute_dtn,
         destination=config.bl7011_nersc_alsdev
     )
 
+    if not nersc_transfer_success:
+        logger.error(f"Failed to transfer file {file_path} to NERSC CFS")
+        raise Warning(f"Failed to transfer file {file_path} to NERSC CFS")
+    else:
+        logger.info(f"Successfully transferred file {file_path} to NERSC CFS")
+
     # Schedule pruning from QNAP
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
+    logger.info(f"Scheduling pruning of file {file_path} from data7011 after configured retention period")
     bl7011_settings = Variable.get("bl7011-settings")
     prune(
         file_path=file_path,
@@ -194,6 +212,8 @@ def process_new_7011_file_task(
 
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
+    # scicat will ingest the "metadata" parameter if provided, which will contain the UID for bluesky runs in databroker.
+    # the scicat spec for xpcs will need to use databroker to get the actual metadata from the UID.
 
 
 @flow(name="move_7011_flight_check", flow_run_name="move_7011_flight_check-{file_path}")
