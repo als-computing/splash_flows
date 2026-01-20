@@ -7,6 +7,12 @@ deployments:
     name: dispatcher_dichroism_pool
     work_queue_name: dispatcher_dichroism_queue
 
+- name: prune_dichroism
+  entrypoint: orchestration/flows/dichroism/move.py:_prune_globus_endpoint
+  work_pool:
+    name: prune_dichroism_pool
+    work_queue_name: prune_dichroism_queue
+
 # 4.0.2 Flows
 - name: new_file_402_flow
   entrypoint: orchestration/flows/dichroism/move.py:process_new_402_file_flow
@@ -25,12 +31,6 @@ deployments:
     timezone: America/Los_Angeles
     active: true
 
-- name: prune_data402
-  entrypoint: orchestration/flows/dichroism/move.py:_prune_globus_endpoint
-  work_pool:
-    name: prune_dichroism_pool
-    work_queue_name: prune_402_queue
-
 # 6.3.1 Flows
 - name: new_file_631_flow
   entrypoint: orchestration/flows/dichroism/move.py:process_new_631_file_flow
@@ -48,9 +48,3 @@ deployments:
     slug: "test-move-631-flight-check"
     timezone: America/Los_Angeles
     active: true
-
-- name: prune_data631
-  entrypoint: orchestration/flows/dichroism/move.py:_prune_globus_endpoint
-  work_pool:
-    name: prune_dichroism_pool
-    work_queue_name: prune_631_queue
