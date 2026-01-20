@@ -55,6 +55,8 @@ def prune(
     Returns:
         bool: True if pruning was successful or scheduled successfully, False otherwise
     """
+    logger = get_run_logger()
+
     if not file_path:
         logger.error("No file_path provided for pruning operation")
         return False
@@ -90,12 +92,12 @@ def prune(
 
         try:
             schedule_prefect_flow(
-                deployment_name="prune_globus_endpoint/prune_globus_endpoint",
+                deployment_name="prune_globus_endpoint/prune_dichroism",
+                flow_run_name=f"prune_globus-{source_endpoint.name}-{file_path}",
                 parameters={
                     "relative_path": file_path,
                     "source_endpoint": source_endpoint,
                     "check_endpoint": check_endpoint,
-                    "config": config
                 },
                 duration_from_now=delay,
             )
@@ -125,12 +127,14 @@ def _prune_globus_endpoint(
         check_endpoint (Optional[GlobusEndpoint]): If provided, verify data exists here before pruning
         config (BeamlineConfig): Configuration object with transfer client
     """
+    logger = get_run_logger()
+
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
         config = ConfigDichroism()
 
-    globus_settings = Variable.get("globus-settings")
+    globus_settings = Variable.get("globus-settings", _sync=True)
     max_wait_seconds = globus_settings["max_wait_seconds"]
 
     flow_name = f"prune_from_{source_endpoint.name}"
@@ -233,7 +237,7 @@ def process_new_402_file_task(
     # TODO: Ingest file path in SciCat
     # Waiting for PR #62 to be merged (scicat_controller)
 
-    # Schedule pruning from QNAP
+    # Schedule pruning
     # Waiting for PR #62 to be merged (prune_controller)
     # TODO: Determine scheduling days_from_now based on beamline needs
 
@@ -263,7 +267,13 @@ def process_new_402_file_task(
 def move_402_flight_check(
     file_path: str = "test_directory/test.txt",
 ):
-    """Please keep your arms and legs inside the vehicle at all times."""
+    """
+    Please keep your arms and legs inside the vehicle at all times.
+
+    :param file_path: Path to the test file to be transferred.
+    :raise RuntimeError: If the transfer fails.
+    :return: None
+    """
     logger = get_run_logger()
     logger.info("402 flight check: testing transfer from data402 to NERSC CFS")
 
@@ -400,7 +410,15 @@ def process_new_631_file_task(
 def move_631_flight_check(
     file_path: str = "test_directory/test.txt",
 ):
-    """Please keep your arms and legs inside the vehicle at all times."""
+    """
+    Please keep your arms and legs inside the vehicle at all times.
+
+    :param file_path: Path to the test file to be transferred.
+    :raise RuntimeError: If the transfer fails.
+    :return: None
+    """
+
+    logger = get_run_logger()
     logger.info("631 flight check: testing transfer from data631 to NERSC CFS")
 
     config = ConfigDichroism()
