@@ -167,6 +167,7 @@ def test_dispatcher_7011_flow(mocker: MockFixture) -> None:
     # Verify that process_new_7011_file_task was called exactly once with the expected arguments.
     mock_process_new_7011_file_task.assert_called_once_with(
         file_path=test_file_path,
+        metadata=None,
         config=mock_config
     )
 
