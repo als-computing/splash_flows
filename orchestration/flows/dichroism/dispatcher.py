@@ -21,14 +21,17 @@ def generate_flow_run_name() -> str:
     params = runtime.flow_run.parameters
     beamline = params.get("beamline")
     file_path = params.get("file_path")
+
+    beamline = beamline.value if beamline else ""
+
     if file_path is None:
         return "dispatcher-no_file"
     elif isinstance(file_path, str):
-        return f"dispatcher-{beamline.value}-{Path(file_path).name}"
+        return f"dispatcher-{beamline}-{Path(file_path).name}"
     elif len(file_path) == 1:
-        return f"dispatcher-{beamline.value}-{Path(file_path[0]).name}"
+        return f"dispatcher-{beamline}-{Path(file_path[0]).name}"
     else:
-        return f"dispatcher-{beamline.value}-{Path(file_path[0]).name}_+{len(file_path)-1}_more"
+        return f"dispatcher-{beamline}-{Path(file_path[0]).name}_+{len(file_path)-1}_more"
 
 
 # TODO Once this PR (https://github.com/als-computing/splash_flows/pull/62) is merged, we can use config: Config402
