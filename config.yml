@@ -72,17 +72,23 @@ globus:
       uuid: 75b478b2-37af-46df-bfbd-71ed692c6506
       name: data832_scratch
 
-    alcf832_raw:
+    alcf832_synaps:
+      root_path: /
+      uri: alcf.anl.gov
+      uuid: TBD
+      name: alcf832_synaps
+
+    alcf832_iri_raw:
       root_path: /data/raw
       uri: alcf.anl.gov
       uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
-      name: alcf_raw
+      name: alcf_iri_raw
 
-    alcf832_scratch:
+    alcf832_iri_scratch:
       root_path: /data/scratch
       uri: alcf.anl.gov
       uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
-      name: alcf_scratch
+      name: alcf_iri_scratch
 
     alcf_eagle832:
       root_path: /IRIBeta/als/example
