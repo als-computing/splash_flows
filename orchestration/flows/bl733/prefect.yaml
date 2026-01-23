@@ -24,8 +24,8 @@ deployments:
     name: dispatcher_733_pool
     work_queue_name: dispatcher_733_queue
 
-- name: prune_data733
-  entrypoint: orchestration/flows/bl733/move.py:_prune_globus_endpoint
+- name: prune_globus_endpoint
+  entrypoint: orchestration/prune_controller.py:prune_globus_endpoint
   work_pool:
     name: prune_733_pool
     work_queue_name: prune_733_queue
