@@ -1,0 +1,41 @@
+# This needs to be updated to use GPUs and a segmentation environment
+
+engine:
+  type: GlobusComputeEngine # This engine uses the HighThroughputExecutor
+  max_retries_on_system_failure: 2
+  max_workers: 1 # Sets one worker per node
+  prefetch_capacity: 0 # Increase if you have many more tasks than workers                                                    
+
+  address:
+    type: address_by_interface
+    ifname: bond0
+
+  strategy: simple
+  job_status_kwargs:
+    max_idletime: 300
+    strategy_period: 60
+
+  provider:
+    type: PBSProProvider
+
+    launcher:
+      type: MpiExecLauncher
+      # Ensures 1 manger per node, work on all 64 cores
+      bind_cmd: --cpu-bind
+      overrides: --depth=64 --ppn 1
+
+    account: SYNAPS-I
+    queue: debug
+    cpus_per_node: 64
+
+    # e.g., "#PBS -l filesystems=home:grand:eagle\n#PBS -k doe"
+    scheduler_options: "#PBS -l filesystems=home:eagle"
+
+    # Node setup: activate necessary conda environment and such
+    worker_init: "module use /soft/modulefiles; module load conda; conda activate /eagle/SYNAPS-I/reconstruction/env/tomopy; export PATH=$PATH:/eagle/SYNAPSE-I/; cd $HOME/.globus_compute/globus_compute_reconstruction"
+
+    walltime: 00:60:00 # Jobs will end after 60 minutes
+    nodes_per_block: 2 # All jobs will have 1 node
+    init_blocks: 0
+    min_blocks: 0
+    max_blocks: 2 # No more than 1 job will be scheduled at a time
