@@ -27,5 +27,5 @@ class Config832(BeamlineConfig):
         self.alcf832_synaps = self.endpoints["alcf832_synaps"]
         self.alcf832_iri_raw = self.endpoints["alcf832_iri_raw"]
         self.alcf832_iri_scratch = self.endpoints["alcf832_iri_scratch"]
-        self.scicat = config["scicat"]
-        self.ghcr_images832 = config["ghcr_images832"]
+        self.scicat = self.config["scicat"]
+        self.ghcr_images832 = self.config["ghcr_images832"]
