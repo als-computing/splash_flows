@@ -195,7 +195,6 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Run tomography segmentation at ALCF through Globus Compute.
 
         :param folder_path: Path to the TIFF folder to be processed.
-
         :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
@@ -484,6 +483,7 @@ def alcf_recon_flow(
     file_name = path.stem
     h5_file_name = file_name + '.h5'
     scratch_path_tiff = folder_name + '/rec' + file_name + '/'
+    scratch_path_segment = folder_name + '/seg' + file_name + '/'
     scratch_path_zarr = folder_name + '/rec' + file_name + '.zarr/'
 
     # initialize transfer_controller with globus
@@ -498,7 +498,7 @@ def alcf_recon_flow(
     alcf_transfer_success = transfer_controller.copy(
         file_path=data832_raw_path,
         source=config.data832_raw,
-        destination=config.alcf832_raw
+        destination=config.alcf832_synaps_raw
     )
     logger.info(f"Transfer status: {alcf_transfer_success}")
 
@@ -526,11 +526,11 @@ def alcf_recon_flow(
             logger.info("Reconstruction Successful.")
 
             # Transfer A: Send reconstructed data (tiff) to data832
-            logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+            logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
                         f"at ALCF to {config.data832_scratch} at data832")
             data832_tiff_transfer_success = transfer_controller.copy(
                 file_path=scratch_path_tiff,
-                source=config.alcf832_scratch,
+                source=config.alcf832_synaps_recon,
                 destination=config.data832_scratch
             )
 
@@ -544,6 +544,12 @@ def alcf_recon_flow(
                 logger.warning("Segmentation at ALCF Failed")
             else:
                 logger.info("Segmentation at ALCF Successful")
+                segment_transfer_success = transfer_controller.copy(
+                    file_path=scratch_path_segment,
+                    source=config.alcf832_synaps_segment,
+                    destination=config.data832_scratch
+                )
+                logger.info(f"Transfer segmented data to data832 success: {segment_transfer_success}")
 
             # Not running TIFF to Zarr conversion at ALCF for now
             # STEP 2B: Run the Tiff to Zarr Globus Flow
@@ -621,8 +627,8 @@ def alcf_segmentation_task(
 def alcf_segmentation_integration_test():
     folder_name = 'dabramov'
     file_name = '20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast'
-    flow_success = alcf_recon_flow(
-        file_path=f"/{folder_name}/{file_name}.h5",
+    flow_success = alcf_segmentation_task(
+        recon_folder_path=f"/{folder_name}/{file_name}",
         config=Config832()
     )
     print(flow_success)

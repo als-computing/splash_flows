@@ -46,6 +46,7 @@ globus:
       uri: beegfs.als.lbl.gov
       uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
       name: bl733-beegfs-data
+
     # 8.3.2 ENDPOINTS
 
     spot832:
@@ -72,11 +73,23 @@ globus:
       uuid: 75b478b2-37af-46df-bfbd-71ed692c6506
       name: data832_scratch
 
-    alcf832_synaps:
-      root_path: /
+    alcf832_synaps_raw:
+      root_path: /data/bl832/raw
       uri: alcf.anl.gov
       uuid: TBD
-      name: alcf832_synaps
+      name: alcf832_synaps_raw
+
+    alcf832_synaps_recon:
+      root_path: /data/bl832/scratch/reconstruction/
+      uri: alcf.anl.gov
+      uuid: TBD
+      name: alcf832_synaps_recon
+
+    alcf832_synaps_segment:
+      root_path: /data/bl832/scratch/segmentation/
+      uri: alcf.anl.gov
+      uuid: TBD
+      name: alcf832_synaps_segment
 
     alcf832_iri_raw:
       root_path: /data/raw
