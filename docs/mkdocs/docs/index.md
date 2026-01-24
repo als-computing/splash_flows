@@ -46,7 +46,6 @@ Here is the current structure of this repository:
     │   │   ├── test_config.yml
     │   │   ├── test_globus.py
     │   │   ├── test_globus_flow.py
-    │   │   ├── test_scicat.py
     │   │   ├── test_sfapi_flow.py
     │   │   └── test_transfer_controller.py
     │   ├── config.py

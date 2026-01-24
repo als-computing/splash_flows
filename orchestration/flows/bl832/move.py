@@ -204,7 +204,6 @@ def process_new_832_file_task(
 def test_transfers_832(file_path: str = "/raw/transfer_tests/test.txt"):
     logger = get_run_logger()
     config = Config832()
-    # test_scicat(config)
     logger.info(f"{str(uuid.uuid4())}{file_path}")
     # copy file to a uniquely-named file in the same folder
     file = Path(file_path)
