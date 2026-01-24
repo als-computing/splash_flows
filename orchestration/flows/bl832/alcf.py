@@ -1,13 +1,12 @@
 from concurrent.futures import Future
 import datetime
-import logging
 from pathlib import Path
 import time
 from typing import Optional
 
 from globus_compute_sdk import Client, Executor
 from globus_compute_sdk.serialize import CombinedCode
-from prefect import flow, task
+from prefect import flow, task, get_run_logger
 from prefect.blocks.system import Secret
 from prefect.variables import Variable
 
@@ -15,9 +14,6 @@ from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.prefect import schedule_prefect_flow
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class ALCFTomographyHPCController(TomographyHPCController):
@@ -37,6 +33,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         super().__init__(config)
         # Load allocation root from the Prefect JSON block
         # The block must be registered with the name "alcf-allocation-root-path"
+        logger = get_run_logger()
         allocation_data = Variable.get("alcf-allocation-root-path", _sync=True)
         self.allocation_root = allocation_data.get("alcf-allocation-root-path")
         if not self.allocation_root:
@@ -56,7 +53,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
-
+        logger = get_run_logger()
         file_name = Path(file_path).stem + ".h5"
         folder_name = Path(file_path).parent.name
 
@@ -131,11 +128,13 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
+        logger = get_run_logger()
+
         file_name = Path(file_path).stem
         folder_name = Path(file_path).parent.name
 
         tiff_scratch_path = f"{self.allocation_root}/data/scratch/{folder_name}/rec{file_name}/"
-        raw_path = f"{self.allocation_root}/raw/{folder_name}/{file_name}.h5"
+        raw_path = f"{self.allocation_root}/data/raw/{folder_name}/{file_name}.h5"
 
         iri_als_bl832_rundir = f"{self.allocation_root}/data/raw"
         iri_als_bl832_conversion_script = f"{self.allocation_root}/scripts/tiff_to_zarr.py"
@@ -190,7 +189,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
     def _wait_for_globus_compute_future(
         future: Future,
         task_name: str,
-        check_interval: int = 20
+        check_interval: int = 20,
+        walltime: int = 1200  # seconds = 20 minutes
     ) -> bool:
         """
         Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
@@ -199,16 +199,26 @@ class ALCFTomographyHPCController(TomographyHPCController):
             future: The future object returned from the Globus Compute Executor submit method.
             task_name: A descriptive name for the task being executed (used for logging).
             check_interval: The interval (in seconds) between status checks.
+            walltime: The maximum time (in seconds) to wait for the task to complete.
 
         Returns:
-            bool: True if the task completed successfully, False otherwise.
+            bool: True if the task completed successfully within walltime, False otherwise.
         """
+        logger = get_run_logger()
+
         start_time = time.time()
         success = False
 
         try:
             previous_state = None
             while not future.done():
+                elapsed_time = time.time() - start_time
+                if elapsed_time > walltime:
+                    logger.error(f"The {task_name} task exceeded the walltime of {walltime} seconds."
+                                 "Cancelling the Globus Compute job.")
+                    future.cancel()
+                    return False
+
                 # Check if the task was cancelled
                 if future.cancelled():
                     logger.warning(f"The {task_name} task was cancelled.")
@@ -268,6 +278,8 @@ def schedule_prune_task(
     Returns:
         bool: True if the task was scheduled successfully, False otherwise.
     """
+    logger = get_run_logger()
+
     try:
         flow_name = f"delete {location}: {Path(path).name}"
         schedule_prefect_flow(
@@ -315,6 +327,8 @@ def schedule_pruning(
     Returns:
         bool: True if the tasks were scheduled successfully, False otherwise.
     """
+    logger = get_run_logger()
+
     pruning_config = Variable.get("pruning-config", _sync=True)
 
     if one_minute:
@@ -363,6 +377,7 @@ def alcf_recon_flow(
     Returns:
         bool: True if the flow completed successfully, False otherwise.
     """
+    logger = get_run_logger()
 
     if config is None:
         config = Config832()
@@ -413,6 +428,15 @@ def alcf_recon_flow(
         else:
             logger.info("Reconstruction Successful.")
 
+            # Transfer A: Send reconstructed data (tiff) to data832
+            logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                        f"at ALCF to {config.data832_scratch} at data832")
+            data832_tiff_transfer_success = transfer_controller.copy(
+                file_path=scratch_path_tiff,
+                source=config.alcf832_scratch,
+                destination=config.data832_scratch
+            )
+
             # STEP 2B: Run the Tiff to Zarr Globus Flow
             logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
             alcf_multi_res_success = tomography_controller.build_multi_resolution(
@@ -423,27 +447,14 @@ def alcf_recon_flow(
                 raise ValueError("Tiff to Zarr at ALCF Failed")
             else:
                 logger.info("Tiff to Zarr Successful.")
-
-    # STEP 3: Send reconstructed data (tiffs and zarr) to data832
-    if alcf_reconstruction_success:
-        # Transfer A: Send reconstructed data (tiff) to data832
-        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-                    f"at ALCF to {config.data832_scratch} at data832")
-        data832_tiff_transfer_success = transfer_controller.copy(
-            file_path=scratch_path_tiff,
-            source=config.alcf832_scratch,
-            destination=config.data832_scratch
-        )
-
-    if alcf_multi_res_success:
-        # Transfer B: Send reconstructed data (zarr) to data832
-        logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-                    f"at ALCF to {config.data832_scratch} at data832")
-        data832_zarr_transfer_success = transfer_controller.copy(
-            file_path=scratch_path_zarr,
-            source=config.alcf832_scratch,
-            destination=config.data832_scratch
-        )
+                # Transfer B: Send reconstructed data (zarr) to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                            f"at ALCF to {config.data832_scratch} at data832")
+                data832_zarr_transfer_success = transfer_controller.copy(
+                    file_path=scratch_path_zarr,
+                    source=config.alcf832_scratch,
+                    destination=config.data832_scratch
+                )
 
     # Place holder in case we want to transfer to NERSC for long term storage
     nersc_transfer_success = False

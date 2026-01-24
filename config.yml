@@ -41,18 +41,11 @@ globus:
       uuid: 26b3d2cf-fd80-4a64-a78f-38a155aca926
       name: data733_raw
 
-    bl733-lamarr-global:
-      root_path: /bl733/
-      uri: lamarr.als.lbl.gov
-      uuid: dbaac176-b1f7-4134-979a-0b1668786d11
-      name: bl733-lamarr-global
-
-    bl733-lamarr-beamlines:
-      root_path: /bl733/
-      uri: lamarr.als.lbl.gov
-      uuid: aee983fc-826e-4081-bfb2-62529970540d
-      name: bl733-lamarr-beamlines
-
+    bl733-beegfs-data:
+      root_path: /beamline_staging/bl733/raw/
+      uri: beegfs.als.lbl.gov
+      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      name: bl733-beegfs-data
     # 8.3.2 ENDPOINTS
 
     spot832:
@@ -82,13 +75,13 @@ globus:
     alcf832_raw:
       root_path: /data/raw
       uri: alcf.anl.gov
-      uuid: 2f9e7035-f4d8-4aa3-a911-d110bc2c8110
+      uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
       name: alcf_raw
 
     alcf832_scratch:
       root_path: /data/scratch
       uri: alcf.anl.gov
-      uuid: 2f9e7035-f4d8-4aa3-a911-d110bc2c8110
+      uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
       name: alcf_scratch
 
     alcf_eagle832:
