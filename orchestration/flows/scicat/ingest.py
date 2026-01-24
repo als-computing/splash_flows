@@ -12,10 +12,10 @@ def scicat_ingest_flow(
     ingester_spec: str | None = None,
     owner_username: str | None = None,
     scicat_url: str | None = None,
-    scicat_user: str | None = None,
+    scicat_username: str | None = None,
     scicat_password: str | None = None,
     datasettracker_url: str | None = None,
-    datasettracker_user: str | None = None,
+    datasettracker_username: str | None = None,
     datasettracker_password: str | None = None,
 ) -> Dict[str, Any]:
     """
@@ -49,10 +49,10 @@ def scicat_ingest_flow(
         ingester_spec=ingester_spec,
         owner_username=owner_username,
         scicat_url=scicat_url,
-        scicat_user=scicat_user,
+        scicat_username=scicat_username,
         scicat_password=scicat_password,
         datasettracker_url=datasettracker_url,
-        datasettracker_user=datasettracker_user,
+        datasettracker_username=datasettracker_username,
         datasettracker_password=datasettracker_password,
         logger=prefect_adapter.logger
     )
