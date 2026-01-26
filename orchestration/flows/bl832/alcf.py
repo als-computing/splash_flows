@@ -21,14 +21,18 @@ class ALCFTomographyHPCController(TomographyHPCController):
     There is a @staticmethod wrapper for each compute task submitted via Globus Compute.
     Also, there is a shared wait_for_globus_compute_future method that waits for the task to complete.
 
-    Args:
-        TomographyHPCController (ABC): Abstract class for tomography HPC controllers.
+    :param TomographyHPCController: Abstract class for tomography HPC controllers.
     """
 
     def __init__(
         self,
         config: Config832
     ) -> None:
+        """
+        Initialize the ALCF Tomography HPC Controller.
+
+        :param config: Configuration object for the controller.
+        """
         super().__init__(config)
         # Load allocation root from the Prefect JSON block
         # The block must be registered with the name "alcf-allocation-root-path"
@@ -46,11 +50,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Run tomography reconstruction at ALCF through Globus Compute.
 
-        Args:
-            file_path (str): Path to the file to be processed.
-
-        Returns:
-            bool: True if the task completed successfully, False otherwise.
+        :param file_path : Path to the file to be processed.
+        :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
         file_name = Path(file_path).stem + ".h5"
@@ -85,14 +86,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Python function that wraps around the application call for Tomopy reconstruction on ALCF
 
-        Args:
-            rundir (str): the directory on the eagle file system (ALCF) where the input data are located
-            script_path (str): the path to the script that will run the reconstruction
-            h5_file_name (str): the name of the h5 file to be reconstructed
-            folder_path (str): the path to the folder containing the h5 file
-
-        Returns:
-            str: confirmation message
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will run the reconstruction
+        :param h5_file_name: the name of the h5 file to be reconstructed
+        :param folder_path: the path to the folder containing the h5 file
+        :return: confirmation message
         """
         import os
         import subprocess
@@ -123,11 +121,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Tiff to Zarr code that is executed using Globus Compute
 
-        Args:
-            file_path (str): Path to the file to be processed.
-
-        Returns:
-            bool: True if the task completed successfully, False otherwise.
+        :param file_path: Path to the file to be processed.
+        :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
 
@@ -294,14 +289,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
 
-        Args:
-            future: The future object returned from the Globus Compute Executor submit method.
-            task_name: A descriptive name for the task being executed (used for logging).
-            check_interval: The interval (in seconds) between status checks.
-            walltime: The maximum time (in seconds) to wait for the task to complete.
-
-        Returns:
-            bool: True if the task completed successfully within walltime, False otherwise.
+        :param future: The future object returned from the Globus Compute Executor submit method.
+        :param task_name: A descriptive name for the task being executed (used for logging).
+        :param check_interval: The interval (in seconds) between status checks.
+        :param walltime: The maximum time (in seconds) to wait for the task to complete.
+        :return: True if the task completed successfully within walltime, False otherwise.
         """
         logger = get_run_logger()
 
@@ -364,12 +356,9 @@ def alcf_recon_flow(
     """
     Process and transfer a file from bl832 to ALCF and run reconstruction and segmentation.
 
-    Args:
-        file_path (str): The path to the file to be processed.
-        config (Config832): Configuration object for the flow.
-
-    Returns:
-        bool: True if the flow completed successfully, False otherwise.
+    :param file_path: The path to the file to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the flow completed successfully, False otherwise.
     """
     logger = get_run_logger()
 
@@ -565,6 +554,13 @@ def alcf_segmentation_task(
     recon_folder_path: str,
     config: Optional[Config832] = None,
 ):
+    """
+    Run segmentation task at ALCF.
+
+    :param recon_folder_path: Path to the reconstructed data folder to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the task completed successfully, False otherwise.
+    """
     logger = get_run_logger()
     if config is None:
         logger.info("No config provided, using default Config832.")
@@ -589,6 +585,11 @@ def alcf_segmentation_task(
 
 @flow(name="alcf_segmentation_integration_test", flow_run_name="alcf_segmentation_integration_test")
 def alcf_segmentation_integration_test():
+    """
+    Integration test for the ALCF segmentation task.
+
+    :return: None
+    """
     recon_folder_path = 'rec20211222_125057_petiole4'
     flow_success = alcf_segmentation_task(
         recon_folder_path=recon_folder_path,
