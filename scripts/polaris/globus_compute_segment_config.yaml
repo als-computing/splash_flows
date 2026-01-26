@@ -1,9 +1,8 @@
-# This needs to be updated to use GPUs and a segmentation environment
-
 engine:
   type: GlobusComputeEngine # This engine uses the HighThroughputExecutor
   max_retries_on_system_failure: 2
   max_workers: 1 # Sets one worker per node
+  max_workers_per_node: 4
   prefetch_capacity: 0 # Increase if you have many more tasks than workers                                                    
 
   address:
@@ -25,16 +24,24 @@ engine:
       overrides: --depth=64 --ppn 1
 
     account: SYNAPS-I
-    queue: debug
-    cpus_per_node: 64
+    queue: debug # debug (1-2 nodes), debug-scaling (1-10 nodes), or some other queue, probably want demand (1-56 nodes) for real-time things, prod (496 nodes)
+    # minimum node 1, max 56 nodes. Max time 59 minutes
+    cpus_per_node: 32 # may want to change to 4 (only 4 GPUs per node)
 
     # e.g., "#PBS -l filesystems=home:grand:eagle\n#PBS -k doe"
     scheduler_options: "#PBS -l filesystems=home:eagle"
-
     # Node setup: activate necessary conda environment and such
-    worker_init: "module use /soft/modulefiles; module load conda; conda activate /eagle/SYNAPS-I/reconstruction/env/tomopy; export PATH=$PATH:/eagle/SYNAPSE-I/; cd $HOME/.globus_compute/globus_compute_reconstruction"
+    # worker_init: "module use /soft/modulefiles; module load conda; conda activate /eagle/SYNAPS-I/segmentation/env/; export PATH=$PATH:/eagle/SYNAPS-I/; cd $HOME/.globus_compute/globus_compute_segmentation"
+    worker_init: |
+      module use /soft/modulefiles
+      module load conda
+      conda activate base
+      source /eagle/SYNAPS-I/segmentation/env/bin/activate
+      export HF_HUB_CACHE=/eagle/SYNAPS-I/segmentation/.cache/huggingface
+      export HF_HOME=$HF_HUB_CACHE
+      cd /eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo
 
-    walltime: 00:60:00 # Jobs will end after 60 minutes
+    walltime: 59:00 # Jobs will end after 59 minutes
     nodes_per_block: 2 # All jobs will have 1 node
     init_blocks: 0
     min_blocks: 0
