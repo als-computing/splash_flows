@@ -159,13 +159,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Python function that wraps around the application call for Tiff to Zarr on ALCF
 
-        Args:
-            rundir (str): the directory on the eagle file system (ALCF) where the input data are located
-            script_path (str): the path to the script that will convert the tiff files to zarr
-            recon_path (str): the path to the reconstructed data
-            raw_path (str): the path to the raw data
-        Returns:
-            str: confirmation message
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will convert the tiff files to zarr
+        :param recon_path: the path to the reconstructed data
+        :param raw_path: the path to the raw data
+        :return: confirmation message
         """
         import os
         import subprocess
@@ -374,13 +372,14 @@ def alcf_recon_flow(
     scratch_path_zarr = folder_name + '/rec' + file_name + '.zarr/'
 
     # initialize transfer_controller with globus
+    logger.info("Initializing Globus Transfer Controller.")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
     # STEP 1: Transfer data from data832 to ALCF
-    logger.info("Copying data to ALCF.")
+    logger.info("Copying raw data to ALCF.")
     data832_raw_path = f"{folder_name}/{h5_file_name}"
     alcf_transfer_success = transfer_controller.copy(
         file_path=data832_raw_path,
@@ -395,14 +394,16 @@ def alcf_recon_flow(
     else:
         logger.info("Transfer to ALCF Successful.")
 
-        # STEP 2A: Run the Tomopy Reconstruction Globus Flow
+        # STEP 2: Run the Tomopy Reconstruction Globus Flow
         logger.info(f"Starting ALCF reconstruction flow for {file_path=}")
 
         # Initialize the Tomography Controller and run the reconstruction
+        logger.info("Initializing ALCF Tomography HPC Controller.")
         tomography_controller = get_controller(
             hpc_type=HPC.ALCF,
             config=config
         )
+        logger.info(f"Starting ALCF reconstruction task for {file_path=}")
         alcf_reconstruction_success = tomography_controller.reconstruct(
             file_path=file_path,
         )
@@ -412,7 +413,7 @@ def alcf_recon_flow(
         else:
             logger.info("Reconstruction Successful.")
 
-            # Transfer A: Send reconstructed data (tiff) to data832
+            # STEP 3: Send reconstructed data (tiff) to data832
             logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
                         f"at ALCF to {config.data832_scratch} at data832")
             data832_tiff_transfer_success = transfer_controller.copy(
@@ -422,7 +423,7 @@ def alcf_recon_flow(
             )
             logger.info(f"Transfer reconstructed TIFF data to data832 success: {data832_tiff_transfer_success}")
 
-            # STEP 3: Run the Segmentation Task at ALCF
+            # STEP 4: Run the Segmentation Task at ALCF
             logger.info(f"Starting ALCF segmentation task for {scratch_path_tiff=}")
             alcf_segmentation_success = alcf_segmentation_task(
                 recon_folder_path=scratch_path_tiff,
@@ -432,6 +433,10 @@ def alcf_recon_flow(
                 logger.warning("Segmentation at ALCF Failed")
             else:
                 logger.info("Segmentation at ALCF Successful")
+
+                # STEP 5: Send segmented data to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_synaps_segment} "
+                            f"at ALCF to {config.data832_scratch} at data832")
                 segment_transfer_success = transfer_controller.copy(
                     file_path=scratch_path_segment,
                     source=config.alcf832_synaps_segment,
@@ -442,7 +447,7 @@ def alcf_recon_flow(
             # Not running TIFF to Zarr conversion at ALCF for now
             alcf_multi_res_success = False
             data832_zarr_transfer_success = False
-            # STEP 2B: Run the Tiff to Zarr Globus Flow
+            # STEP 6: Run the Tiff to Zarr Globus Flow
             # logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
             # alcf_multi_res_success = tomography_controller.build_multi_resolution(
             #     file_path=file_path,
@@ -452,7 +457,7 @@ def alcf_recon_flow(
             #     raise ValueError("Tiff to Zarr at ALCF Failed")
             # else:
             #     logger.info("Tiff to Zarr Successful.")
-            #     # Transfer B: Send reconstructed data (zarr) to data832
+            #     # STEP 7: Send reconstructed data (zarr) to data832
             #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
             #                 f"at ALCF to {config.data832_scratch} at data832")
             #     data832_zarr_transfer_success = transfer_controller.copy(
@@ -464,7 +469,7 @@ def alcf_recon_flow(
     # Place holder in case we want to transfer to NERSC for long term storage
     # nersc_transfer_success = False
 
-    # STEP 4: Schedule Pruning of files
+    # STEP 8: Schedule Pruning of files
     logger.info("Scheduling file pruning tasks.")
     prune_controller = get_prune_controller(
         prune_type=PruneMethod.GLOBUS,
@@ -553,7 +558,7 @@ def alcf_recon_flow(
 def alcf_segmentation_task(
     recon_folder_path: str,
     config: Optional[Config832] = None,
-):
+) -> bool:
     """
     Run segmentation task at ALCF.
 
@@ -584,18 +589,21 @@ def alcf_segmentation_task(
 
 
 @flow(name="alcf_segmentation_integration_test", flow_run_name="alcf_segmentation_integration_test")
-def alcf_segmentation_integration_test():
+def alcf_segmentation_integration_test() -> bool:
     """
     Integration test for the ALCF segmentation task.
 
-    :return: None
+    :return: True if the segmentation task completed successfully, False otherwise.
     """
+    logger = get_run_logger()
+    logger.info("Starting ALCF segmentation integration test.")
     recon_folder_path = 'rec20211222_125057_petiole4'
     flow_success = alcf_segmentation_task(
         recon_folder_path=recon_folder_path,
         config=Config832()
     )
-    print(flow_success)
+    logger.info(f"Flow success: {flow_success}")
+    return flow_success
 
 
 if __name__ == "__main__":
