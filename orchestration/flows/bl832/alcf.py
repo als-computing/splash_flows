@@ -1,5 +1,5 @@
 from concurrent.futures import Future
-import datetime
+# import datetime
 from pathlib import Path
 import time
 from typing import Optional
@@ -12,8 +12,9 @@ from prefect.variables import Variable
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
+# from orchestration.prefect import schedule_prefect_flow
+from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
-from orchestration.prefect import schedule_prefect_flow
 
 
 class ALCFTomographyHPCController(TomographyHPCController):
@@ -189,33 +190,36 @@ class ALCFTomographyHPCController(TomographyHPCController):
 
     def segmentation(
         self,
-        folder_path: str = "",
+        recon_folder_path: str = "",
     ) -> bool:
         """
         Run tomography segmentation at ALCF through Globus Compute.
 
-        :param folder_path: Path to the TIFF folder to be processed.
+        :param recon_folder_path: Path to the reconstructed data folder to be processed.
         :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
 
         # Operate on reconstructed data
-        rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{Path(folder_path).name}"
-        output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{Path(folder_path).name}"
-        segmentation_script = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo/src/inference.py"
+        rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{recon_folder_path}"
+        output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{recon_folder_path}"
+        segmentation_module = "src.inference"
+        workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
         # TODO: Update globus-compute-endpoint Secret block with the new endpoint UUID
         # We will probably have 2 endpoints, one for recon, one for segmentation
-        with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
-            logger.info(f"Running segmentation on {folder_path} at ALCF")
+        endpoint_id = "168c595b-9493-42db-9c6a-aad960913de2"
+        # with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
+        with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
+            logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
             future = fxe.submit(
                 self._segmentation_wrapper,
                 input_dir=rundir,
                 output_dir=output_dir,
-                script_path=segmentation_script,
-                output_dir=folder_path,
+                script_module=segmentation_module,
+                workdir=workdir
             )
             result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
             return result
@@ -224,7 +228,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
     def _segmentation_wrapper(
         input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
         output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
-        script_path: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo/src/inference.py",
+        script_module: str = "src.inference",
+        workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo",
         nproc_per_node: int = 4,
         nnodes: int = 1,
         nnode_rank: int = 0,
@@ -250,18 +255,18 @@ class ALCFTomographyHPCController(TomographyHPCController):
 
         seg_start = time.time()
 
-        # Move to directory where data are located
-        os.chdir(input_dir)
+        # Move to directory where the segmentation code is located
+        os.chdir(workdir)
 
         # Run segmentation.py
         command = [
-            "torchrun",
+            "python", "-m", "torch.distributed.run",
             f"--nproc_per_node={nproc_per_node}",
             f"--nnodes={nnodes}",
             f"--node_rank={nnode_rank}",
             f"--master_addr={master_addr}",
             f"--master_port={master_port}",
-            "-m", script_path,
+            "-m", script_module,
             "--input-dir", input_dir,
             "--output-dir", output_dir,
             "--patch-size", str(patch_size),
@@ -353,109 +358,109 @@ class ALCFTomographyHPCController(TomographyHPCController):
         return success
 
 
-@task(name="schedule_prune_task")
-def schedule_prune_task(
-    path: str,
-    location: str,
-    schedule_days: datetime.timedelta,
-    source_endpoint=None,
-    check_endpoint=None
-) -> bool:
-    """
-    Schedules a Prefect flow to prune files from a specified location.
+# @task(name="schedule_prune_task")
+# def schedule_prune_task(
+#     path: str,
+#     location: str,
+#     schedule_days: datetime.timedelta,
+#     source_endpoint=None,
+#     check_endpoint=None
+# ) -> bool:
+#     """
+#     Schedules a Prefect flow to prune files from a specified location.
 
-    Args:
-        path (str): The file path to the folder containing the files.
-        location (str): The server location (e.g., 'alcf832_raw') where the files will be pruned.
-        schedule_days (int): The number of days after which the file should be deleted.
-        source_endpoint (str): The source endpoint for the files.
-        check_endpoint (str): The endpoint to check for the existence of the files.
+#     Args:
+#         path (str): The file path to the folder containing the files.
+#         location (str): The server location (e.g., 'alcf832_raw') where the files will be pruned.
+#         schedule_days (int): The number of days after which the file should be deleted.
+#         source_endpoint (str): The source endpoint for the files.
+#         check_endpoint (str): The endpoint to check for the existence of the files.
 
-    Returns:
-        bool: True if the task was scheduled successfully, False otherwise.
-    """
-    logger = get_run_logger()
+#     Returns:
+#         bool: True if the task was scheduled successfully, False otherwise.
+#     """
+#     logger = get_run_logger()
 
-    try:
-        flow_name = f"delete {location}: {Path(path).name}"
-        schedule_prefect_flow(
-            deployment_name=f"prune_{location}/prune_{location}",
-            flow_run_name=flow_name,
-            parameters={
-                "relative_path": path,
-                "source_endpoint": source_endpoint,
-                "check_endpoint": check_endpoint
-            },
-            duration_from_now=schedule_days
-        )
-        return True
-    except Exception as e:
-        logger.error(f"Failed to schedule prune task: {e}")
-        return False
+#     try:
+#         flow_name = f"delete {location}: {Path(path).name}"
+#         schedule_prefect_flow(
+#             deployment_name=f"prune_{location}/prune_{location}",
+#             flow_run_name=flow_name,
+#             parameters={
+#                 "relative_path": path,
+#                 "source_endpoint": source_endpoint,
+#                 "check_endpoint": check_endpoint
+#             },
+#             duration_from_now=schedule_days
+#         )
+#         return True
+#     except Exception as e:
+#         logger.error(f"Failed to schedule prune task: {e}")
+#         return False
 
 
-@task(name="schedule_pruning")
-def schedule_pruning(
-    alcf_raw_path: str = None,
-    alcf_scratch_path_tiff: str = None,
-    alcf_scratch_path_zarr: str = None,
-    nersc_scratch_path_tiff: str = None,
-    nersc_scratch_path_zarr: str = None,
-    data832_raw_path: str = None,
-    data832_scratch_path_tiff: str = None,
-    data832_scratch_path_zarr: str = None,
-    one_minute: bool = False,
-    config: Config832 = None
-) -> bool:
-    """
-    This function schedules the deletion of files from specified locations on ALCF, NERSC, and data832.
+# @task(name="schedule_pruning")
+# def schedule_pruning(
+#     alcf_raw_path: str = None,
+#     alcf_scratch_path_tiff: str = None,
+#     alcf_scratch_path_zarr: str = None,
+#     nersc_scratch_path_tiff: str = None,
+#     nersc_scratch_path_zarr: str = None,
+#     data832_raw_path: str = None,
+#     data832_scratch_path_tiff: str = None,
+#     data832_scratch_path_zarr: str = None,
+#     one_minute: bool = False,
+#     config: Config832 = None
+# ) -> bool:
+#     """
+#     This function schedules the deletion of files from specified locations on ALCF, NERSC, and data832.
 
-    Args:
-        alcf_raw_path (str, optional): The raw path of the h5 file on ALCF.
-        alcf_scratch_path_tiff (str, optional): The scratch path for TIFF files on ALCF.
-        alcf_scratch_path_zarr (str, optional): The scratch path for Zarr files on ALCF.
-        nersc_scratch_path_tiff (str, optional): The scratch path for TIFF files on NERSC.
-        nersc_scratch_path_zarr (str, optional): The scratch path for Zarr files on NERSC.
-        data832_scratch_path (str, optional): The scratch path on data832.
-        one_minute (bool, optional): Defaults to False. Whether to schedule the deletion after one minute.
-        config (Config832, optional): Configuration object for the flow.
+#     Args:
+#         alcf_raw_path (str, optional): The raw path of the h5 file on ALCF.
+#         alcf_scratch_path_tiff (str, optional): The scratch path for TIFF files on ALCF.
+#         alcf_scratch_path_zarr (str, optional): The scratch path for Zarr files on ALCF.
+#         nersc_scratch_path_tiff (str, optional): The scratch path for TIFF files on NERSC.
+#         nersc_scratch_path_zarr (str, optional): The scratch path for Zarr files on NERSC.
+#         data832_scratch_path (str, optional): The scratch path on data832.
+#         one_minute (bool, optional): Defaults to False. Whether to schedule the deletion after one minute.
+#         config (Config832, optional): Configuration object for the flow.
 
-    Returns:
-        bool: True if the tasks were scheduled successfully, False otherwise.
-    """
-    logger = get_run_logger()
+#     Returns:
+#         bool: True if the tasks were scheduled successfully, False otherwise.
+#     """
+#     logger = get_run_logger()
 
-    pruning_config = Variable.get("pruning-config", _sync=True)
+#     pruning_config = Variable.get("pruning-config", _sync=True)
 
-    if one_minute:
-        alcf_delay = datetime.timedelta(minutes=1)
-        nersc_delay = datetime.timedelta(minutes=1)
-        data832_delay = datetime.timedelta(minutes=1)
-    else:
-        alcf_delay = datetime.timedelta(days=pruning_config["delete_alcf832_files_after_days"])
-        nersc_delay = datetime.timedelta(days=pruning_config["delete_nersc832_files_after_days"])
-        data832_delay = datetime.timedelta(days=pruning_config["delete_data832_files_after_days"])
+#     if one_minute:
+#         alcf_delay = datetime.timedelta(minutes=1)
+#         nersc_delay = datetime.timedelta(minutes=1)
+#         data832_delay = datetime.timedelta(minutes=1)
+#     else:
+#         alcf_delay = datetime.timedelta(days=pruning_config["delete_alcf832_files_after_days"])
+#         nersc_delay = datetime.timedelta(days=pruning_config["delete_nersc832_files_after_days"])
+#         data832_delay = datetime.timedelta(days=pruning_config["delete_data832_files_after_days"])
 
-    # (path, location, days, source_endpoint, check_endpoint)
-    delete_schedules = [
-        (alcf_raw_path, "alcf832_raw", alcf_delay, config.alcf832_raw, config.data832_raw),
-        (alcf_scratch_path_tiff, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
-        (alcf_scratch_path_zarr, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
-        (nersc_scratch_path_tiff, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
-        (nersc_scratch_path_zarr, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
-        (data832_raw_path, "data832_raw", data832_delay, config.data832_raw, None),
-        (data832_scratch_path_tiff, "data832_scratch", data832_delay, config.data832_scratch, None),
-        (data832_scratch_path_zarr, "data832_scratch", data832_delay, config.data832_scratch, None)
-    ]
+#     # (path, location, days, source_endpoint, check_endpoint)
+#     delete_schedules = [
+#         (alcf_raw_path, "alcf832_raw", alcf_delay, config.alcf832_raw, config.data832_raw),
+#         (alcf_scratch_path_tiff, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
+#         (alcf_scratch_path_zarr, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
+#         (nersc_scratch_path_tiff, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
+#         (nersc_scratch_path_zarr, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
+#         (data832_raw_path, "data832_raw", data832_delay, config.data832_raw, None),
+#         (data832_scratch_path_tiff, "data832_scratch", data832_delay, config.data832_scratch, None),
+#         (data832_scratch_path_zarr, "data832_scratch", data832_delay, config.data832_scratch, None)
+#     ]
 
-    for path, location, days, source_endpoint, check_endpoint in delete_schedules:
-        if path:
-            schedule_prune_task(path, location, days, source_endpoint, check_endpoint)
-            logger.info(f"Scheduled delete from {location} at {days} days")
-        else:
-            logger.info(f"Path not provided for {location}, skipping scheduling of deletion task.")
+#     for path, location, days, source_endpoint, check_endpoint in delete_schedules:
+#         if path:
+#             schedule_prune_task(path, location, days, source_endpoint, check_endpoint)
+#             logger.info(f"Scheduled delete from {location} at {days} days")
+#         else:
+#             logger.info(f"Path not provided for {location}, skipping scheduling of deletion task.")
 
-    return True
+#     return True
 
 
 @flow(name="alcf_recon_flow", flow_run_name="alcf_recon-{file_path}")
@@ -533,6 +538,7 @@ def alcf_recon_flow(
                 source=config.alcf832_synaps_recon,
                 destination=config.data832_scratch
             )
+            logger.info(f"Transfer reconstructed TIFF data to data832 success: {data832_tiff_transfer_success}")
 
             # STEP 3: Run the Segmentation Task at ALCF
             logger.info(f"Starting ALCF segmentation task for {scratch_path_tiff=}")
@@ -552,6 +558,8 @@ def alcf_recon_flow(
                 logger.info(f"Transfer segmented data to data832 success: {segment_transfer_success}")
 
             # Not running TIFF to Zarr conversion at ALCF for now
+            alcf_multi_res_success = False
+            data832_zarr_transfer_success = False
             # STEP 2B: Run the Tiff to Zarr Globus Flow
             # logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
             # alcf_multi_res_success = tomography_controller.build_multi_resolution(
@@ -572,21 +580,98 @@ def alcf_recon_flow(
             #     )
 
     # Place holder in case we want to transfer to NERSC for long term storage
-    nersc_transfer_success = False
+    # nersc_transfer_success = False
 
-    # data832_tiff_transfer_success, data832_zarr_transfer_success, nersc_transfer_success
-    schedule_pruning(
-        alcf_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
-        alcf_scratch_path_tiff=f"{scratch_path_tiff}" if alcf_reconstruction_success else None,
-        # alcf_scratch_path_zarr=f"{scratch_path_zarr}" if alcf_multi_res_success else None, # Commenting out zarr for now
-        nersc_scratch_path_tiff=f"{scratch_path_tiff}" if nersc_transfer_success else None,
-        nersc_scratch_path_zarr=f"{scratch_path_zarr}" if nersc_transfer_success else None,
-        data832_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
-        data832_scratch_path_tiff=f"{scratch_path_tiff}" if data832_tiff_transfer_success else None,
-        # data832_scratch_path_zarr=f"{scratch_path_zarr}" if data832_zarr_transfer_success else None, # Commenting out zarr
-        one_minute=False,  # Set to False for production durations
+    # STEP 4: Schedule Pruning of files
+    logger.info("Scheduling file pruning tasks.")
+    prune_controller = get_prune_controller(
+        prune_type=PruneMethod.GLOBUS,
         config=config
     )
+
+    # Prune from ALCF raw
+    if alcf_transfer_success:
+        logger.info("Scheduling pruning of ALCF raw data.")
+        prune_controller.prune(
+            file_path=data832_raw_path,
+            source_endpoint=config.alcf832_synaps_raw,
+            check_endpoint=None,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/reconstruction
+    if alcf_reconstruction_success:
+        logger.info("Scheduling pruning of ALCF scratch reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/segmentation
+    if alcf_segmentation_success:
+        logger.info("Scheduling pruning of ALCF scratch segmentation data.")
+        prune_controller.prune(
+            file_path=scratch_path_segment,
+            source_endpoint=config.alcf832_synaps_segment,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune ZARR from ALCF scratch/reconstruction
+    if alcf_multi_res_success:
+        logger.info("Scheduling pruning of ALCF scratch zarr reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune reconstructed TIFFs from data832 scratch
+    if data832_tiff_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction TIFF data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # Prune reconstructed ZARR from data832 scratch
+    if data832_zarr_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction ZARR data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # Prune segmented data from data832 scratch
+    if alcf_segmentation_success:
+        logger.info("Scheduling pruning of data832 scratch segmentation data.")
+        prune_controller.prune(
+            file_path=scratch_path_segment,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # data832_tiff_transfer_success, data832_zarr_transfer_success, nersc_transfer_success
+    # schedule_pruning(
+    #     alcf_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
+    #     alcf_scratch_path_tiff=f"{scratch_path_tiff}" if alcf_reconstruction_success else None,
+    #     # alcf_scratch_path_zarr=f"{scratch_path_zarr}" if alcf_multi_res_success else None, # Commenting out zarr for now
+    #     nersc_scratch_path_tiff=f"{scratch_path_tiff}" if nersc_transfer_success else None,
+    #     nersc_scratch_path_zarr=f"{scratch_path_zarr}" if nersc_transfer_success else None,
+    #     data832_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
+    #     data832_scratch_path_tiff=f"{scratch_path_tiff}" if data832_tiff_transfer_success else None,
+    #     # data832_scratch_path_zarr=f"{scratch_path_zarr}" if data832_zarr_transfer_success else None, # Commenting out zarr
+    #     one_minute=False,  # Set to False for production durations
+    #     config=config
+    # )
 
     # TODO: ingest to scicat
 
@@ -625,10 +710,13 @@ def alcf_segmentation_task(
 
 @flow(name="alcf_segmentation_integration_test", flow_run_name="alcf_segmentation_integration_test")
 def alcf_segmentation_integration_test():
-    folder_name = 'dabramov'
-    file_name = '20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast'
+    recon_folder_path = 'rec20211222_125057_petiole4'
     flow_success = alcf_segmentation_task(
-        recon_folder_path=f"/{folder_name}/{file_name}",
+        recon_folder_path=recon_folder_path,
         config=Config832()
     )
     print(flow_success)
+
+
+if __name__ == "__main__":
+    alcf_segmentation_integration_test()
