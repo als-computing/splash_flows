@@ -13,7 +13,7 @@ deployments:
 
 # Move new files to the appropriate locations (data832, nersc cfs) and ingest metadata in scicat
 - name: new_file_832
-  entrypoint: orchestration/flows/bl832/move.py:process_new_832_file
+  entrypoint: orchestration/flows/bl832/move.py:process_new_832_file_flow
   work_pool:
     name: new_file_832_pool
     work_queue_name: new_file_832_queue
