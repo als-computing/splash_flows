@@ -56,6 +56,12 @@ deployments:
     work_queue_name: alcf_recon_flow_queue
 
 # Pruning flows
+- name: prune_globus_endpoint
+  entrypoint: orchestration/prune_controller.py:prune_globus_endpoint
+  work_pool:
+    name: prune_832_pool
+    work_queue_name: prune_832_queue
+
 - name: prune_data832_raw
   entrypoint: orchestration/flows/bl832/prune.py:prune_data832_raw
   work_pool:
