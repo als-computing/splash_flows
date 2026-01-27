@@ -291,7 +291,7 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
                         f"in {days_from_now.total_seconds()/86400:.1f} days")
 
             try:
-                schedule_prefect_flow(
+                schedule_prefect_flow.submit(
                     deployment_name="prune_globus_endpoint/prune_globus_endpoint",
                     flow_run_name=flow_name,
                     parameters={
