@@ -368,8 +368,170 @@ def alcf_recon_flow(
     file_name = path.stem
     h5_file_name = file_name + '.h5'
     scratch_path_tiff = folder_name + '/rec' + file_name + '/'
-    scratch_path_segment = folder_name + '/seg' + file_name + '/'
     scratch_path_zarr = folder_name + '/rec' + file_name + '.zarr/'
+
+    # initialize transfer_controller with globus
+    logger.info("Initializing Globus Transfer Controller.")
+    transfer_controller = get_transfer_controller(
+        transfer_type=CopyMethod.GLOBUS,
+        config=config
+    )
+
+    # STEP 1: Transfer data from data832 to ALCF
+    logger.info("Copying raw data to ALCF.")
+    data832_raw_path = f"{folder_name}/{h5_file_name}"
+    alcf_transfer_success = transfer_controller.copy(
+        file_path=data832_raw_path,
+        source=config.data832_raw,
+        destination=config.alcf832_synaps_raw
+    )
+    logger.info(f"Transfer status: {alcf_transfer_success}")
+
+    if not alcf_transfer_success:
+        logger.error("Transfer failed due to configuration or authorization issues.")
+        raise ValueError("Transfer to ALCF Failed")
+    else:
+        logger.info("Transfer to ALCF Successful.")
+
+        # STEP 2: Run Tomopy Reconstruction on Globus Compute
+        logger.info(f"Starting ALCF reconstruction flow for {file_path=}")
+
+        # Initialize the Tomography Controller and run the reconstruction
+        logger.info("Initializing ALCF Tomography HPC Controller.")
+        tomography_controller = get_controller(
+            hpc_type=HPC.ALCF,
+            config=config
+        )
+        logger.info(f"Starting ALCF reconstruction task for {file_path=}")
+        alcf_reconstruction_success = tomography_controller.reconstruct(
+            file_path=file_path,
+        )
+        if not alcf_reconstruction_success:
+            logger.error("Reconstruction Failed.")
+            raise ValueError("Reconstruction at ALCF Failed")
+        else:
+            logger.info("Reconstruction Successful.")
+
+            # STEP 3: Send reconstructed data (tiff) to data832
+            logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
+                        f"at ALCF to {config.data832_scratch} at data832")
+            data832_tiff_transfer_success = transfer_controller.copy(
+                file_path=scratch_path_tiff,
+                source=config.alcf832_synaps_recon,
+                destination=config.data832_scratch
+            )
+            logger.info(f"Transfer reconstructed TIFF data to data832 success: {data832_tiff_transfer_success}")
+
+            # STEP 4: Run the Tiff to Zarr Globus Flow
+            logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
+            alcf_multi_res_success = tomography_controller.build_multi_resolution(
+                file_path=file_path,
+            )
+            if not alcf_multi_res_success:
+                logger.error("Tiff to Zarr Failed.")
+                raise ValueError("Tiff to Zarr at ALCF Failed")
+            else:
+                logger.info("Tiff to Zarr Successful.")
+                # STEP 5: Send reconstructed data (zarr) to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                            f"at ALCF to {config.data832_scratch} at data832")
+                data832_zarr_transfer_success = transfer_controller.copy(
+                    file_path=scratch_path_zarr,
+                    source=config.alcf832_scratch,
+                    destination=config.data832_scratch
+                )
+
+    # Place holder in case we want to transfer to NERSC for long term storage
+    # nersc_transfer_success = False
+
+    # STEP 6: Schedule Pruning of files
+    logger.info("Scheduling file pruning tasks.")
+    prune_controller = get_prune_controller(
+        prune_type=PruneMethod.GLOBUS,
+        config=config
+    )
+
+    # Prune from ALCF raw
+    if alcf_transfer_success:
+        logger.info("Scheduling pruning of ALCF raw data.")
+        prune_controller.prune(
+            file_path=data832_raw_path,
+            source_endpoint=config.alcf832_synaps_raw,
+            check_endpoint=None,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/reconstruction
+    if alcf_reconstruction_success:
+        logger.info("Scheduling pruning of ALCF scratch reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune ZARR from ALCF scratch/reconstruction
+    if alcf_multi_res_success:
+        logger.info("Scheduling pruning of ALCF scratch zarr reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune reconstructed TIFFs from data832 scratch
+    if data832_tiff_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction TIFF data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # Prune reconstructed ZARR from data832 scratch
+    if data832_zarr_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction ZARR data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # TODO: ingest to scicat
+
+    if alcf_reconstruction_success and alcf_multi_res_success:
+        return True
+    else:
+        return False
+
+
+@flow(name="forge_alcf_recon_segment_flow", flow_run_name="alcf_recon_seg-{file_path}")
+def forge_alcf_recon_segment_flow(
+    file_path: str,
+    config: Optional[Config832] = None,
+) -> bool:
+    """
+    Process and transfer a file from bl832 to ALCF and run reconstruction and segmentation.
+
+    :param file_path: The path to the file to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the flow completed successfully, False otherwise.
+    """
+    logger = get_run_logger()
+
+    if config is None:
+        config = Config832()
+    # set up file paths
+    path = Path(file_path)
+    folder_name = path.parent.name
+    file_name = path.stem
+    h5_file_name = file_name + '.h5'
+    scratch_path_tiff = folder_name + '/rec' + file_name + '/'
+    scratch_path_segment = folder_name + '/seg' + file_name + '/'
 
     # initialize transfer_controller with globus
     logger.info("Initializing Globus Transfer Controller.")
@@ -444,32 +606,7 @@ def alcf_recon_flow(
                 )
                 logger.info(f"Transfer segmented data to data832 success: {segment_transfer_success}")
 
-            # Not running TIFF to Zarr conversion at ALCF for now
-            alcf_multi_res_success = False
-            data832_zarr_transfer_success = False
-            # STEP 6: Run the Tiff to Zarr Globus Flow
-            # logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
-            # alcf_multi_res_success = tomography_controller.build_multi_resolution(
-            #     file_path=file_path,
-            # )
-            # if not alcf_multi_res_success:
-            #     logger.error("Tiff to Zarr Failed.")
-            #     raise ValueError("Tiff to Zarr at ALCF Failed")
-            # else:
-            #     logger.info("Tiff to Zarr Successful.")
-            #     # STEP 7: Send reconstructed data (zarr) to data832
-            #     logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
-            #                 f"at ALCF to {config.data832_scratch} at data832")
-            #     data832_zarr_transfer_success = transfer_controller.copy(
-            #         file_path=scratch_path_zarr,
-            #         source=config.alcf832_scratch,
-            #         destination=config.data832_scratch
-            #     )
-
-    # Place holder in case we want to transfer to NERSC for long term storage
-    # nersc_transfer_success = False
-
-    # STEP 8: Schedule Pruning of files
+    # STEP 6: Schedule Pruning of files
     logger.info("Scheduling file pruning tasks.")
     prune_controller = get_prune_controller(
         prune_type=PruneMethod.GLOBUS,
@@ -506,31 +643,11 @@ def alcf_recon_flow(
             days_from_now=2.0
         )
 
-    # Prune ZARR from ALCF scratch/reconstruction
-    if alcf_multi_res_success:
-        logger.info("Scheduling pruning of ALCF scratch zarr reconstruction data.")
-        prune_controller.prune(
-            file_path=scratch_path_zarr,
-            source_endpoint=config.alcf832_synaps_recon,
-            check_endpoint=config.data832_scratch,
-            days_from_now=2.0
-        )
-
     # Prune reconstructed TIFFs from data832 scratch
     if data832_tiff_transfer_success:
         logger.info("Scheduling pruning of data832 scratch reconstruction TIFF data.")
         prune_controller.prune(
             file_path=scratch_path_tiff,
-            source_endpoint=config.data832_scratch,
-            check_endpoint=None,
-            days_from_now=30.0
-        )
-
-    # Prune reconstructed ZARR from data832 scratch
-    if data832_zarr_transfer_success:
-        logger.info("Scheduling pruning of data832 scratch reconstruction ZARR data.")
-        prune_controller.prune(
-            file_path=scratch_path_zarr,
             source_endpoint=config.data832_scratch,
             check_endpoint=None,
             days_from_now=30.0
@@ -548,7 +665,7 @@ def alcf_recon_flow(
 
     # TODO: ingest to scicat
 
-    if alcf_reconstruction_success and alcf_segmentation_success:  # and alcf_multi_res_success:
+    if alcf_reconstruction_success and alcf_segmentation_success:
         return True
     else:
         return False
