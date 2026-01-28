@@ -1,5 +1,4 @@
 from concurrent.futures import Future
-import datetime
 from pathlib import Path
 import time
 from typing import Optional
@@ -12,8 +11,8 @@ from prefect.variables import Variable
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
+from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
-from orchestration.prefect import schedule_prefect_flow
 
 
 class ALCFTomographyHPCController(TomographyHPCController):
@@ -22,20 +21,24 @@ class ALCFTomographyHPCController(TomographyHPCController):
     There is a @staticmethod wrapper for each compute task submitted via Globus Compute.
     Also, there is a shared wait_for_globus_compute_future method that waits for the task to complete.
 
-    Args:
-        TomographyHPCController (ABC): Abstract class for tomography HPC controllers.
+    :param TomographyHPCController: Abstract class for tomography HPC controllers.
     """
 
     def __init__(
         self,
         config: Config832
     ) -> None:
+        """
+        Initialize the ALCF Tomography HPC Controller.
+
+        :param config: Configuration object for the controller.
+        """
         super().__init__(config)
         # Load allocation root from the Prefect JSON block
         # The block must be registered with the name "alcf-allocation-root-path"
         logger = get_run_logger()
         allocation_data = Variable.get("alcf-allocation-root-path", _sync=True)
-        self.allocation_root = allocation_data.get("alcf-allocation-root-path")
+        self.allocation_root = allocation_data.get("alcf-allocation-root-path")  # eagle/SYNAPS-I/
         if not self.allocation_root:
             raise ValueError("Allocation root not found in JSON block 'alcf-allocation-root-path'")
         logger.info(f"Allocation root loaded: {self.allocation_root}")
@@ -47,27 +50,26 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Run tomography reconstruction at ALCF through Globus Compute.
 
-        Args:
-            file_path (str): Path to the file to be processed.
-
-        Returns:
-            bool: True if the task completed successfully, False otherwise.
+        :param file_path : Path to the file to be processed.
+        :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
         file_name = Path(file_path).stem + ".h5"
         folder_name = Path(file_path).parent.name
 
-        iri_als_bl832_rundir = f"{self.allocation_root}/data/raw"
-        iri_als_bl832_recon_script = f"{self.allocation_root}/scripts/globus_reconstruction.py"
+        rundir = f"{self.allocation_root}/data/bl832/raw"
+        recon_script = f"{self.allocation_root}/reconstruction/scripts/globus_reconstruction.py"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
+        # TODO: Update globus-compute-endpoint Secret block with the new endpoint UUID
+        # We will probably have 2 endpoints, one for recon, one for segmentation
         with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
             logger.info(f"Running Tomopy reconstruction on {file_name} at ALCF")
             future = fxe.submit(
                 self._reconstruct_wrapper,
-                iri_als_bl832_rundir,
-                iri_als_bl832_recon_script,
+                rundir,
+                recon_script,
                 file_name,
                 folder_name
             )
@@ -76,22 +78,19 @@ class ALCFTomographyHPCController(TomographyHPCController):
 
     @staticmethod
     def _reconstruct_wrapper(
-        rundir: str = "/eagle/IRIProd/ALS/data/raw",
-        script_path: str = "/eagle/IRIProd/ALS/scripts/globus_reconstruction.py",
+        rundir: str = "/eagle/SYNAPS-I/data/bl832/raw",
+        script_path: str = "/eagle/SYNAPS-I/reconstruction/scripts/globus_reconstruction.py",
         h5_file_name: str = None,
         folder_path: str = None
     ) -> str:
         """
         Python function that wraps around the application call for Tomopy reconstruction on ALCF
 
-        Args:
-            rundir (str): the directory on the eagle file system (ALCF) where the input data are located
-            script_path (str): the path to the script that will run the reconstruction
-            h5_file_name (str): the name of the h5 file to be reconstructed
-            folder_path (str): the path to the folder containing the h5 file
-
-        Returns:
-            str: confirmation message
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will run the reconstruction
+        :param h5_file_name: the name of the h5 file to be reconstructed
+        :param folder_path: the path to the folder containing the h5 file
+        :return: confirmation message
         """
         import os
         import subprocess
@@ -122,11 +121,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Tiff to Zarr code that is executed using Globus Compute
 
-        Args:
-            file_path (str): Path to the file to be processed.
-
-        Returns:
-            bool: True if the task completed successfully, False otherwise.
+        :param file_path: Path to the file to be processed.
+        :return: True if the task completed successfully, False otherwise.
         """
         logger = get_run_logger()
 
@@ -163,13 +159,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Python function that wraps around the application call for Tiff to Zarr on ALCF
 
-        Args:
-            rundir (str): the directory on the eagle file system (ALCF) where the input data are located
-            script_path (str): the path to the script that will convert the tiff files to zarr
-            recon_path (str): the path to the reconstructed data
-            raw_path (str): the path to the raw data
-        Returns:
-            str: confirmation message
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will convert the tiff files to zarr
+        :param recon_path: the path to the reconstructed data
+        :param raw_path: the path to the raw data
+        :return: confirmation message
         """
         import os
         import subprocess
@@ -185,6 +179,104 @@ class ALCFTomographyHPCController(TomographyHPCController):
             f"Converted tiff files to zarr;\n {zarr_res}"
         )
 
+    def segmentation(
+        self,
+        recon_folder_path: str = "",
+    ) -> bool:
+        """
+        Run tomography segmentation at ALCF through Globus Compute.
+
+        :param recon_folder_path: Path to the reconstructed data folder to be processed.
+        :return: True if the task completed successfully, False otherwise.
+        """
+        logger = get_run_logger()
+
+        # Operate on reconstructed data
+        rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{recon_folder_path}"
+        output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{recon_folder_path}"
+        segmentation_module = "src.inference"
+        workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo"
+
+        gcc = Client(code_serialization_strategy=CombinedCode())
+
+        # TODO: Update globus-compute-endpoint Secret block with the new endpoint UUID
+        # We will probably have 2 endpoints, one for recon, one for segmentation
+        endpoint_id = "168c595b-9493-42db-9c6a-aad960913de2"
+        # with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
+        with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
+            logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
+            future = fxe.submit(
+                self._segmentation_wrapper,
+                input_dir=rundir,
+                output_dir=output_dir,
+                script_module=segmentation_module,
+                workdir=workdir
+            )
+            result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
+            return result
+
+    @staticmethod
+    def _segmentation_wrapper(
+        input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
+        output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
+        script_module: str = "src.inference",
+        workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo",
+        nproc_per_node: int = 4,
+        nnodes: int = 1,
+        nnode_rank: int = 0,
+        master_addr: str = "localhost",
+        master_port: str = "29500",
+        patch_size: int = 512,
+        batch_size: int = 1,
+        num_workers: int = 4,
+        confidence: float = 0.5,
+        prompts: list[str] = ["background", "cell"],
+    ) -> str:
+        """
+        Python function that wraps around the application call for segmentation on ALCF
+
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will run the segmentation
+        :param folder_path: the path to the folder containing the TIFF data to be segmented
+        :return: confirmation message
+        """
+        import os
+        import subprocess
+        import time
+
+        seg_start = time.time()
+
+        # Move to directory where the segmentation code is located
+        os.chdir(workdir)
+
+        # Run segmentation.py
+        command = [
+            "python", "-m", "torch.distributed.run",
+            f"--nproc_per_node={nproc_per_node}",
+            f"--nnodes={nnodes}",
+            f"--node_rank={nnode_rank}",
+            f"--master_addr={master_addr}",
+            f"--master_port={master_port}",
+            "-m", script_module,
+            "--input-dir", input_dir,
+            "--output-dir", output_dir,
+            "--patch-size", str(patch_size),
+            "--batch-size", str(batch_size),
+            "--num-workers", str(num_workers),
+            "--confidence", str(confidence),
+            "--prompts", *prompts,
+        ]
+
+        segment_res = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        seg_end = time.time()
+
+        print(f"Segmented data in {input_dir} in {seg_end-seg_start} seconds;\n {segment_res}")
+        return (
+            f"Segmented data specified in {input_dir} in {seg_end-seg_start} seconds;\n"
+            f"{segment_res}"
+        )
+
     @staticmethod
     def _wait_for_globus_compute_future(
         future: Future,
@@ -195,14 +287,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
 
-        Args:
-            future: The future object returned from the Globus Compute Executor submit method.
-            task_name: A descriptive name for the task being executed (used for logging).
-            check_interval: The interval (in seconds) between status checks.
-            walltime: The maximum time (in seconds) to wait for the task to complete.
-
-        Returns:
-            bool: True if the task completed successfully within walltime, False otherwise.
+        :param future: The future object returned from the Globus Compute Executor submit method.
+        :param task_name: A descriptive name for the task being executed (used for logging).
+        :param check_interval: The interval (in seconds) between status checks.
+        :param walltime: The maximum time (in seconds) to wait for the task to complete.
+        :return: True if the task completed successfully within walltime, False otherwise.
         """
         logger = get_run_logger()
 
@@ -257,125 +346,17 @@ class ALCFTomographyHPCController(TomographyHPCController):
         return success
 
 
-@task(name="schedule_prune_task")
-def schedule_prune_task(
-    path: str,
-    location: str,
-    schedule_days: datetime.timedelta,
-    source_endpoint=None,
-    check_endpoint=None
-) -> bool:
-    """
-    Schedules a Prefect flow to prune files from a specified location.
-
-    Args:
-        path (str): The file path to the folder containing the files.
-        location (str): The server location (e.g., 'alcf832_raw') where the files will be pruned.
-        schedule_days (int): The number of days after which the file should be deleted.
-        source_endpoint (str): The source endpoint for the files.
-        check_endpoint (str): The endpoint to check for the existence of the files.
-
-    Returns:
-        bool: True if the task was scheduled successfully, False otherwise.
-    """
-    logger = get_run_logger()
-
-    try:
-        flow_name = f"delete {location}: {Path(path).name}"
-        schedule_prefect_flow(
-            deployment_name=f"prune_{location}/prune_{location}",
-            flow_run_name=flow_name,
-            parameters={
-                "relative_path": path,
-                "source_endpoint": source_endpoint,
-                "check_endpoint": check_endpoint
-            },
-            duration_from_now=schedule_days
-        )
-        return True
-    except Exception as e:
-        logger.error(f"Failed to schedule prune task: {e}")
-        return False
-
-
-@task(name="schedule_pruning")
-def schedule_pruning(
-    alcf_raw_path: str = None,
-    alcf_scratch_path_tiff: str = None,
-    alcf_scratch_path_zarr: str = None,
-    nersc_scratch_path_tiff: str = None,
-    nersc_scratch_path_zarr: str = None,
-    data832_raw_path: str = None,
-    data832_scratch_path_tiff: str = None,
-    data832_scratch_path_zarr: str = None,
-    one_minute: bool = False,
-    config: Config832 = None
-) -> bool:
-    """
-    This function schedules the deletion of files from specified locations on ALCF, NERSC, and data832.
-
-    Args:
-        alcf_raw_path (str, optional): The raw path of the h5 file on ALCF.
-        alcf_scratch_path_tiff (str, optional): The scratch path for TIFF files on ALCF.
-        alcf_scratch_path_zarr (str, optional): The scratch path for Zarr files on ALCF.
-        nersc_scratch_path_tiff (str, optional): The scratch path for TIFF files on NERSC.
-        nersc_scratch_path_zarr (str, optional): The scratch path for Zarr files on NERSC.
-        data832_scratch_path (str, optional): The scratch path on data832.
-        one_minute (bool, optional): Defaults to False. Whether to schedule the deletion after one minute.
-        config (Config832, optional): Configuration object for the flow.
-
-    Returns:
-        bool: True if the tasks were scheduled successfully, False otherwise.
-    """
-    logger = get_run_logger()
-
-    pruning_config = Variable.get("pruning-config", _sync=True)
-
-    if one_minute:
-        alcf_delay = datetime.timedelta(minutes=1)
-        nersc_delay = datetime.timedelta(minutes=1)
-        data832_delay = datetime.timedelta(minutes=1)
-    else:
-        alcf_delay = datetime.timedelta(days=pruning_config["delete_alcf832_files_after_days"])
-        nersc_delay = datetime.timedelta(days=pruning_config["delete_nersc832_files_after_days"])
-        data832_delay = datetime.timedelta(days=pruning_config["delete_data832_files_after_days"])
-
-    # (path, location, days, source_endpoint, check_endpoint)
-    delete_schedules = [
-        (alcf_raw_path, "alcf832_raw", alcf_delay, config.alcf832_raw, config.data832_raw),
-        (alcf_scratch_path_tiff, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
-        (alcf_scratch_path_zarr, "alcf832_scratch", alcf_delay, config.alcf832_scratch, config.data832_scratch),
-        (nersc_scratch_path_tiff, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
-        (nersc_scratch_path_zarr, "nersc832_alsdev_scratch", nersc_delay, config.nersc832_alsdev_scratch, None),
-        (data832_raw_path, "data832_raw", data832_delay, config.data832_raw, None),
-        (data832_scratch_path_tiff, "data832_scratch", data832_delay, config.data832_scratch, None),
-        (data832_scratch_path_zarr, "data832_scratch", data832_delay, config.data832_scratch, None)
-    ]
-
-    for path, location, days, source_endpoint, check_endpoint in delete_schedules:
-        if path:
-            schedule_prune_task(path, location, days, source_endpoint, check_endpoint)
-            logger.info(f"Scheduled delete from {location} at {days} days")
-        else:
-            logger.info(f"Path not provided for {location}, skipping scheduling of deletion task.")
-
-    return True
-
-
 @flow(name="alcf_recon_flow", flow_run_name="alcf_recon-{file_path}")
 def alcf_recon_flow(
     file_path: str,
     config: Optional[Config832] = None,
 ) -> bool:
     """
-    Process and transfer a file from a source to the ALCF.
+    Process and transfer a file from bl832 to ALCF and run reconstruction and segmentation.
 
-    Args:
-        file_path (str): The path to the file to be processed.
-        config (Config832): Configuration object for the flow.
-
-    Returns:
-        bool: True if the flow completed successfully, False otherwise.
+    :param file_path: The path to the file to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the flow completed successfully, False otherwise.
     """
     logger = get_run_logger()
 
@@ -390,18 +371,19 @@ def alcf_recon_flow(
     scratch_path_zarr = folder_name + '/rec' + file_name + '.zarr/'
 
     # initialize transfer_controller with globus
+    logger.info("Initializing Globus Transfer Controller.")
     transfer_controller = get_transfer_controller(
         transfer_type=CopyMethod.GLOBUS,
         config=config
     )
 
     # STEP 1: Transfer data from data832 to ALCF
-    logger.info("Copying data to ALCF.")
+    logger.info("Copying raw data to ALCF.")
     data832_raw_path = f"{folder_name}/{h5_file_name}"
     alcf_transfer_success = transfer_controller.copy(
         file_path=data832_raw_path,
         source=config.data832_raw,
-        destination=config.alcf832_raw
+        destination=config.alcf832_synaps_raw
     )
     logger.info(f"Transfer status: {alcf_transfer_success}")
 
@@ -411,14 +393,16 @@ def alcf_recon_flow(
     else:
         logger.info("Transfer to ALCF Successful.")
 
-        # STEP 2A: Run the Tomopy Reconstruction Globus Flow
+        # STEP 2: Run Tomopy Reconstruction on Globus Compute
         logger.info(f"Starting ALCF reconstruction flow for {file_path=}")
 
         # Initialize the Tomography Controller and run the reconstruction
+        logger.info("Initializing ALCF Tomography HPC Controller.")
         tomography_controller = get_controller(
             hpc_type=HPC.ALCF,
             config=config
         )
+        logger.info(f"Starting ALCF reconstruction task for {file_path=}")
         alcf_reconstruction_success = tomography_controller.reconstruct(
             file_path=file_path,
         )
@@ -428,16 +412,17 @@ def alcf_recon_flow(
         else:
             logger.info("Reconstruction Successful.")
 
-            # Transfer A: Send reconstructed data (tiff) to data832
-            logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+            # STEP 3: Send reconstructed data (tiff) to data832
+            logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
                         f"at ALCF to {config.data832_scratch} at data832")
             data832_tiff_transfer_success = transfer_controller.copy(
                 file_path=scratch_path_tiff,
-                source=config.alcf832_scratch,
+                source=config.alcf832_synaps_recon,
                 destination=config.data832_scratch
             )
+            logger.info(f"Transfer reconstructed TIFF data to data832 success: {data832_tiff_transfer_success}")
 
-            # STEP 2B: Run the Tiff to Zarr Globus Flow
+            # STEP 4: Run the Tiff to Zarr Globus Flow
             logger.info(f"Starting ALCF tiff to zarr flow for {file_path=}")
             alcf_multi_res_success = tomography_controller.build_multi_resolution(
                 file_path=file_path,
@@ -447,31 +432,74 @@ def alcf_recon_flow(
                 raise ValueError("Tiff to Zarr at ALCF Failed")
             else:
                 logger.info("Tiff to Zarr Successful.")
-                # Transfer B: Send reconstructed data (zarr) to data832
-                logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                # STEP 5: Send reconstructed data (zarr) to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
                             f"at ALCF to {config.data832_scratch} at data832")
                 data832_zarr_transfer_success = transfer_controller.copy(
                     file_path=scratch_path_zarr,
-                    source=config.alcf832_scratch,
+                    source=config.alcf832_synaps_recon,
                     destination=config.data832_scratch
                 )
 
     # Place holder in case we want to transfer to NERSC for long term storage
-    nersc_transfer_success = False
+    # nersc_transfer_success = False
 
-    data832_tiff_transfer_success, data832_zarr_transfer_success, nersc_transfer_success
-    schedule_pruning(
-        alcf_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
-        alcf_scratch_path_tiff=f"{scratch_path_tiff}" if alcf_reconstruction_success else None,
-        alcf_scratch_path_zarr=f"{scratch_path_zarr}" if alcf_multi_res_success else None,
-        nersc_scratch_path_tiff=f"{scratch_path_tiff}" if nersc_transfer_success else None,
-        nersc_scratch_path_zarr=f"{scratch_path_zarr}" if nersc_transfer_success else None,
-        data832_raw_path=f"{folder_name}/{h5_file_name}" if alcf_transfer_success else None,
-        data832_scratch_path_tiff=f"{scratch_path_tiff}" if data832_tiff_transfer_success else None,
-        data832_scratch_path_zarr=f"{scratch_path_zarr}" if data832_zarr_transfer_success else None,
-        one_minute=False,  # Set to False for production durations
+    # STEP 6: Schedule Pruning of files
+    logger.info("Scheduling file pruning tasks.")
+    prune_controller = get_prune_controller(
+        prune_type=PruneMethod.GLOBUS,
         config=config
     )
+
+    # Prune from ALCF raw
+    if alcf_transfer_success:
+        logger.info("Scheduling pruning of ALCF raw data.")
+        prune_controller.prune(
+            file_path=data832_raw_path,
+            source_endpoint=config.alcf832_synaps_raw,
+            check_endpoint=None,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/reconstruction
+    if alcf_reconstruction_success:
+        logger.info("Scheduling pruning of ALCF scratch reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune ZARR from ALCF scratch/reconstruction
+    if alcf_multi_res_success:
+        logger.info("Scheduling pruning of ALCF scratch zarr reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune reconstructed TIFFs from data832 scratch
+    if data832_tiff_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction TIFF data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # Prune reconstructed ZARR from data832 scratch
+    if data832_zarr_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction ZARR data.")
+        prune_controller.prune(
+            file_path=scratch_path_zarr,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
 
     # TODO: ingest to scicat
 
@@ -481,11 +509,219 @@ def alcf_recon_flow(
         return False
 
 
-if __name__ == "__main__":
-    folder_name = 'dabramov'
-    file_name = '20230606_151124_jong-seto_fungal-mycelia_roll-AQ_fungi1_fast'
-    flow_success = alcf_recon_flow(
-        file_path=f"/{folder_name}/{file_name}.h5",
+@flow(name="alcf_forge_recon_segment_flow", flow_run_name="alcf_recon_seg-{file_path}")
+def alcf_forge_recon_segment_flow(
+    file_path: str,
+    config: Optional[Config832] = None,
+) -> bool:
+    """
+    Process and transfer a file from bl832 to ALCF and run reconstruction and segmentation.
+
+    :param file_path: The path to the file to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the flow completed successfully, False otherwise.
+    """
+    logger = get_run_logger()
+
+    if config is None:
+        config = Config832()
+    # set up file paths
+    path = Path(file_path)
+    folder_name = path.parent.name
+    file_name = path.stem
+    h5_file_name = file_name + '.h5'
+    scratch_path_tiff = folder_name + '/rec' + file_name + '/'
+    scratch_path_segment = folder_name + '/seg' + file_name + '/'
+
+    # initialize transfer_controller with globus
+    logger.info("Initializing Globus Transfer Controller.")
+    transfer_controller = get_transfer_controller(
+        transfer_type=CopyMethod.GLOBUS,
+        config=config
+    )
+
+    # STEP 1: Transfer data from data832 to ALCF
+    logger.info("Copying raw data to ALCF.")
+    data832_raw_path = f"{folder_name}/{h5_file_name}"
+    alcf_transfer_success = transfer_controller.copy(
+        file_path=data832_raw_path,
+        source=config.data832_raw,
+        destination=config.alcf832_synaps_raw
+    )
+    logger.info(f"Transfer status: {alcf_transfer_success}")
+
+    if not alcf_transfer_success:
+        logger.error("Transfer failed due to configuration or authorization issues.")
+        raise ValueError("Transfer to ALCF Failed")
+    else:
+        logger.info("Transfer to ALCF Successful.")
+
+        # STEP 2: Run the Tomopy Reconstruction Globus Flow
+        logger.info(f"Starting ALCF reconstruction flow for {file_path=}")
+
+        # Initialize the Tomography Controller and run the reconstruction
+        logger.info("Initializing ALCF Tomography HPC Controller.")
+        tomography_controller = get_controller(
+            hpc_type=HPC.ALCF,
+            config=config
+        )
+        logger.info(f"Starting ALCF reconstruction task for {file_path=}")
+        alcf_reconstruction_success = tomography_controller.reconstruct(
+            file_path=file_path,
+        )
+        if not alcf_reconstruction_success:
+            logger.error("Reconstruction Failed.")
+            raise ValueError("Reconstruction at ALCF Failed")
+        else:
+            logger.info("Reconstruction Successful.")
+
+            # STEP 3: Send reconstructed data (tiff) to data832
+            logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
+                        f"at ALCF to {config.data832_scratch} at data832")
+            data832_tiff_transfer_success = transfer_controller.copy(
+                file_path=scratch_path_tiff,
+                source=config.alcf832_synaps_recon,
+                destination=config.data832_scratch
+            )
+            logger.info(f"Transfer reconstructed TIFF data to data832 success: {data832_tiff_transfer_success}")
+
+            # STEP 4: Run the Segmentation Task at ALCF
+            logger.info(f"Starting ALCF segmentation task for {scratch_path_tiff=}")
+            alcf_segmentation_success = alcf_segmentation_task(
+                recon_folder_path=scratch_path_tiff,
+                config=config
+            )
+            if not alcf_segmentation_success:
+                logger.warning("Segmentation at ALCF Failed")
+            else:
+                logger.info("Segmentation at ALCF Successful")
+
+                # STEP 5: Send segmented data to data832
+                logger.info(f"Transferring {file_name} from {config.alcf832_synaps_segment} "
+                            f"at ALCF to {config.data832_scratch} at data832")
+                segment_transfer_success = transfer_controller.copy(
+                    file_path=scratch_path_segment,
+                    source=config.alcf832_synaps_segment,
+                    destination=config.data832_scratch
+                )
+                logger.info(f"Transfer segmented data to data832 success: {segment_transfer_success}")
+
+    # STEP 6: Schedule Pruning of files
+    logger.info("Scheduling file pruning tasks.")
+    prune_controller = get_prune_controller(
+        prune_type=PruneMethod.GLOBUS,
+        config=config
+    )
+
+    # Prune from ALCF raw
+    if alcf_transfer_success:
+        logger.info("Scheduling pruning of ALCF raw data.")
+        prune_controller.prune(
+            file_path=data832_raw_path,
+            source_endpoint=config.alcf832_synaps_raw,
+            check_endpoint=None,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/reconstruction
+    if alcf_reconstruction_success:
+        logger.info("Scheduling pruning of ALCF scratch reconstruction data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.alcf832_synaps_recon,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune TIFFs from ALCF scratch/segmentation
+    if alcf_segmentation_success:
+        logger.info("Scheduling pruning of ALCF scratch segmentation data.")
+        prune_controller.prune(
+            file_path=scratch_path_segment,
+            source_endpoint=config.alcf832_synaps_segment,
+            check_endpoint=config.data832_scratch,
+            days_from_now=2.0
+        )
+
+    # Prune reconstructed TIFFs from data832 scratch
+    if data832_tiff_transfer_success:
+        logger.info("Scheduling pruning of data832 scratch reconstruction TIFF data.")
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # Prune segmented data from data832 scratch
+    if alcf_segmentation_success:
+        logger.info("Scheduling pruning of data832 scratch segmentation data.")
+        prune_controller.prune(
+            file_path=scratch_path_segment,
+            source_endpoint=config.data832_scratch,
+            check_endpoint=None,
+            days_from_now=30.0
+        )
+
+    # TODO: ingest to scicat
+
+    if alcf_reconstruction_success and alcf_segmentation_success:
+        return True
+    else:
+        return False
+
+
+@task(name="alcf_segmentation_task")
+def alcf_segmentation_task(
+    recon_folder_path: str,
+    config: Optional[Config832] = None,
+) -> bool:
+    """
+    Run segmentation task at ALCF.
+
+    :param recon_folder_path: Path to the reconstructed data folder to be processed.
+    :param config: Configuration object for the flow.
+    :return: True if the task completed successfully, False otherwise.
+    """
+    logger = get_run_logger()
+    if config is None:
+        logger.info("No config provided, using default Config832.")
+        config = Config832()
+
+    # Initialize the Tomography Controller and run the segmentation
+    logger.info("Initializing ALCF Tomography HPC Controller.")
+    tomography_controller = get_controller(
+        hpc_type=HPC.ALCF,
+        config=config
+    )
+    logger.info(f"Starting ALCF segmentation task for {recon_folder_path=}")
+    alcf_segmentation_success = tomography_controller.segmentation(
+        recon_folder_path=recon_folder_path,
+    )
+    if not alcf_segmentation_success:
+        logger.error("Segmentation Failed.")
+    else:
+        logger.info("Segmentation Successful.")
+    return alcf_segmentation_success
+
+
+@flow(name="alcf_segmentation_integration_test", flow_run_name="alcf_segmentation_integration_test")
+def alcf_segmentation_integration_test() -> bool:
+    """
+    Integration test for the ALCF segmentation task.
+
+    :return: True if the segmentation task completed successfully, False otherwise.
+    """
+    logger = get_run_logger()
+    logger.info("Starting ALCF segmentation integration test.")
+    recon_folder_path = 'rec20211222_125057_petiole4'
+    flow_success = alcf_segmentation_task(
+        recon_folder_path=recon_folder_path,
         config=Config832()
     )
-    print(flow_success)
+    logger.info(f"Flow success: {flow_success}")
+    return flow_success
+
+
+if __name__ == "__main__":
+    alcf_segmentation_integration_test()

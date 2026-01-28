@@ -55,6 +55,12 @@ deployments:
     name: alcf_recon_flow_pool
     work_queue_name: alcf_recon_flow_queue
 
+- alcf_forge_recon_segment_flow:
+  entrypoint: orchestration/flows/bl832/alcf.py:alcf_forge_recon_segment_flow
+  work_pool:
+    name: alcf_recon_flow_pool
+    work_queue_name: alcf_forge_recon_segment_flow_queue
+
 # Pruning flows
 - name: prune_globus_endpoint
   entrypoint: orchestration/prune_controller.py:prune_globus_endpoint

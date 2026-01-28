@@ -147,8 +147,8 @@ class MockConfig832():
                                                 MockSecret.for_endpoint("nersc832_alsdev_raw")),
             "nersc832_alsdev_scratch": MockEndpoint("mock_nersc832_alsdev_scratch_path",
                                                     MockSecret.for_endpoint("nersc832_alsdev_scratch")),
-            "alcf832_raw": MockEndpoint("mock_alcf832_raw_path", MockSecret.for_endpoint("alcf832_raw")),
-            "alcf832_scratch": MockEndpoint("mock_alcf832_scratch_path", MockSecret.for_endpoint("alcf832_scratch")),
+            "alcf832_iri_raw": MockEndpoint("mock_alcf832_raw_path", MockSecret.for_endpoint("alcf832_iri_raw")),
+            "alcf832_iri_scratch": MockEndpoint("mock_alcf832_scratch_path", MockSecret.for_endpoint("alcf832_iri_scratch")),
         }
 
         # Mock apps
@@ -163,8 +163,8 @@ class MockConfig832():
         self.spot832 = self.endpoints["spot832"]
         self.data832 = self.endpoints["data832"]
         self.nersc832 = self.endpoints["nersc832"]
-        self.alcf832_raw = self.endpoints["alcf832_raw"]
-        self.alcf832_scratch = self.endpoints["alcf832_scratch"]
+        self.alcf832_iri_raw = self.endpoints["alcf832_iri_raw"]
+        self.alcf832_iri_scratch = self.endpoints["alcf832_iri_scratch"]
         self.data832_raw = self.endpoints["data832_raw"]
         self.data832_scratch = self.endpoints["data832_scratch"]
         self.nersc832_alsdev_scratch = self.endpoints["nersc832_alsdev_scratch"]
@@ -247,8 +247,11 @@ def test_alcf_recon_flow(mocker: MockFixture):
             "nersc832_alsdev_pscratch_raw": mocker.MagicMock(),
             "nersc832_alsdev_pscratch_scratch": mocker.MagicMock(),
             "nersc832_alsdev_recon_scripts": mocker.MagicMock(),
-            "alcf832_raw": mocker.MagicMock(),
-            "alcf832_scratch": mocker.MagicMock(),
+            "alcf832_iri_raw": mocker.MagicMock(),
+            "alcf832_iri_scratch": mocker.MagicMock(),
+            "alcf832_synaps_raw": mocker.MagicMock(),
+            "alcf832_synaps_recon": mocker.MagicMock(),
+            "alcf832_synaps_segment": mocker.MagicMock(),
         }
     )
     mocker.patch(
@@ -298,10 +301,12 @@ def test_alcf_recon_flow(mocker: MockFixture):
         return_value=mock_transfer_controller
     )
 
-    # 7) Patch schedule_pruning => skip real scheduling
-    mock_schedule_pruning = mocker.patch(
-        "orchestration.flows.bl832.alcf.schedule_pruning",
-        return_value=True
+    # 7) Patch get_prune_controller(...) => skip real scheduling
+    mock_prune_controller = mocker.MagicMock()
+    mock_prune_controller.prune.return_value = True
+    mocker.patch(
+        "orchestration.flows.bl832.alcf.get_prune_controller",
+        return_value=mock_prune_controller
     )
 
     file_path = "/global/raw/transfer_tests/test.h5"
@@ -316,13 +321,13 @@ def test_alcf_recon_flow(mocker: MockFixture):
     assert mock_transfer_controller.copy.call_count == 3, "Should do 3 transfers in success path"
     mock_hpc_reconstruct.assert_called_once()
     mock_hpc_multires.assert_called_once()
-    mock_schedule_pruning.assert_called_once()
+    assert mock_prune_controller.prune.call_count == 5, "Should schedule 5 prune operations in success path"
 
     # Reset for next scenario
     mock_transfer_controller.copy.reset_mock()
     mock_hpc_reconstruct.reset_mock()
     mock_hpc_multires.reset_mock()
-    mock_schedule_pruning.reset_mock()
+    mock_prune_controller.prune.reset_mock()
 
     #
     # ---------- CASE 2: HPC reconstruction fails ----------
@@ -339,13 +344,13 @@ def test_alcf_recon_flow(mocker: MockFixture):
     assert mock_transfer_controller.copy.call_count == 1, (
         "Should only do the first data832->alcf copy before HPC fails"
     )
-    mock_schedule_pruning.assert_not_called()
+    mock_prune_controller.prune.assert_not_called()
 
     # Reset
     mock_transfer_controller.copy.reset_mock()
     mock_hpc_reconstruct.reset_mock()
     mock_hpc_multires.reset_mock()
-    mock_schedule_pruning.reset_mock()
+    mock_prune_controller.prune.reset_mock()
 
     # ---------- CASE 3: Tiff->Zarr fails ----------
     mock_transfer_controller.copy.return_value = True
@@ -360,13 +365,13 @@ def test_alcf_recon_flow(mocker: MockFixture):
     # HPC is done, so there's 2 successful transfer (data832->alcf).
     # We have not transferred tiff or zarr => total 2 copies
     assert mock_transfer_controller.copy.call_count == 2
-    mock_schedule_pruning.assert_not_called()
+    mock_prune_controller.prune.assert_not_called()
 
     # Reset
     mock_transfer_controller.copy.reset_mock()
     mock_hpc_reconstruct.reset_mock()
     mock_hpc_multires.reset_mock()
-    mock_schedule_pruning.reset_mock()
+    mock_prune_controller.prune.reset_mock()
 
     # ---------- CASE 4: data832->ALCF fails immediately ----------
     mock_transfer_controller.copy.return_value = False
@@ -380,4 +385,4 @@ def test_alcf_recon_flow(mocker: MockFixture):
     mock_hpc_multires.assert_not_called()
     # The only call is the failing copy
     mock_transfer_controller.copy.assert_called_once()
-    mock_schedule_pruning.assert_not_called()
+    mock_prune_controller.prune.assert_not_called()
