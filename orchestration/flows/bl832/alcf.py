@@ -433,11 +433,11 @@ def alcf_recon_flow(
             else:
                 logger.info("Tiff to Zarr Successful.")
                 # STEP 5: Send reconstructed data (zarr) to data832
-                logger.info(f"Transferring {file_name} from {config.alcf832_scratch} "
+                logger.info(f"Transferring {file_name} from {config.alcf832_synaps_recon} "
                             f"at ALCF to {config.data832_scratch} at data832")
                 data832_zarr_transfer_success = transfer_controller.copy(
                     file_path=scratch_path_zarr,
-                    source=config.alcf832_scratch,
+                    source=config.alcf832_synaps_recon,
                     destination=config.data832_scratch
                 )
 
