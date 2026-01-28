@@ -857,6 +857,98 @@ def nersc_recon_flow(
     Perform tomography reconstruction on NERSC.
 
     :param file_path: Path to the file to reconstruct.
+    """
+    logger = get_run_logger()
+
+    if config is None:
+        logger.info("Initializing Config")
+        config = Config832()
+
+    logger.info(f"Starting NERSC reconstruction flow for {file_path=}")
+    controller = get_controller(
+        hpc_type=HPC.NERSC,
+        config=config
+    )
+    logger.info("NERSC reconstruction controller initialized")
+
+    nersc_reconstruction_success = controller.reconstruct(
+        file_path=file_path,
+    )
+    logger.info(f"NERSC reconstruction success: {nersc_reconstruction_success}")
+    nersc_multi_res_success = controller.build_multi_resolution(
+        file_path=file_path,
+    )
+    logger.info(f"NERSC multi-resolution success: {nersc_multi_res_success}")
+
+    path = Path(file_path)
+    folder_name = path.parent.name
+    file_name = path.stem
+
+    tiff_file_path = f"{folder_name}/rec{file_name}"
+    zarr_file_path = f"{folder_name}/rec{file_name}.zarr"
+
+    logger.info(f"{tiff_file_path=}")
+    logger.info(f"{zarr_file_path=}")
+
+    # Transfer reconstructed data
+    logger.info("Preparing transfer.")
+    transfer_controller = get_transfer_controller(
+        transfer_type=CopyMethod.GLOBUS,
+        config=config
+    )
+
+    logger.info("Copy from /pscratch/sd/a/alsdev/8.3.2 to /global/cfs/cdirs/als/data_mover/8.3.2/scratch.")
+    transfer_controller.copy(
+        file_path=tiff_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.nersc832_alsdev_scratch
+    )
+
+    transfer_controller.copy(
+        file_path=zarr_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.nersc832_alsdev_scratch
+    )
+
+    logger.info("Copy from NERSC /global/cfs/cdirs/als/data_mover/8.3.2/scratch to data832")
+    transfer_controller.copy(
+        file_path=tiff_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.data832_scratch
+    )
+
+    transfer_controller.copy(
+        file_path=zarr_file_path,
+        source=config.nersc832_alsdev_pscratch_scratch,
+        destination=config.data832_scratch
+    )
+
+    logger.info("Scheduling pruning tasks.")
+    schedule_pruning(
+        config=config,
+        raw_file_path=file_path,
+        tiff_file_path=tiff_file_path,
+        zarr_file_path=zarr_file_path
+    )
+
+    # TODO: Ingest into SciCat
+    if nersc_reconstruction_success and nersc_multi_res_success:
+        return True
+    else:
+        return False
+
+
+@flow(name="nersc_recon_multinode_flow", flow_run_name="nersc_recon_multinode-{file_path}")
+def nersc_recon_multinode_flow(
+    file_path: str,
+    num_nodes: Optional[int] = 4,
+    config: Optional[Config832] = None,
+) -> bool:
+    """
+    Perform multi-node tomography reconstruction on NERSC.
+
+    :param file_path: Path to the file to reconstruct.
+    :param num_nodes: Number of nodes to use for reconstruction.
     :param config: Configuration object (if None, a default Config832 will be created).
     :return: True if successful, False otherwise.
     """
@@ -872,19 +964,16 @@ def nersc_recon_flow(
         config=config
     )
     logger.info("NERSC reconstruction controller initialized")
-    num_nodes = config.nersc_recon_num_nodes
+
+    if num_nodes is None:
+        num_nodes = config.nersc_recon_num_nodes
     logger.info(f"Configured to use {num_nodes} nodes for reconstruction")
-    if num_nodes == 1:
-        logger.info("Using single-node reconstruction")
-        nersc_reconstruction_success = controller.reconstruct(
-            file_path=file_path,
-        )
-    else:
-        logger.info(f"Using multi-node reconstruction with {num_nodes} nodes")
-        nersc_reconstruction_success = controller.reconstruct_multinode(
-            file_path=file_path,
-            num_nodes=num_nodes
-        )
+
+    logger.info(f"Using multi-node reconstruction with {num_nodes} nodes")
+    nersc_reconstruction_success = controller.reconstruct_multinode(
+        file_path=file_path,
+        num_nodes=num_nodes
+    )
 
     if isinstance(nersc_reconstruction_success, dict):
         success = nersc_reconstruction_success.get('success', False)
@@ -1040,23 +1129,23 @@ def pull_shifter_image_flow(
     return success
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
 
-    config = Config832()
+#     config = Config832()
 
     # pull_shifter_image_flow(config=config)
 
     # # Fibers ------------------------------------------
 
-    start = time.time()
-    nersc_recon_flow(
-        file_path="dabramov/20251218_111600_silkraw.h5",
-        num_nodes=4,
-        config=config
-    )
-    end = time.time()
-    logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
-    print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # start = time.time()
+    # nersc_recon_flow(
+    #     file_path="dabramov/20251218_111600_silkraw.h5",
+    #     num_nodes=4,
+    #     config=config
+    # )
+    # end = time.time()
+    # logger.info(f"Total reconstruction time with 4 nodes: {end - start} seconds")
+    # print(f"Total reconstruction time with 4 nodes: {end - start} seconds")
 
     # start = time.time()
     # nersc_recon_flow(
