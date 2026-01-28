@@ -509,8 +509,8 @@ def alcf_recon_flow(
         return False
 
 
-@flow(name="forge_alcf_recon_segment_flow", flow_run_name="alcf_recon_seg-{file_path}")
-def forge_alcf_recon_segment_flow(
+@flow(name="alcf_forge_recon_segment_flow", flow_run_name="alcf_recon_seg-{file_path}")
+def alcf_forge_recon_segment_flow(
     file_path: str,
     config: Optional[Config832] = None,
 ) -> bool:
