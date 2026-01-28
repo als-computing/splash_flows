@@ -36,13 +36,11 @@ async def schedule(
 
 
 @task(name="Schedule Prefect Flow")
-def schedule_prefect_flow(
+async def schedule_prefect_flow(
     deployment_name, flow_run_name, parameters, duration_from_now: datetime.timedelta
 ):
     logger = get_run_logger()
-    asyncio.run(
-        schedule(deployment_name, flow_run_name, parameters, duration_from_now, logger)
-    )
+    await schedule(deployment_name, flow_run_name, parameters, duration_from_now, logger)
     return
 
 

@@ -13,7 +13,7 @@ deployments:
 
 # Move new files to the appropriate locations (data832, nersc cfs) and ingest metadata in scicat
 - name: new_file_832
-  entrypoint: orchestration/flows/bl832/move.py:process_new_832_file
+  entrypoint: orchestration/flows/bl832/move.py:process_new_832_file_flow
   work_pool:
     name: new_file_832_pool
     work_queue_name: new_file_832_queue
@@ -56,6 +56,12 @@ deployments:
     work_queue_name: alcf_recon_flow_queue
 
 # Pruning flows
+- name: prune_globus_endpoint
+  entrypoint: orchestration/prune_controller.py:prune_globus_endpoint
+  work_pool:
+    name: prune_832_pool
+    work_queue_name: prune_832_queue
+
 - name: prune_data832_raw
   entrypoint: orchestration/flows/bl832/prune.py:prune_data832_raw
   work_pool:

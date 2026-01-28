@@ -10,7 +10,7 @@ from prefect.variables import Variable
 from orchestration.flows.scicat.ingest import scicat_ingest_flow
 from orchestration.flows.bl832.config import Config832
 from orchestration.globus.transfer import GlobusEndpoint, start_transfer
-from orchestration.prefect import schedule_prefect_flow
+from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.prometheus_utils import PrometheusMetrics
 
 
@@ -149,50 +149,43 @@ def process_new_832_file_task(
         logger.info(
             f"File successfully transferred from data832 to NERSC {file_path}. Task {task}"
         )
-        flow_name = f"ingest scicat: {Path(file_path).name}"
+        # Ingest into SciCat
         logger.info(f"Ingesting {file_path} with {TOMO_INGESTOR_SPEC}")
         try:
             scicat_ingest_flow(dataset_path=Path(file_path), ingester_spec=TOMO_INGESTOR_SPEC)
         except Exception as e:
             logger.error(f"SciCat ingest failed with {e}")
 
-        # schedule_prefect_flow(
-        #     "ingest_scicat/ingest_scicat",
-        #     flow_name,
-        #     {"relative_path": relative_path},
-        #     datetime.timedelta(0.0),
-        # )
+    logger.info("Initializing prune controller")
+    prune_controller = get_prune_controller(
+        prune_type=PruneMethod.GLOBUS,
+        config=config
+    )
 
     bl832_settings = Variable.get("bl832-settings", _sync=True)
-
-    flow_name = f"delete spot832: {Path(file_path).name}"
+    # flow_name = f"delete spot832: {Path(file_path).name}"
     schedule_spot832_delete_days = bl832_settings["delete_spot832_files_after_days"]
     schedule_data832_delete_days = bl832_settings["delete_data832_files_after_days"]
-    schedule_prefect_flow(
-        "prune_spot832/prune_spot832",
-        flow_name,
-        {
-            "relative_path": relative_path,
-            "source_endpoint": config.spot832,
-            "check_endpoint": config.data832,
-         },
 
-        datetime.timedelta(days=schedule_spot832_delete_days),
+    # Schedule pruning from spot832
+    logger.info(f"Scheduling delete from spot832 in {schedule_spot832_delete_days} days")
+    prune_controller.prune(
+        file_path=relative_path,
+        source_endpoint=config.spot832,
+        check_endpoint=config.data832,
+        days_from_now=schedule_spot832_delete_days
     )
     logger.info(
         f"Scheduled delete from spot832 at {datetime.timedelta(days=schedule_spot832_delete_days)}"
     )
 
-    flow_name = f"delete data832: {Path(file_path).name}"
-    schedule_prefect_flow(
-        "prune_data832/prune_data832",
-        flow_name,
-        {
-            "relative_path": relative_path,
-            "source_endpoint": config.data832,
-            "check_endpoint": config.nersc832,
-        },
-        datetime.timedelta(days=schedule_data832_delete_days),
+    # Schedule pruning from data832
+    logger.info(f"Scheduling delete from data832 in {schedule_data832_delete_days} days")
+    prune_controller.prune(
+        file_path=relative_path,
+        source_endpoint=config.data832,
+        check_endpoint=config.nersc832,
+        days_from_now=schedule_data832_delete_days
     )
     logger.info(
         f"Scheduled delete from data832 at {datetime.timedelta(days=schedule_data832_delete_days)}"

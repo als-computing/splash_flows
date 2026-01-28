@@ -178,7 +178,9 @@ def test_832_dispatcher(mocker: MockFixture):
 
     mocker.patch('prefect.blocks.system.Secret.load', return_value=MockSecret())
 
-    mocker.patch('orchestration.flows.bl832.move.schedule_prefect_flow', return_value=None)
+    mock_prune_controller = mocker.MagicMock()
+    mock_prune_controller.prune.return_value = True
+    mocker.patch('orchestration.flows.bl832.move.get_prune_controller', return_value=mock_prune_controller)
 
     # Mock read_deployment_by_name with a manually defined mock class
     class MockDeployment:

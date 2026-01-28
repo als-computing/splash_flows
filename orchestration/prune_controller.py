@@ -9,7 +9,7 @@ from prefect import flow
 from prefect.variables import Variable
 
 from orchestration.config import BeamlineConfig
-from orchestration.globus.transfer import GlobusEndpoint, prune_one_safe
+from orchestration.globus.transfer import GlobusEndpoint, init_transfer_client, prune_one_safe
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.transfer_endpoints import FileSystemEndpoint, TransferEndpoint
 
@@ -291,14 +291,14 @@ class GlobusPruneController(PruneController[GlobusEndpoint]):
                         f"in {days_from_now.total_seconds()/86400:.1f} days")
 
             try:
-                schedule_prefect_flow(
+                schedule_prefect_flow.submit(
                     deployment_name="prune_globus_endpoint/prune_globus_endpoint",
                     flow_run_name=flow_name,
                     parameters={
                         "relative_path": file_path,
                         "source_endpoint": source_endpoint,
                         "check_endpoint": check_endpoint,
-                        "config": self.config
+                        # "config": self.config
                     },
                     duration_from_now=days_from_now,
                 )
@@ -314,7 +314,7 @@ def prune_globus_endpoint(
     relative_path: str,
     source_endpoint: GlobusEndpoint,
     check_endpoint: Optional[GlobusEndpoint] = None,
-    config: BeamlineConfig = None
+    config: Optional[BeamlineConfig] = None
 ) -> None:
     """
     Prefect flow that performs the actual Globus endpoint pruning operation.
@@ -326,6 +326,10 @@ def prune_globus_endpoint(
     """
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
+    if not config:
+        tc = init_transfer_client()
+    else:
+        tc = config.tc
     globus_settings = Variable.get("globus-settings", _sync=True)
     max_wait_seconds = globus_settings["max_wait_seconds"]
     flow_name = f"prune_from_{source_endpoint.name}"
@@ -334,7 +338,7 @@ def prune_globus_endpoint(
     prune_one_safe(
         file=relative_path,
         if_older_than_days=0,
-        transfer_client=config.tc,
+        transfer_client=tc,
         source_endpoint=source_endpoint,
         check_endpoint=check_endpoint,
         logger=logger,
