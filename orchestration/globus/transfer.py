@@ -85,7 +85,7 @@ def build_apps(config: Dict) -> Dict[str, GlobusEndpoint]:
 
 
 @task
-def init_transfer_client(app: Optional[GlobusApp]) -> TransferClient:
+def init_transfer_client(app: Optional[GlobusApp] = None) -> TransferClient:
     logger = get_run_logger()
     # Get the client id and secret from Prefect Secret Blocks
     GLOBUS_CLIENT_ID = os.getenv("GLOBUS_CLIENT_ID")

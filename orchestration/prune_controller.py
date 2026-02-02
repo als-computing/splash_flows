@@ -327,7 +327,7 @@ def prune_globus_endpoint(
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
-        tc = init_transfer_client()
+        tc = init_transfer_client(app=None)
     else:
         tc = config.tc
     globus_settings = Variable.get("globus-settings", _sync=True)
