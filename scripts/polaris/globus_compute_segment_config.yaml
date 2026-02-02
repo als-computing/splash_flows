@@ -1,7 +1,7 @@
 engine:
   type: GlobusComputeEngine # This engine uses the HighThroughputExecutor
   max_retries_on_system_failure: 2
-  max_workers: 1 # Sets one worker per node
+  # max_workers: 1 # Sets one worker per node
   max_workers_per_node: 4
   prefetch_capacity: 0 # Increase if you have many more tasks than workers                                                    
 
@@ -29,7 +29,7 @@ engine:
     cpus_per_node: 32 # may want to change to 4 (only 4 GPUs per node)
 
     # e.g., "#PBS -l filesystems=home:grand:eagle\n#PBS -k doe"
-    scheduler_options: "#PBS -l filesystems=home:eagle"
+    scheduler_options: "#PBS -l filesystems=home:eagle -l select=1:ngpus=4"
     # Node setup: activate necessary conda environment and such
     # worker_init: "module use /soft/modulefiles; module load conda; conda activate /eagle/SYNAPS-I/segmentation/env/; export PATH=$PATH:/eagle/SYNAPS-I/; cd $HOME/.globus_compute/globus_compute_segmentation"
     worker_init: |
