@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from dateutil import parser
+from dotenv import load_dotenv
 import json
 import logging
 import os
 from pathlib import Path
 from time import time
-from typing import Dict, List, Union
-from dotenv import load_dotenv
+from typing import Dict, List, Optional, Union
+
 from globus_sdk import (
     ClientCredentialsAuthorizer,
     ConfidentialAppAuthClient,
@@ -15,9 +16,10 @@ from globus_sdk import (
     TransferClient,
     TransferData
 )
+
+from ..config import get_config
 from prefect import task, get_run_logger
 # from prefect.blocks.system import Secret
-from ..config import get_config
 
 load_dotenv()
 
@@ -83,7 +85,7 @@ def build_apps(config: Dict) -> Dict[str, GlobusEndpoint]:
 
 
 @task
-def init_transfer_client(app: GlobusApp) -> TransferClient:
+def init_transfer_client(app: Optional[GlobusApp]) -> TransferClient:
     logger = get_run_logger()
     # Get the client id and secret from Prefect Secret Blocks
     GLOBUS_CLIENT_ID = os.getenv("GLOBUS_CLIENT_ID")
