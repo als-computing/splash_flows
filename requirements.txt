@@ -1,6 +1,7 @@
 authlib
 dynaconf
 globus-compute-sdk @ git+https://github.com/globus/globus-compute.git@d1731340074be56861ec91d732bdff44f8e2b46e#subdirectory=compute_sdk
+fastapi==0.116.1
 globus-sdk>=3.0
 griffe>=0.49.0,<2.0.0
 h5py
