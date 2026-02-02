@@ -221,7 +221,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
         script_module: str = "src.inference",
         workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo",
-        nproc_per_node: int = 4,
+        nproc_per_node: int = 4,  # 1 works
         nnodes: int = 1,
         nnode_rank: int = 0,
         master_addr: str = "localhost",
@@ -267,7 +267,10 @@ class ALCFTomographyHPCController(TomographyHPCController):
             "--prompts", *prompts,
         ]
 
-        segment_res = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        segment_res = subprocess.run(command)  # stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if segment_res.returncode != 0:
+            raise RuntimeError(f"Segmentation failed with return code {segment_res.returncode}")
 
         seg_end = time.time()
 
@@ -282,7 +285,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         future: Future,
         task_name: str,
         check_interval: int = 20,
-        walltime: int = 1200  # seconds = 20 minutes
+        walltime: int = 3600  # seconds = 60 minutes
     ) -> bool:
         """
         Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
@@ -714,7 +717,7 @@ def alcf_segmentation_integration_test() -> bool:
     """
     logger = get_run_logger()
     logger.info("Starting ALCF segmentation integration test.")
-    recon_folder_path = 'rec20211222_125057_petiole4'
+    recon_folder_path = 'test'  # 'rec20211222_125057_petiole4'
     flow_success = alcf_segmentation_task(
         recon_folder_path=recon_folder_path,
         config=Config832()
