@@ -1,0 +1,1393 @@
+
+<!DOCTYPE html>
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="Splash Flows Globus Documentation" name="description"/>
+<meta content="ALS Computing" name="author"/>
+<link href="https://als-computing.github.io/splash_flows_globus/alcf832/" rel="canonical"/>
+<link href="../bl733/" rel="prev"/>
+<link href="../nersc832/" rel="next"/>
+<link href="../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.6.1, mkdocs-material-9.7.1" name="generator"/>
+<title>8.3.2 Micro Tomography - Compute at ALCF - Splash Flows Globus Documentation</title>
+<link href="../assets/stylesheets/main.484c7ddc.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<link href="../assets/als_style.css" rel="stylesheet"/>
+<script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+</head>
+<body dir="ltr">
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#run-tomography-reconstruction-remotely-at-alcf">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="Splash Flows Globus Documentation" class="md-header__button md-logo" data-md-component="logo" href=".." title="Splash Flows Globus Documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            Splash Flows Globus Documentation
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              8.3.2 Micro Tomography - Compute at ALCF
+            
+          </span>
+</div>
+</div>
+</div>
+<script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+</label>
+<nav aria-label="Search" class="md-search__options">
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" title="Clear" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="" tabindex="0">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/als-computing/splash_flows_globus" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"></path></svg>
+</div>
+<div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="Splash Flows Globus Documentation" class="md-nav__button md-logo" data-md-component="logo" href=".." title="Splash Flows Globus Documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+    Splash Flows Globus Documentation
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/als-computing/splash_flows_globus" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"></path></svg>
+</div>
+<div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="..">
+<span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../install/">
+<span class="md-ellipsis">
+    
+  
+    Installation and Requirements
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../getting_started/">
+<span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" id="__nav_4" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+<span class="md-ellipsis">
+    
+  
+    Beamline Implementations
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="true" aria-labelledby="__nav_4_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Beamline Implementations
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../bl733/">
+<span class="md-ellipsis">
+    
+  
+    7.3.3 SAXS/WAXS/GISAXS
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at ALCF
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+<span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at ALCF
+  
+
+    
+  </span>
+</a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#index">
+<span class="md-ellipsis">
+      
+        Index
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#details">
+<span class="md-ellipsis">
+      
+        Details
+      
+    </span>
+</a>
+<nav aria-label="Details" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-flow-diagram">
+<span class="md-ellipsis">
+      
+        Data flow diagram
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#file-flow-details">
+<span class="md-ellipsis">
+      
+        File flow details
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#globus-compute-flows">
+<span class="md-ellipsis">
+      
+        Globus Compute Flows
+      
+    </span>
+</a>
+<nav aria-label="Globus Compute Flows" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#reconstruction">
+<span class="md-ellipsis">
+      
+        Reconstruction
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#zarr-conversion">
+<span class="md-ellipsis">
+      
+        Zarr Conversion
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pruning">
+<span class="md-ellipsis">
+      
+        Pruning
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#set-up">
+<span class="md-ellipsis">
+      
+        Set up
+      
+    </span>
+</a>
+<nav aria-label="Set up" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#requirements">
+<span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#envexample">
+<span class="md-ellipsis">
+      
+        .env.example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-secret-blocks">
+<span class="md-ellipsis">
+      
+        Prefect Secret Blocks
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#on-polaris">
+<span class="md-ellipsis">
+      
+        On Polaris
+      
+    </span>
+</a>
+<nav aria-label="On Polaris" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-ssh-into-polaris">
+<span class="md-ellipsis">
+      
+        1. SSH into Polaris
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-copy-and-update-endpoint-template_configyaml-file">
+<span class="md-ellipsis">
+      
+        2. Copy and Update endpoint template_config.yaml file
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-use-an-existing-globus-confidential-client-or-create-a-new-one">
+<span class="md-ellipsis">
+      
+        3. Use an existing Globus Confidential Client, or create a new one
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-log-into-globus-compute-endpoint-on-polaris-with-the-service-confidential-client">
+<span class="md-ellipsis">
+      
+        4. Log into globus-compute-endpoint on Polaris with the service confidential client
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-start-globus-compute-tomopy-environment-and-activate-the-endpoint">
+<span class="md-ellipsis">
+      
+        5. Start globus-compute tomopy environment and activate the endpoint
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#6-store-endpoint-uuid-in-env-file">
+<span class="md-ellipsis">
+      
+        6. Store endpoint uuid in .env file
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#in-your-local-environment">
+<span class="md-ellipsis">
+      
+        In your local environment
+      
+    </span>
+</a>
+<nav aria-label="In your local environment" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#7-create-a-new-conda-environment-called-globus_env-or-install-python-dependencies-directly-installtxt">
+<span class="md-ellipsis">
+      
+        7. Create a new conda environment called globus_env, or install Python dependencies directly (install.txt)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8-prefect-server">
+<span class="md-ellipsis">
+      
+        8. Prefect server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#9-run-the-script-from-the-terminal">
+<span class="md-ellipsis">
+      
+        9. Run the script from the terminal
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#schedule-pruning-with-prefect-workers">
+<span class="md-ellipsis">
+      
+        Schedule Pruning with Prefect Workers
+      
+    </span>
+</a>
+<nav aria-label="Schedule Pruning with Prefect Workers" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#terminology">
+<span class="md-ellipsis">
+      
+        Terminology
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pruning-example">
+<span class="md-ellipsis">
+      
+        Pruning Example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#start-a-worker">
+<span class="md-ellipsis">
+      
+        Start a worker
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-blocks">
+<span class="md-ellipsis">
+      
+        Prefect Blocks
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#helper-scripts">
+<span class="md-ellipsis">
+      
+        Helper Scripts
+      
+    </span>
+</a>
+<nav aria-label="Helper Scripts" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#check-globus-compute-status-orchestrationscriptscheck_globus_computepy">
+<span class="md-ellipsis">
+      
+        Check Globus Compute Status orchestration/scripts/check_globus_compute.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#check-globus-transfer-orchestrationscriptscheck_globus_transferpy">
+<span class="md-ellipsis">
+      
+        Check Globus Transfer orchestration/scripts/check_globus_transfer.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#login-to-globus-and-prefect-orchestrationscriptslogin_to_globus_and_prefectsh">
+<span class="md-ellipsis">
+      
+        Login to Globus and Prefect orchestration/scripts/login_to_globus_and_prefect.sh
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../nersc832/">
+<span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at NERSC
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../orchestration/">
+<span class="md-ellipsis">
+    
+  
+    Orchestration
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../configuration/">
+<span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../glossary/">
+<span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../about/">
+<span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#index">
+<span class="md-ellipsis">
+      
+        Index
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#details">
+<span class="md-ellipsis">
+      
+        Details
+      
+    </span>
+</a>
+<nav aria-label="Details" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-flow-diagram">
+<span class="md-ellipsis">
+      
+        Data flow diagram
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#file-flow-details">
+<span class="md-ellipsis">
+      
+        File flow details
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#globus-compute-flows">
+<span class="md-ellipsis">
+      
+        Globus Compute Flows
+      
+    </span>
+</a>
+<nav aria-label="Globus Compute Flows" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#reconstruction">
+<span class="md-ellipsis">
+      
+        Reconstruction
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#zarr-conversion">
+<span class="md-ellipsis">
+      
+        Zarr Conversion
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pruning">
+<span class="md-ellipsis">
+      
+        Pruning
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#set-up">
+<span class="md-ellipsis">
+      
+        Set up
+      
+    </span>
+</a>
+<nav aria-label="Set up" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#requirements">
+<span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#envexample">
+<span class="md-ellipsis">
+      
+        .env.example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-secret-blocks">
+<span class="md-ellipsis">
+      
+        Prefect Secret Blocks
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#on-polaris">
+<span class="md-ellipsis">
+      
+        On Polaris
+      
+    </span>
+</a>
+<nav aria-label="On Polaris" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#1-ssh-into-polaris">
+<span class="md-ellipsis">
+      
+        1. SSH into Polaris
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#2-copy-and-update-endpoint-template_configyaml-file">
+<span class="md-ellipsis">
+      
+        2. Copy and Update endpoint template_config.yaml file
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#3-use-an-existing-globus-confidential-client-or-create-a-new-one">
+<span class="md-ellipsis">
+      
+        3. Use an existing Globus Confidential Client, or create a new one
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#4-log-into-globus-compute-endpoint-on-polaris-with-the-service-confidential-client">
+<span class="md-ellipsis">
+      
+        4. Log into globus-compute-endpoint on Polaris with the service confidential client
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#5-start-globus-compute-tomopy-environment-and-activate-the-endpoint">
+<span class="md-ellipsis">
+      
+        5. Start globus-compute tomopy environment and activate the endpoint
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#6-store-endpoint-uuid-in-env-file">
+<span class="md-ellipsis">
+      
+        6. Store endpoint uuid in .env file
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#in-your-local-environment">
+<span class="md-ellipsis">
+      
+        In your local environment
+      
+    </span>
+</a>
+<nav aria-label="In your local environment" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#7-create-a-new-conda-environment-called-globus_env-or-install-python-dependencies-directly-installtxt">
+<span class="md-ellipsis">
+      
+        7. Create a new conda environment called globus_env, or install Python dependencies directly (install.txt)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#8-prefect-server">
+<span class="md-ellipsis">
+      
+        8. Prefect server
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#9-run-the-script-from-the-terminal">
+<span class="md-ellipsis">
+      
+        9. Run the script from the terminal
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#schedule-pruning-with-prefect-workers">
+<span class="md-ellipsis">
+      
+        Schedule Pruning with Prefect Workers
+      
+    </span>
+</a>
+<nav aria-label="Schedule Pruning with Prefect Workers" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#terminology">
+<span class="md-ellipsis">
+      
+        Terminology
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#pruning-example">
+<span class="md-ellipsis">
+      
+        Pruning Example
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#start-a-worker">
+<span class="md-ellipsis">
+      
+        Start a worker
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-blocks">
+<span class="md-ellipsis">
+      
+        Prefect Blocks
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#helper-scripts">
+<span class="md-ellipsis">
+      
+        Helper Scripts
+      
+    </span>
+</a>
+<nav aria-label="Helper Scripts" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#check-globus-compute-status-orchestrationscriptscheck_globus_computepy">
+<span class="md-ellipsis">
+      
+        Check Globus Compute Status orchestration/scripts/check_globus_compute.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#check-globus-transfer-orchestrationscriptscheck_globus_transferpy">
+<span class="md-ellipsis">
+      
+        Check Globus Transfer orchestration/scripts/check_globus_transfer.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#login-to-globus-and-prefect-orchestrationscriptslogin_to_globus_and_prefectsh">
+<span class="md-ellipsis">
+      
+        Login to Globus and Prefect orchestration/scripts/login_to_globus_and_prefect.sh
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<h1 id="run-tomography-reconstruction-remotely-at-alcf">Run Tomography Reconstruction Remotely at ALCF</h1>
+<p>This document outlines the steps required to set up and run Globus Transfer and Compute Flows for transferring and processing raw tomography data from Beamline 8.3.2 at Berkeley Lab's Advanced Light Source (ALS) to the Argonne Leadership Computing Facility (ALCF). This script relies on Prefect for workflow orchestration, Globus Transfer for data movement between facilities, and Globus Compute at ALCF for tomographic reconstruction using Tomopy.</p>
+<p>Follow these steps to log in to ALCF Polaris, start a Globus compute endpoint signed in using a Globus confidential client, register a reconstruction function and flow, and run the flow using <a href="orchestration/flows/bl832/alcf.py"><code>orchestration/flows/bl832/alcf.py</code></a>.</p>
+<h2 id="index">Index</h2>
+<ul>
+<li><a href="#details">Details</a><ul>
+<li><a href="#data-flow-diagram">Data flow diagram</a></li>
+<li><a href="#file-flow-details">File flow details</a> </li>
+<li><a href="#globus-compute-flow">Globus Compute Flow</a></li>
+<li><a href="#reconstruction">Reconstruction</a></li>
+<li><a href="#zarr-generation">Zarr Generation</a></li>
+<li><a href="#pruning">Pruning</a> </li>
+</ul>
+</li>
+<li><a href="#set-up">Set up</a> <ul>
+<li><a href="#requirements">Requirements</a> </li>
+<li><a href="#on-polaris">On Polaris</a> </li>
+<li><a href="#in-your-local-environment">In your local environment</a> </li>
+<li><a href="#register-globus-compute-functions-and-flows">Register Globus Compute Functions and Flows</a></li>
+<li><a href="#schedule-pruning-with-prefect-workers">Schedule Pruning with Prefect Workers</a></li>
+</ul>
+</li>
+<li><a href="#helper-scripts">Helper Scripts</a></li>
+<li><a href="#performance">Performance</a></li>
+</ul>
+<h2 id="details">Details</h2>
+<h3 id="data-flow-diagram">Data flow diagram</h3>
+<div class="mermaid">%%{
+init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#000000",
+    "primaryTextColor": "#000000",
+    "primaryBorderColor": "#000000",
+    "lineColor": "#808080", // Gray arrows
+    "arrowheadColor": "#ffffff",
+    "secondaryColor": "#00000",
+    "tertiaryColor": "#ffffff",
+    "fontFamily": "Arial, Helvetica, sans-serif",
+    "background": "#ffffff",
+  }
+}
+}%%
+graph TD
+    A[Beamline 8.3.2] --&gt;|Collect Data| B[spot832]
+    B --&gt;|Globus Transfer to data832| C[ /data/raw/&lt; experiment folder name convention&gt;/&lt; h5 files&gt;]
+    C --&gt;|Start This Prefect Flow| D[ python orchestration/flows/bl832/alcf.py ]
+    D --&gt;|Step 1: Globus Transfer from data832 to ALCF| E[ /eagle/IRIBeta/als/bl832/raw/&lt; experiment folder name convention&gt;/&lt; h5 files&gt;]
+    E --&gt;|Step 2: Run Globus Flows on ALCF Globus Compute Endpoint| F[ A: Run globus_reconstruction.py &lt;br&gt; B: Run tiff_to_zarr.py]
+    F --&gt;|Save Reconstruction on ALCF| G[ /eagle/IRIBeta/als/bl832/scratch/&lt; experiment folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt; &lt;br&gt; /eagle/IRIBeta/als/bl832/scratch/&lt; experiment folder name convention&gt;/rec&lt; dataset&gt;.zarr/ ]
+    G --&gt;|Step 3: Globus Transfer back to data832| J[ /data/scratch/globus_share/&lt; experiment folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt; &lt;br&gt; /data/scratch/globus_share/&lt; experiment folder name convention&gt;/rec&lt; dataset&gt;.zarr/ ]
+    J --&gt;|Schedule Pruning| L[Prune raw and scratch data from ALCF and data832]
+    J --&gt; M[Visualize Results] 
+    J --&gt;|SciCat| N[TODO: ingest metadata into SciCat]
+    M --&gt;|2D Image Slices| O[view .tiff images ]
+    M --&gt;|3D Visualization| P[load .zarr directory in view_tiff.ipynb]
+
+    classDef storage fill:#A3C1DA,stroke:#A3C1DA,stroke-width:2px,color:#000000;
+    class C,E,G,J storage;
+
+    classDef collection fill:#D3A6A1,stroke:#D3A6A1,stroke-width:2px,color:#000000;
+    class A,B collection;
+
+    classDef compute fill:#A9C0C9,stroke:#A9C0C9,stroke-width:2px,color:#000000;
+    class D,F,K,L,N compute;
+
+    classDef visualization fill:#E8D5A6,stroke:#E8D5A6,stroke-width:2px,color:#000000;
+    class M,O,P visualization;
+</div>
+<h2 id="file-flow-details">File flow details</h2>
+<p><strong>Naming conventions</strong>
+-   Experiment folder name:
+    - <code>&lt; Proposal Prefix&gt;-&lt; 5 digit proposal number&gt;_&lt; first part of email address&gt;/</code>
+-   h5 files in experiment folder:
+    - <code>&lt; YYYYMMDD&gt;_&lt; HHMMSS&gt;_&lt; user defined string&gt;.h5</code>
+-   h5 files for tiled scans:
+    - <code>&lt; YYYYMMDD&gt;_&lt; HHMMSS&gt;_&lt; user defined string&gt;_x&lt;##&gt;y&lt;##&gt;.h5</code></p>
+<p><strong>data832 Raw Location</strong>
+- <code>data/raw/&lt; Experiment folder name convention&gt;/&lt; h5 files&gt;</code></p>
+<p><strong>data832 Scratch Location</strong>
+- <code>data/scratch/globus_share/&lt; Experiment folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt;</code>
+- <code>data/scratch/globus_share/&lt; Experiment folder name convention&gt;/rec&lt; dataset&gt;.zarr/</code></p>
+<p><strong>ALCF Raw Location</strong>
+- <code>/eagle/IRIBeta/als/bl832/raw/&lt; Experiment folder name convention&gt;/&lt; h5 files&gt;</code></p>
+<p><strong>ALCF Scratch Location</strong>
+- <code>/eagle/IRIBeta/als/bl832/scratch/&lt; Experiment folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt;</code>
+- <code>/eagle/IRIBeta/als/bl832/scratch/&lt; Experiment folder name convention&gt;/rec&lt; dataset&gt;.zarr/</code></p>
+<h2 id="globus-compute-flows">Globus Compute Flows</h2>
+<p>The preferred method for scheduling jobs on ALCF is through Globus Compute. This is done by registering a function containing the code to run with Globus Compute Flows, which will then be called when running the reconstruction on ALCF. Two scripts are included in this repository that set up reconstruction and Zarr conversion Globus Compute Flows:</p>
+<ul>
+<li><strong>Reconstruction</strong><ul>
+<li><a href="/scripts/init_reconstruction_globus_flow.py"><code>/scripts/init_reconstruction_globus_flow.py</code></a></li>
+<li><code>reconstruction_wrapper()</code> defines the function registered with Globus Compute.</li>
+</ul>
+</li>
+<li><strong>Tiff to Zarr</strong><ul>
+<li><a href="/scripts/init_tiff_to_zarr_globus_flow.py"><code>/scripts/init_tiff_to_zarr_globus_flow.py</code></a></li>
+<li><code>conversion_wrapper()</code> defines the function registered with Globus Compute.</li>
+</ul>
+</li>
+</ul>
+<h3 id="reconstruction">Reconstruction</h3>
+<p>The <code>globus_reconstruction.py</code> script in this flow is a slightly modified version of Dula Parkinson's tomography reconstruction code.  The modifications update the function's input parameters and set proper file/folder permissions for the reconstructed data.</p>
+<ul>
+<li>Location in this repo: <a href="/scripts/polaris/globus_reconstruction.py"><code>/scripts/polaris/globus_reconstruction.py</code></a></li>
+<li>Location on Polaris: <code>/eagle/IRIBeta/als/example/globus_reconstruction.py</code></li>
+</ul>
+<h3 id="zarr-conversion">Zarr Conversion</h3>
+<p>Once the raw data has been reconstructed into a series of .tiff images, the script <code>tiff_to_zarr.py</code> transforms the images into a multiresolution .zarr directory, enabling 3D visualization. This code was adapted from the <code>view_tiff.ipynb</code> notebook and converted into a Python module. </p>
+<ul>
+<li>Location in this repo: <a href="/scripts/polaris/tiff_to_zarr.py"><code>/scripts/polaris/tiff_to_zarr.py</code></a></li>
+<li>Location on Polaris: <code>/eagle/IRIBeta/als/example/tiff_to_zarr.py</code></li>
+</ul>
+<h3 id="pruning">Pruning</h3>
+<p>After reconstruction is complete and data has moved back to NERSC/ALS, Prefect flows are scheduled to delete raw scratch paths at each location after a few days. Make sure to move the reconstructed data elsewhere before pruning occurs.</p>
+<ul>
+<li><strong>ALCF</strong> <ul>
+<li>Purge <code>raw</code> and <code>scratch</code> after 2 days</li>
+</ul>
+</li>
+<li><strong>data832</strong><ul>
+<li><code>/data/scratch/globus_share/&lt; folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt;</code></li>
+<li><code>/data/scratch/globus_share/&lt; folder name convention&gt;/rec&lt; dataset&gt;.zarr/</code></li>
+<li>Purge <code>scratch</code> after 3 days</li>
+</ul>
+</li>
+</ul>
+<h2 id="set-up">Set up</h2>
+<p>A few steps are required to configure the environments locally and on ALCF Polaris.</p>
+<h3 id="requirements">Requirements</h3>
+<p>Some of the steps refer to code and notebooks provided in the git repository <a href="https://github.com/als-computing/als_at_alcf_tomopy_compute"><code>als-computing/als_at_alcf_tomopy_compute</code></a>. Download/clone this repository as it will come in handy</p>
+<p>Specifically, from here you will need: <code>Tomopy_for_ALS.ipynb</code>, and <code>template_config.yaml</code>.</p>
+<p>Additionally, if you do not already have an ALCF account, <a href="https://docs.alcf.anl.gov/account-project-management/accounts-and-access/user-account-overview/">follow the steps here to request access.</a></p>
+<p>You will also need to update the included <code>.env.example</code> file (rename it <code>.env</code>) with particular endpoints, IDs, and secrets, which are annotated below along with the steps they correspond to:</p>
+<h3 id="envexample"><strong>.env.example</strong></h3>
+<pre><code class="language-python"># Used by Python script to sign into Globus using confidential client
+GLOBUS_CLIENT_ID="&lt; Client UUID from step 3 &gt;"
+GLOBUS_CLIENT_SECRET="&lt; Client Secret from step 3"
+# These set environment variables to sign into globus-compute-endpoint environment using confidential client
+GLOBUS_COMPUTE_CLIENT_ID="&lt; Client UUID from step 3 &gt;"
+GLOBUS_COMPUTE_CLIENT_SECRET="&lt; Client Secret from step 3"
+# globus-compute-endpoint UUID
+GLOBUS_COMPUTE_ENDPOINT="&lt; globus-compute-endpoint ID from step 6 &gt;"
+GLOBUS_CGS_ENDPOINT="&lt; IRIBeta_als guest collection UUID on Globus &gt;"
+PREFECT_API_KEY="&lt; your key for your Prefect server's API &gt;"
+PREFECT_API_URL="&lt; url to your Prefect server's API &gt;"
+</code></pre>
+<h3 id="prefect-secret-blocks">Prefect Secret Blocks</h3>
+<p>In addition to storing UUIDs in a <code>.env</code> file, we utilize Prefect's Secret Blocks. These can be configured in Prefect's user interface. The <code>.env</code> is great for managing secrets locally, but the Secret Blocks are handy for deployment and maintainability.</p>
+<ol>
+<li>Navigate to your Prefect server instance in <a href="flow-prd.als.lbl.gov">production at 8.3.2</a>, <a href="https://app.prefect.cloud/">Prefect cloud</a>, or <a href="http://127.0.0.1:4200">local server</a>.</li>
+<li>On the left column, navigate to "Configuration --&gt; Blocks"</li>
+<li>In the "Blocks" Window, hit the "+" plus sign next to the word "Blocks"</li>
+<li>Search for "Secret" and create a "Secret Block"</li>
+<li>Create the following secrets, and set their values to the corresponding UUID string:<pre><code>globus-client-id
+globus-client-secret
+globus-compute-endpoint
+</code></pre>
+</li>
+</ol>
+<h3 id="on-polaris">On Polaris</h3>
+<h4 id="1-ssh-into-polaris">1. <strong>SSH into Polaris</strong></h4>
+<p>Login to Polaris using the following terminal command:</p>
+<pre><code class="language-bash">ssh &lt;your ALCF username&gt;@polaris.alcf.anl.gov
+</code></pre>
+<p>Password: copy passcode from MobilePASS+</p>
+<h4 id="2-copy-and-update-endpoint-template_configyaml-file">2. <strong>Copy and Update endpoint template_config.yaml file</strong></h4>
+<p>From the <code>als-computing/als_at_alcf_tomopy_compute</code> repository, copy <code>template_config.yaml</code> into your home directory on Polaris (<code>eagle/home/&lt;your ALCF username&gt;</code>).</p>
+<p>Ex: using vim on Polaris</p>
+<ul>
+<li>
+<p><code>vim template_config.yaml</code></p>
+</li>
+<li>
+<p>Paste file contents once the editor opens up</p>
+</li>
+<li>
+<p>To save, type:</p>
+<ul>
+<li><code>:wq!</code> and press enter.</li>
+</ul>
+</li>
+<li>
+<p>The view should switch back to the command line.</p>
+</li>
+</ul>
+<p><strong>Note:</strong> template_config.yaml needs to be updated to account for the new version of globus-compute-endpoint:</p>
+<p>What you need to change is that you should replace this:  </p>
+<pre><code>strategy:
+    max_idletime: 300
+    type: SimpleStrategy
+type: GlobusComputeEngine
+</code></pre>
+<p>with this:  </p>
+<pre><code>strategy: simple
+job_status_kwargs:
+    max_idletime: 300
+    strategy_period: 60
+type: GlobusComputeEngine
+</code></pre>
+<p>These new settings also introduce a parameter "strategy_period" that controls the frequency with which the endpoint checks pbs for completed jobs. The default was 5 seconds, and this change makes it 60 seconds.</p>
+<h4 id="3-use-an-existing-globus-confidential-client-or-create-a-new-one">3. <strong>Use an existing Globus Confidential Client, or create a new one</strong></h4>
+<ul>
+<li>In your browser, navigate to globus.org</li>
+<li>Login</li>
+<li>On the left, navigate to "Settings"</li>
+<li>On the top navigation bar, select "Developers" </li>
+<li>On the right under Projects, create a new project called Splash Flows or select an existing one</li>
+<li>Create a new registered app called Splash Flows App, or select an existing one</li>
+<li>Generate a secret</li>
+<li>Store the confidential client UUID and Secret (note: make sure you copy the Client UUID and <strong>not</strong> the Secret UUID)</li>
+</ul>
+<p><strong>Note:</strong> If you create a new service client, you will need to get permissions set by the correct person at ALCF, NERSC or other facility to be able to use it for transfer endpoints.</p>
+<h4 id="4-log-into-globus-compute-endpoint-on-polaris-with-the-service-confidential-client">4. <strong>Log into <code>globus-compute-endpoint</code> on Polaris with the service confidential client</strong></h4>
+<p>In your terminal on Polaris, set the following global variables with the Globus Confidential Client UUID and Secret respectively. Check the documentation here for more information (https://globus-compute.readthedocs.io/en/stable/sdk.html#client-credentials-with-clients). Globus-compute-endpoint will then log in using these credentials automatically:</p>
+<pre><code>export GLOBUS_COMPUTE_CLIENT_ID="&lt;UUID&gt;"
+export GLOBUS_COMPUTE_CLIENT_SECRET="&lt;SECRET&gt;"
+</code></pre>
+<p><strong>Note</strong>: you can make sure you are signed into the correct account by entering:</p>
+<pre><code>globus-compute-endpoint whoami
+</code></pre>
+<p>If you are signed into your personal Globus account, make sure to sign out completely using:</p>
+<pre><code>globus-compute-endpoint logout
+</code></pre>
+<h4 id="5-start-globus-compute-tomopy-environment-and-activate-the-endpoint">5. <strong>Start globus-compute <code>tomopy</code> environment and activate the endpoint</strong></h4>
+<p>On Polaris, enter the following commands to activate a Conda environment configured to run reconstruction using <code>tomopy</code> and <code>globus-compute-endpoint</code>.</p>
+<pre><code>module use /soft/modulefiles
+module  load  conda
+conda  activate  /eagle/IRIBeta/als/env/tomopy
+globus-compute-endpoint  configure  --endpoint-config  template_config.yaml  als_endpoint
+globus-compute-endpoint  start  als_endpoint
+globus-compute-endpoint  list
+</code></pre>
+<p>This will create an endpoint and display its status. Its status should be listed as <code>running</code>. There will also be displayed a unique Endpoint ID in the form of a UUID.</p>
+<p><strong>Optional</strong>: Create a new file called <code>activate_tomopy.sh</code> in your home directory on Polaris and copy the following code:</p>
+<pre><code>#!/bin/bash
+#Load module files
+module use /soft/modulefiles
+#Load conda
+module load conda
+#initialize conda for the active session
+source $(conda info --base)/etc/profile.d/conda.sh
+#Activate conda environment
+conda activate /eagle/IRI-ALS-832/env/tomopy
+#Print message
+echo "Conda environment '/eagle/IRI-ALS-832/env/tomopy' activated successfully."
+</code></pre>
+<p>Now you can call this script using <code>source activate_tomopy.sh</code> in your home directory on Polaris to activate the environment in a single line of code. Be aware that this will not configure or start any globus-compute-endpoints.</p>
+<h4 id="6-store-endpoint-uuid-in-env-file">6. <strong>Store endpoint uuid in .env file</strong></h4>
+<p>Store the Endpoint UUID in your <code>.env</code> file, which is given by running: </p>
+<pre><code>globus-compute-endpoint list
+</code></pre>
+<p>This will be used for running the Flow.</p>
+<h3 id="in-your-local-environment">In your local environment</h3>
+<h4 id="7-create-a-new-conda-environment-called-globus_env-or-install-python-dependencies-directly-installtxt">7. <strong>Create a new conda environment called <code>globus_env</code>, or install Python dependencies directly (install.txt)</strong></h4>
+<p>The only requirement is a local environment, such as a Conda environment, that has Python 3.11 installed along with the Globus packages <code>globus_compute_sdk</code> and <code>globus_cli</code>. If you have a local installation of Conda you can set up an environment that can run the <a href="scripts/Tomopy_for_ALS.ipynb"><code>scripts/Tomopy_for_ALS.ipynb</code></a> notebook and <a href="orchestration/flows/bl832/alcf.py"><code>orchestration/flows/bl832/alcf.py</code></a> with these steps in your terminal:</p>
+<p>If you haven't made a new Conda environment for this project, go ahead and make one.
+    conda  create  -n  globus_env  python==3.11</p>
+<p>Either way, make sure your environment is activated:</p>
+<pre><code>conda  activate  globus_env
+</code></pre>
+<p>And then install these required packages if you haven't already:</p>
+<pre><code>pip  install  globus_compute_sdk  globus_cli  python-dotenv
+</code></pre>
+<p>Note that the tomopy environment on Polaris contains Python 3.11. Therefore your local environment must have a Python version close to this version.</p>
+<h4 id="8-prefect-server">8. <strong>Prefect server</strong></h4>
+<p>Make sure you have Prefect setup. If you want to connect to a particular Prefect server that is already running, then in your local terminal set <code>PREFECT_API_URL</code> to your desired server address:</p>
+<pre><code>prefect  config  set  PREFECT_API_URL="http://your-prefect-server/"
+export PREFECT_API_KEY="your-prefect-key"
+</code></pre>
+<p>Otherwise, you can start a local server by running:</p>
+<pre><code>prefect server start
+</code></pre>
+<h4 id="9-run-the-script-from-the-terminal">9. <strong>Run the script from the terminal</strong></h4>
+<pre><code class="language-bash">python orchestration/flows/bl832/alcf.py
+</code></pre>
+<p>Monitor the logs in the terminal or the Prefect UI, which will update you on the current status.
+- Step 1: Transfer data from data832 to ALCF
+- Step 2: Schedule Globus Compute Flows on ALCF
+    - A: Run <code>reconstruction.py</code>
+    - B: Run <code>tiff_to_zarr.py</code>
+- Step 3: Transfer reconstruction to data832</p>
+<p>Errors at step 1 or 3?
+- It may be authentication issues with your transfer client. Did you set <code>GLOBUS_CLIENT_ID</code> and <code>GLOBUS_CLIENT_SECRET</code> in <code>.env</code>?
+- It could also be permissions errors. Did you make a new service client? You will need to request permissions for the endpoints you are transferring to and from (both ALCF and NERSC).</p>
+<p>Errors at step 2?
+- It may be that your compute endpoint stopped!</p>
+<pre><code>- You can check on Polaris using:
+
+        globus-compute-endpoint list
+
+- If your endpoint is listed with the status "Stopped," you can restart using:
+
+        globus-compute-endpoint start &lt; your endpoint name &gt;
+</code></pre>
+<ul>
+<li>
+<p>It may be authentication issues with your confidential client. Did you set the environment variables in your terminal on Polaris?</p>
+<p><code>bash
+export GLOBUS_COMPUTE_CLIENT_ID="your-client-id"
+export GLOBUS_COMPUTE_CLIENT_SECRET="your-client-secret"</code></p>
+<p>You can also check if you are logged into the confidential client:
+<code>bash
+globus-compute-endpoint whoami</code></p>
+</li>
+<li>
+<p><strong>Check if the flow completed successfully</strong></p>
+<p>If the data successfully transferred back to data832, you will find it in the following location:</p>
+<pre><code>/data/scratch/globus_share/&lt; folder name convention&gt;/rec&lt; dataset&gt;/&lt; tiffs&gt;
+</code></pre>
+</li>
+</ul>
+<h2 id="schedule-pruning-with-prefect-workers">Schedule Pruning with Prefect Workers</h2>
+<p>Following the previous steps to set up the Polaris and local environments enables <code>alcf.py</code> to properly run reconstruction and transfer data, however, additional steps are necessary for the file pruning to be scheduled and executed. This relies on Prefect Flows, Deployments, Work Pools, and Queues.</p>
+<h3 id="terminology">Terminology</h3>
+<ul>
+<li><strong>Flow</strong>: Define a Prefect Flow in your code using the <code>@flow(name="flow_name")</code> decorator. A flow encapsulates a series of tasks to be executed.</li>
+<li><strong>Deployment</strong>: Deploy your Flow to your Prefect server, and assign it a work pool and queue. When called, deployments will create a flow run and submit it to a specific work pool for scheduling.</li>
+<li><strong>Work Pool</strong>: Organizes workers depending on infrastructure implementation. Work pools manage how work is distributed among workers. For more information, check the documentation: https://docs.prefect.io/latest/concepts/work-pools/</li>
+<li><strong>Queue</strong>: Each work pool has a "default" queue where work will be sent, and multiple queues can be added for fine-grained control over specific processes (i.e. setting priority and concurrency for different pruning functions).</li>
+<li><strong>Workers</strong>: Formerly known as Agents. Can be assigned a specific Work Pool and Queue, and will listen to incoming jobs from those channels.</li>
+</ul>
+<h3 id="pruning-example">Pruning Example</h3>
+<p>This is an example of a pruning flow found in <a href="orchestration/flows/bl832/prune.py"><code>orchestration/flows/bl832/prune.py</code></a>:</p>
+<pre><code class="language-python">@flow(name="prune_alcf832_raw")
+def  prune_alcf832_raw(relative_path:  str):
+
+    p_logger = get_run_logger()
+    tc = initialize_transfer_client()
+    config = Config832()
+    globus_settings = JSON.load("globus-settings").value
+    max_wait_seconds = globus_settings["max_wait_seconds"]
+    p_logger.info(f"Pruning {relative_path} from {config.alcf832_raw}")
+    prune_one_safe(
+        file=relative_path,
+        if_older_than_days=0,
+        transfer_client=tc,
+        source_endpoint=config.alcf832_raw,
+        check_endpoint=config.nersc832_alsdev_raw,
+        logger=p_logger,
+        max_wait_seconds=max_wait_seconds,)
+</code></pre>
+<p>To schedule and execute this flow from <code>alcf.py</code>, run this shell script in your terminal:</p>
+<pre><code class="language-bash">./create_deployments_832_alcf.sh
+</code></pre>
+<p>This script builds Prefect deployments for the different applicable prune functions in  <code>prune.py</code>, for example:</p>
+<pre><code class="language-bash"># create_deployments_832_alcf.sh
+prefect  deployment  build  ./orchestration/flows/bl832/prune.py:prune_alcf832_raw  -n  prune_alcf832_raw  -q  bl832  -p  alcf_prune_pool
+prefect  deployment  apply  prune_alcf832_raw-deployment.yaml
+</code></pre>
+<p>Note: By default the deployments will not have access to the contents in the <code>.env</code> file, meaning the Globus confidential client ID and secret must be added using a different method. Instead, we can use Prefect Secret Blocks in the web UI to store  <code>GLOBUS_CLIENT_ID</code> and <code>GLOBUS_CLIENT_SECRET</code>, and securely import those into our script:</p>
+<pre><code class="language-python">from prefect.blocks.system import Secret
+
+CLIENT_ID = Secret.load("globus-client-id")
+CLIENT_SECRET = Secret.load("globus-client-secret")
+# Access the stored secret
+secret_block.get()
+</code></pre>
+<h3 id="start-a-worker">Start a worker</h3>
+<p>In a new terminal window, you can start a new worker by executing the following command:</p>
+<pre><code class="language-bash">prefect worker start -p alcf_prune_pool -q bl832
+</code></pre>
+<h3 id="prefect-blocks">Prefect Blocks</h3>
+<p>In the Prefect UI, navigate to the left column under "Configuration" and select "Blocks." Press the "+" button to add a new Block from the catalog. Search for "JSON" and create a new JSON Block called "pruning-config." This stores configuration information in a way that can be changed in the UI without adjusting the source code. For example:</p>
+<pre><code class="language-json"># pruning-config
+{
+    "delete_alcf832_files_after_days":2,
+    "delete_data832_files_after_days":3,
+    "delete_nersc832_files_after_days":7,
+    "max_wait_seconds":120
+}
+</code></pre>
+<p>Read more about Blocks here: https://docs.prefect.io/latest/concepts/blocks/</p>
+<h2 id="helper-scripts">Helper Scripts</h2>
+<p>We also provide several scripts for registering a new Globus Compute Flow, checking that the Globus Compute Endpoint is available, and ensuring that Globus Transfer has the correct permissions for reading, writing, and deleting data at a given transfer endpoint.</p>
+<h3 id="check-globus-compute-status-orchestrationscriptscheck_globus_computepy">Check Globus Compute Status <a href="orchestration/scripts/check_globus_compute.py"><code>orchestration/scripts/check_globus_compute.py</code></a></h3>
+<p>Example usage (from the command line):</p>
+<pre><code class="language-bash">python check_globus_compute.py --endpoint_id "your-uuid-here"
+</code></pre>
+<p>IMPORTANT. Ensure you are logged into Globus Compute in your local environment:</p>
+<pre><code class="language-bash">export GLOBUS_COMPUTE_CLIENT_ID="your-client-id"
+export GLOBUS_COMPUTE_CLIENT_SECRET="your-client-secret"
+</code></pre>
+<h3 id="check-globus-transfer-orchestrationscriptscheck_globus_transferpy">Check Globus Transfer <a href="orchestration/scripts/check_globus_transfer.py"><code>orchestration/scripts/check_globus_transfer.py</code></a></h3>
+<p>Run from the command line:</p>
+<pre><code class="language-bash">python check_globus_transfer.py --endpoint_id "your-endpoint-id"
+</code></pre>
+<p>IMPORTANT. Ensure you are logged into Globus Transfer in your local environment:</p>
+<pre><code class="language-bash">export GLOBUS_CLIENT_ID="your-client-id"
+export GLOBUS_CLIENT_SECRET="your-client-secret"
+</code></pre>
+<h3 id="login-to-globus-and-prefect-orchestrationscriptslogin_to_globus_and_prefectsh">Login to Globus and Prefect <a href="orchestration/scripts/login_to_globus_and_prefect.sh"><code>orchestration/scripts/login_to_globus_and_prefect.sh</code></a></h3>
+<p>Run this script to log into Globus Transfer, Globus Compute, and Prefect simultaneously (assuming you already filled your <code>.env</code> file with the correct login information). This can speed up logging in for your sessions.</p>
+<p>Example usage:</p>
+<pre><code class="language-bash">source ./login_to_globus_and_prefect.sh
+</code></pre>
+<!-- # Performance
+
+### Preliminary results:
+Trial 1
+|**Task**|**Description**|**Duration (min)**|**Size (GB)**|
+|-----------------|------------------------------------------------------|----|-----|
+|**NERSC to ALCF**|`BLS-00564_dyparkinson/20230224_132553_sea_shell.h5`  |3.3 |8.51 |
+|**Globus Flow**. |Full tomographic reconstruction and Zarr conversion   |22.9|N/A  |
+|**ALCF to NERSC**|Transfer of reconstructed data (tiffs + Zarr) to NERSC|3.8 |55.29|
+
+Trial 2
+|**Task**|**Description**|**Duration (min)**|**Size (GB)**|
+|-----------------|------------------------------------------------------|-----|-----|
+|**NERSC to ALCF**|`BLS-00564_dyparkinson/20230224_132553_sea_shell.h5`  |0.31 |8.51 |
+|**Globus Flow**. |Full tomographic reconstruction and Zarr conversion   |9.09|N/A  |
+|**ALCF to NERSC**|Transfer of reconstructed data (tiffs + Zarr) to NERSC|0.90|55.29|
+ -->
+</article>
+</div>
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+</div>
+</main>
+<footer class="md-footer">
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div>
+<a href="https://www.lbl.gov/" target="_blank" title="LBL">
+<img alt="LBL Home" height="70" src="../assets/images/lbl_logo.png" style="padding: 10px; height: 70px; width: 90px;" width="90"/>
+</a>
+<a href="https://science.energy.gov" target="_blank" title="DOE Office of Science">
+<img alt="DOE Office of Science Home" height="70" src="../assets/images/doe_logo.png" style="padding: 10px; height: 70px; width: 71px;" width="71"/>
+</a>
+</div>
+<a href="https://www.lbl.gov/disclaimers/" target="_blank" title="Privacy and Security Notice">
+         Privacy and Security Notice
+      </a>
+<br/>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/als-computing" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</a>
+</div>
+</div>
+</div>
+<footer>
+</footer></footer></div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+<script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+<script type="module">import mermaid from "https://unpkg.com/mermaid@10.4.0/dist/mermaid.esm.min.mjs";
+mermaid.initialize({});</script></body>
+</html>

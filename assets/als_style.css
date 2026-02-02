@@ -1,0 +1,17 @@
+:root {
+    --md-primary-fg-color: #1e3a8a; /* Custom primary color */
+    --md-accent-fg-color: #f97316; /* Custom accent color */
+}
+
+/* Override specific elements */
+.md-header {
+    background-color: rgb(1,49,60) !important; /* Custom header color */
+}
+
+.md-nav__link:hover {
+    color: #3B83F6 !important; /*Sidebar links*/
+}
+
+.md-footer {
+    background-color: #07304B !important; /* Footer color */
+}

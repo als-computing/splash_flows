@@ -1,0 +1,1519 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Splash Flows Globus Documentation">
+      
+      
+        <meta name="author" content="ALS Computing">
+      
+      
+        <link rel="canonical" href="https://als-computing.github.io/splash_flows_globus/orchestration/">
+      
+      
+        <link rel="prev" href="../nersc832/">
+      
+      
+        <link rel="next" href="../configuration/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+    
+    
+      
+        <title>Orchestration - Splash Flows Globus Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+  
+      
+    
+
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/als_style.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#orchestration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Splash Flows Globus Documentation" class="md-header__button md-logo" aria-label="Splash Flows Globus Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Splash Flows Globus Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Orchestration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/als-computing/splash_flows_globus" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Splash Flows Globus Documentation" class="md-nav__button md-logo" aria-label="Splash Flows Globus Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Splash Flows Globus Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/als-computing/splash_flows_globus" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation and Requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beamline Implementations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Beamline Implementations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bl733/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    7.3.3 SAXS/WAXS/GISAXS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../alcf832/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at ALCF
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nersc832/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at NERSC
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#bl7012" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl7012
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bl733" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl733
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bl832" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl832
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="bl832">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dispatcherpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dispatcher.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="dispatcher.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#movepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        move.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="move.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-deletion-scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Deletion Scheduling:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Case:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job_controllerpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        job_controller.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="job_controller.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alcfpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        alcf.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="alcf.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nerscpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nersc.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="nersc.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#olcfpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        olcf.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#bl7012" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl7012
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bl733" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl733
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bl832" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        bl832
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="bl832">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        config.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dispatcherpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dispatcher.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="dispatcher.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#movepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        move.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="move.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#file-deletion-scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Deletion Scheduling:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling:
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Case:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job_controllerpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        job_controller.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="job_controller.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alcfpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        alcf.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="alcf.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nerscpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        nersc.py
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="nersc.py">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-components_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Components:
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#olcfpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        olcf.py
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="orchestration">Orchestration</h1>
+<p>A common architecture for moving data is defined in <code>orchestration/transfer_controller.py</code>.</p>
+<h2 id="bl7012">bl7012</h2>
+<p>Info goes here</p>
+<h2 id="bl733">bl733</h2>
+<p>Info goes here</p>
+<h2 id="bl832">bl832</h2>
+<p><a href="https://microct.lbl.gov/">Beamline 8.3.2</a> is the Hard X-ray Micro-tomography instrument at the Advanced Light Source.</p>
+<h3 id="configpy"><code>config.py</code></h3>
+<p>The <code>Config832</code> class is designed to configure and initialize various components needed for data transfer and orchestration workflows related to the ALS beamline 832.</p>
+<ul>
+<li>
+<p><strong>Initialization</strong>:<br />
+    The <code>Config832</code> class retrieves configuration data using the <code>transfer.get_config()</code> function, which is used to set up necessary endpoints and applications for data transfer.</p>
+</li>
+<li>
+<p><strong>Endpoints and Applications</strong>:<br />
+    It constructs a set of endpoints using <code>transfer.build_endpoints()</code> and applications with <code>transfer.build_apps()</code>. These endpoints represent different storage locations for data, both on local and remote systems (e.g., <code>spot832</code>, <code>data832</code>, <code>nersc832</code>, etc.).</p>
+</li>
+<li>
+<p><strong>Transfer Client</strong>:<br />
+    A <code>TransferClient</code> instance is created using <code>transfer.init_transfer_client()</code>, with a specified application (<code>als_transfer</code>). This client will handle the file transfer operations between different endpoints.</p>
+</li>
+<li>
+<p><strong>Storage Locations</strong>:<br />
+    Multiple endpoints related to data storage are stored as attributes, representing raw data, scratch space, and other storage locations for different systems (e.g., <code>data832_raw</code>, <code>nersc832_alsdev_scratch</code>).</p>
+</li>
+<li>
+<p><strong>Additional Configurations</strong>:<br />
+    The configuration dictionary (<code>config</code>) also contains other configuration values like <code>scicat</code> (for metadata) and <code>ghcr_images832</code> (for container images), which are also stored as attributes.</p>
+</li>
+</ul>
+<h3 id="dispatcherpy"><code>dispatcher.py</code></h3>
+<p>This script is designed to automate and orchestrate the decision-making process for the BL832 beamline, ensuring that the appropriate workflows are triggered based on predefined settings.</p>
+<h4 id="key-components">Key Components:</h4>
+<ul>
+<li>
+<p><strong><code>FlowParameterMapper</code> Class</strong>:<br />
+    This class is used to map the required parameters for each flow based on a predefined set of parameters. The <code>get_flow_parameters</code> method filters and returns only the relevant parameters for the specified flow based on a dictionary of available parameters.</p>
+</li>
+<li>
+<p><strong><code>DecisionFlowInputModel</code></strong>:<br />
+    A Pydantic model that validates input parameters for the decision flow, including the file path, export control status, and configuration dictionary. It ensures that the input parameters are in the correct format before they are used in the decision-making process.</p>
+</li>
+<li>
+<p><strong><code>setup_decision_settings</code> Task</strong>:<br />
+    This task defines the settings for which flows should be executed (e.g., ALCF, NERSC, and 832 beamline file management). It logs the configuration and saves the decision settings as a JSON block for later use by other flows.</p>
+</li>
+<li>
+<p><strong><code>run_specific_flow</code> Task</strong>:<br />
+    An asynchronous task that runs a specific flow based on the provided flow name and parameters. This task is dynamically executed and uses the Prefect deployment system to trigger flows as needed.</p>
+</li>
+<li>
+<p><strong><code>dispatcher</code> Flow</strong>:<br />
+    The main flow, which coordinates the execution of various tasks:  </p>
+<ol>
+<li>Validates input parameters using <code>DecisionFlowInputModel</code>.  </li>
+<li>Loads decision settings from a previously saved JSON block.  </li>
+<li>Runs the <code>new_832_file_flow/new_file_832</code> flow synchronously first if required.  </li>
+<li>Runs ALCF and NERSC flows asynchronously if they are enabled in the decision settings.<br />
+This flow ensures that the correct sub-flows are executed in the correct order, using dynamic parameters for each flow.</li>
+</ol>
+</li>
+</ul>
+<h3 id="movepy"><code>move.py</code></h3>
+<p>This script defines a set of tasks and flows for transferring files between different endpoints and systems, processing data, and managing file deletions. It leverages Globus for file transfers and Prefect for orchestration.</p>
+<h4 id="key-components_1">Key Components:</h4>
+<ol>
+<li>
+<p><strong><code>transfer_spot_to_data</code> Task</strong>:  </p>
+<ul>
+<li>This task transfers a file from the <code>spot832</code> endpoint to the <code>data832</code> endpoint using the <code>GlobusTransferClient</code>.  </li>
+<li>It ensures that the file paths are correctly formatted and calls the <code>start_transfer</code> function to perform the transfer.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>transfer_data_to_nersc</code> Task</strong>:  </p>
+<ul>
+<li>Similar to the previous task, this one transfers data from <code>data832</code> to the <code>nersc832</code> endpoint.  </li>
+<li>The task also handles file path formatting and logs transfer details.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>process_new_832_file</code> Flow</strong>:  </p>
+<ul>
+<li>This is the main flow for processing new files in the system. It performs multiple steps:  <ol>
+<li><strong>Transfers</strong> the file from <code>spot832</code> to <code>data832</code> using <code>transfer_spot_to_data</code>.  </li>
+<li><strong>Transfers</strong> the file from <code>data832</code> to <code>NERSC</code> if export control is not enabled and <code>send_to_nersc</code> is true, using <code>transfer_data_to_nersc</code>.  </li>
+<li><strong>Ingests</strong> the file into SciCat using the <code>ingest_dataset</code> function. If SciCat ingestion fails, it logs an error.  </li>
+<li><strong>Schedules</strong> file deletion tasks for both <code>spot832</code> and <code>data832</code> using the <code>schedule_prefect_flow</code> function, ensuring files are deleted after a set number of days as configured in <code>bl832-settings</code>.</li>
+</ol>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>test_transfers_832</code> Flow</strong>:  </p>
+<ul>
+<li>This flow is used for testing transfers between <code>spot832</code>, <code>data832</code>, and <code>NERSC</code>. It:  <ol>
+<li>Generates a new unique file name.  </li>
+<li>Transfers the file from <code>spot832</code> to <code>data832</code> and then from <code>data832</code> to <code>NERSC</code>.  </li>
+<li>Logs the success of each transfer and checks that the process works as expected.</li>
+</ol>
+</li>
+</ul>
+</li>
+</ol>
+<h4 id="configuration">Configuration:</h4>
+<ul>
+<li><strong><code>API_KEY</code></strong>: The API key is retrieved from the environment variable <code>API_KEY</code>, which is used for authorization with Globus and other services.</li>
+<li><strong><code>TOMO_INGESTOR_MODULE</code></strong>: This is a reference to the module used for ingesting datasets into SciCat.</li>
+<li><strong><code>Config832</code></strong>: The configuration for the beamline 832 environment, which includes the necessary endpoints for file transfers and other operations.</li>
+</ul>
+<h4 id="file-deletion-scheduling">File Deletion Scheduling:</h4>
+<ul>
+<li>After transferring the files, the flow schedules the deletion of files from <code>spot832</code> and <code>data832</code> after a predefined number of days, using Prefect's flow scheduling capabilities.</li>
+</ul>
+<h4 id="error-handling">Error Handling:</h4>
+<ul>
+<li>Throughout the script, errors are logged in case of failure during file transfers, SciCat ingestion, or scheduling tasks.</li>
+</ul>
+<h4 id="use-case">Use Case:</h4>
+<p>This script is primarily used for automating the movement of files from <code>spot832</code> to <code>data832</code>, sending data to <code>NERSC</code>, ingesting the data into SciCat, and managing file cleanup on both <code>spot832</code> and <code>data832</code> systems. It allows for flexible configuration based on export control settings and NERSC transfer preferences.</p>
+<h3 id="job_controllerpy"><code>job_controller.py</code></h3>
+<p>This script defines an abstract class and factory function for managing tomography reconstruction and multi-resolution dataset building on different High-Performance Computing (HPC) systems. It uses the <code>Config832</code> class for configuration and handles different HPC environments like ALCF and NERSC. The abstraction allows for easy expansion to support additional systems like OLCF in the future.</p>
+<h4 id="key-components_2">Key Components:</h4>
+<ol>
+<li>
+<p><strong><code>TomographyHPCController</code> Class (Abstract Base Class)</strong>:</p>
+<ul>
+<li>This abstract base class defines the interface for tomography HPC controllers, with methods for performing tomography reconstruction and generating multi-resolution datasets. </li>
+<li><strong>Methods</strong>:<ul>
+<li><strong><code>reconstruct(file_path: str) -&gt; bool</code></strong>:<br />
+    Performs tomography reconstruction for a given file. Returns <code>True</code> if successful, <code>False</code> otherwise.</li>
+<li><strong><code>build_multi_resolution(file_path: str) -&gt; bool</code></strong>:<br />
+    Generates a multi-resolution version of the reconstructed tomography data for a given file. Returns <code>True</code> if successful, <code>False</code> otherwise.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>HPC</code> Enum</strong>:</p>
+<ul>
+<li>An enum to represent different HPC environments, with members:<ul>
+<li><code>ALCF</code>: Argonne Leadership Computing Facility</li>
+<li><code>NERSC</code>: National Energy Research Scientific Computing Center</li>
+<li><code>OLCF</code>: Oak Ridge Leadership Computing Facility (currently not implemented)</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>get_controller</code> Function</strong>:</p>
+<ul>
+<li>A factory function that returns an appropriate <code>TomographyHPCController</code> subclass instance based on the specified HPC environment (<code>ALCF</code>, <code>NERSC</code>, or <code>OLCF</code>).</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>hpc_type</code>: An enum value identifying the HPC environment (e.g., <code>ALCF</code>, <code>NERSC</code>).</li>
+<li><code>config</code>: A <code>Config832</code> object containing configuration data.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>: An instance of the corresponding <code>TomographyHPCController</code> subclass.</li>
+<li><strong>Raises</strong>: A <code>ValueError</code> if the <code>hpc_type</code> is invalid or unsupported, or if no config object is provided.</li>
+</ul>
+</li>
+</ol>
+<h3 id="alcfpy"><code>alcf.py</code></h3>
+<p>This script is responsible for performing tomography reconstruction and multi-resolution data processing on ALCF using Globus Compute. It orchestrates file transfers, reconstructs tomography data, and builds multi-resolution datasets, then transfers the results back to the <code>data832</code> endpoint.</p>
+<h4 id="key-components_3">Key Components:</h4>
+<ol>
+<li>
+<p><strong><code>ALCFTomographyHPCController</code> Class</strong>:</p>
+<ul>
+<li>This class implements the <code>TomographyHPCController</code> abstract class for the ALCF environment, enabling tomography reconstruction and multi-resolution dataset creation using Globus Compute.</li>
+<li><strong>Methods</strong>:<ul>
+<li><strong><code>reconstruct(file_path: str) -&gt; bool</code></strong>:<br />
+    Runs the tomography reconstruction using Globus Compute by submitting a job to ALCF.</li>
+<li><strong><code>build_multi_resolution(file_path: str) -&gt; bool</code></strong>:<br />
+    Converts TIFF files to Zarr format using Globus Compute.</li>
+<li><strong><code>_reconstruct_wrapper(...)</code></strong>:<br />
+    A static method that wraps the reconstruction process, running the <code>globus_reconstruction.py</code> script.</li>
+<li><strong><code>_build_multi_resolution_wrapper(...)</code></strong>:<br />
+    A static method that wraps the TIFF to Zarr conversion, running the <code>tiff_to_zarr.py</code> script.</li>
+<li><strong><code>_wait_for_globus_compute_future(future: Future, task_name: str, check_interval: int = 20) -&gt; bool</code></strong>:<br />
+    Waits for a Globus Compute task to complete and checks its status at regular intervals.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>schedule_prune_task</code> Task</strong>:</p>
+<ul>
+<li>Schedules the deletion of files from a specified location, allowing the deletion of processed files from ALCF, NERSC, or data832.</li>
+<li><strong>Parameters</strong>:  <ul>
+<li><code>path</code>: The file path to the folder containing files for deletion.  </li>
+<li><code>location</code>: The server location where the files are stored.  </li>
+<li><code>schedule_days</code>: The delay before deletion, in days.  </li>
+</ul>
+</li>
+<li><strong>Returns</strong>:<br />
+<code>True</code> if the task was scheduled successfully, <code>False</code> otherwise.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>schedule_pruning</code> Task</strong>:</p>
+<ul>
+<li>This task schedules multiple file pruning operations based on configuration settings. It takes paths for various scratch and raw data locations, including ALCF, NERSC, and data832.</li>
+<li><strong>Parameters</strong>:  <ul>
+<li><code>alcf_raw_path</code>, <code>alcf_scratch_path_tiff</code>, <code>alcf_scratch_path_zarr</code>, etc.: Paths for various file locations to be pruned.  </li>
+<li><code>one_minute</code>: A flag for testing purposes, scheduling pruning after one minute.  </li>
+<li><code>config</code>: Configuration object for the flow.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>:<br />
+<code>True</code> if all tasks were scheduled successfully, <code>False</code> otherwise.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>alcf_recon_flow</code> Flow</strong>:</p>
+<ul>
+<li>
+<p>This is the main flow for processing and transferring files between <code>data832</code> and ALCF. It orchestrates the following steps:</p>
+<ol>
+<li><strong>Transfer data</strong> from <code>data832</code> to ALCF.</li>
+<li><strong>Run tomography reconstruction</strong> on ALCF using Globus Compute.</li>
+<li><strong>Run TIFF to Zarr conversion</strong> on ALCF using Globus Compute.</li>
+<li><strong>Transfer the reconstructed data</strong> (both TIFF and Zarr) back to <code>data832</code>.</li>
+<li><strong>Schedule pruning tasks</strong> to delete files from ALCF and data832 after the defined period.</li>
+</ol>
+</li>
+<li>
+<p><strong>Parameters</strong>:  </p>
+<ul>
+<li><code>file_path</code>: The file to be processed, typically in <code>.h5</code> format.  </li>
+<li><code>config</code>: Configuration object containing the necessary endpoints for data transfers.</li>
+</ul>
+</li>
+<li>
+<p><strong>Returns</strong>:<br />
+<code>True</code> if the flow completed successfully, <code>False</code> otherwise.</p>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="nerscpy"><code>nersc.py</code></h3>
+<p>This script manages tomography reconstruction and multi-resolution data processing on NERSC using the SFAPI client. It submits jobs for reconstruction and multi-resolution processing, transfers data between NERSC and data832, and schedules pruning tasks for file cleanup.</p>
+<h4 id="key-components_4">Key Components:</h4>
+<ol>
+<li>
+<p><strong><code>NERSCTomographyHPCController</code> Class</strong>:</p>
+<ul>
+<li>This class implements the <code>TomographyHPCController</code> abstract class for the NERSC environment, enabling tomography reconstruction and multi-resolution dataset creation.</li>
+<li><strong>Methods</strong>:<ul>
+<li><strong><code>create_sfapi_client() -&gt; Client</code></strong>:<br />
+    Creates and returns a NERSC client instance using the provided credentials for accessing the NERSC SFAPI.</li>
+<li><strong><code>reconstruct(file_path: str) -&gt; bool</code></strong>:<br />
+    Starts the tomography reconstruction process at NERSC by submitting a job script to the Perlmutter machine using SFAPI.</li>
+<li><strong><code>build_multi_resolution(file_path: str) -&gt; bool</code></strong>:<br />
+    Converts TIFF files to Zarr format on NERSC by submitting a job script to Perlmutter.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>schedule_pruning</code> Task</strong>:</p>
+<ul>
+<li>Schedules the deletion of files from various locations (data832, NERSC) after a specified duration.</li>
+<li><strong>Parameters</strong>:<ul>
+<li><code>raw_file_path</code>, <code>tiff_file_path</code>, <code>zarr_file_path</code>: Paths to raw, TIFF, and Zarr files.</li>
+<li>Uses configuration values to determine where to delete the files and when.</li>
+</ul>
+</li>
+<li><strong>Returns</strong>:<br />
+<code>True</code> if all prune tasks were scheduled successfully, <code>False</code> otherwise.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>nersc_recon_flow</code> Flow</strong>:</p>
+<ul>
+<li>This is the main flow for performing tomography reconstruction and multi-resolution processing at NERSC. It performs the following steps:<ol>
+<li><strong>Run tomography reconstruction</strong> using NERSC's SFAPI.</li>
+<li><strong>Run multi-resolution processing</strong> to convert TIFF files to Zarr format.</li>
+<li><strong>Transfer the reconstructed TIFF and Zarr files</strong> from NERSC to <code>data832</code>.</li>
+<li><strong>Schedule pruning tasks</strong> to delete processed files from NERSC and data832 after a defined period.</li>
+</ol>
+</li>
+<li>
+<p><strong>Parameters</strong>:  </p>
+<ul>
+<li><code>file_path</code>: The path to the file to be processed.</li>
+<li><code>config</code>: Configuration object containing the necessary endpoints for data transfers.</li>
+</ul>
+</li>
+<li>
+<p><strong>Returns</strong>:<br />
+<code>True</code> if both reconstruction and multi-resolution tasks were successful, <code>False</code> otherwise.</p>
+</li>
+</ul>
+</li>
+</ol>
+<h3 id="olcfpy"><code>olcf.py</code></h3>
+<p>To be implemented ...</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+<footer class="md-footer">
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+
+      <div>
+        <a href="https://www.lbl.gov/" title="LBL" target="_blank">
+          <img alt="LBL Home" src="../assets/images/lbl_logo.png"
+               height="70" width="90"
+               style="padding: 10px; height: 70px; width: 90px;">
+        </a>
+        <a href="https://science.energy.gov" title="DOE Office of Science" target="_blank">
+          <img alt="DOE Office of Science Home" src="../assets/images/doe_logo.png"
+               height="70" width="71"
+               style="padding: 10px; height: 70px; width: 71px;">
+        </a>
+      </div>
+
+      <a href="https://www.lbl.gov/disclaimers/" target="_blank"
+         title="Privacy and Security Notice">
+         Privacy and Security Notice
+      </a>
+      <br>
+
+      
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/als-computing" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+
+    </div>
+  </div>
+<footer>
+
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+  
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

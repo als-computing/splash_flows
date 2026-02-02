@@ -1,0 +1,760 @@
+
+<!DOCTYPE html>
+
+<html class="no-js" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1" name="viewport"/>
+<meta content="Splash Flows Globus Documentation" name="description"/>
+<meta content="ALS Computing" name="author"/>
+<link href="https://als-computing.github.io/splash_flows_globus/bl733/" rel="canonical"/>
+<link href="../getting_started/" rel="prev"/>
+<link href="../alcf832/" rel="next"/>
+<link href="../assets/images/favicon.png" rel="icon"/>
+<meta content="mkdocs-1.6.1, mkdocs-material-9.7.1" name="generator"/>
+<title>7.3.3 SAXS/WAXS/GISAXS - Splash Flows Globus Documentation</title>
+<link href="../assets/stylesheets/main.484c7ddc.min.css" rel="stylesheet"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
+<style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+<link href="../assets/als_style.css" rel="stylesheet"/>
+<script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+</head>
+<body dir="ltr">
+<input autocomplete="off" class="md-toggle" data-md-toggle="drawer" id="__drawer" type="checkbox"/>
+<input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
+<label class="md-overlay" for="__drawer"></label>
+<div data-md-component="skip">
+<a class="md-skip" href="#beamline-733-flows">
+          Skip to content
+        </a>
+</div>
+<div data-md-component="announce">
+</div>
+<header class="md-header md-header--shadow" data-md-component="header">
+<nav aria-label="Header" class="md-header__inner md-grid">
+<a aria-label="Splash Flows Globus Documentation" class="md-header__button md-logo" data-md-component="logo" href=".." title="Splash Flows Globus Documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+<label class="md-header__button md-icon" for="__drawer">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+</label>
+<div class="md-header__title" data-md-component="header-title">
+<div class="md-header__ellipsis">
+<div class="md-header__topic">
+<span class="md-ellipsis">
+            Splash Flows Globus Documentation
+          </span>
+</div>
+<div class="md-header__topic" data-md-component="header-topic">
+<span class="md-ellipsis">
+            
+              7.3.3 SAXS/WAXS/GISAXS
+            
+          </span>
+</div>
+</div>
+</div>
+<script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+<label class="md-header__button md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+</label>
+<div class="md-search" data-md-component="search" role="dialog">
+<label class="md-search__overlay" for="__search"></label>
+<div class="md-search__inner" role="search">
+<form class="md-search__form" name="search">
+<input aria-label="Search" autocapitalize="off" autocomplete="off" autocorrect="off" class="md-search__input" data-md-component="search-query" name="query" placeholder="Search" required="" spellcheck="false" type="text"/>
+<label class="md-search__icon md-icon" for="__search">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+</label>
+<nav aria-label="Search" class="md-search__options">
+<button aria-label="Clear" class="md-search__icon md-icon" tabindex="-1" title="Clear" type="reset">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+</button>
+</nav>
+</form>
+<div class="md-search__output">
+<div class="md-search__scrollwrap" data-md-scrollfix="" tabindex="0">
+<div class="md-search-result" data-md-component="search-result">
+<div class="md-search-result__meta">
+            Initializing search
+          </div>
+<ol class="md-search-result__list" role="presentation"></ol>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="md-header__source">
+<a class="md-source" data-md-component="source" href="https://github.com/als-computing/splash_flows_globus" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"></path></svg>
+</div>
+<div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+</div>
+</nav>
+</header>
+<div class="md-container" data-md-component="container">
+<main class="md-main" data-md-component="main">
+<div class="md-main__inner md-grid">
+<div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Navigation" class="md-nav md-nav--primary" data-md-level="0">
+<label class="md-nav__title" for="__drawer">
+<a aria-label="Splash Flows Globus Documentation" class="md-nav__button md-logo" data-md-component="logo" href=".." title="Splash Flows Globus Documentation">
+<svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"></path></svg>
+</a>
+    Splash Flows Globus Documentation
+  </label>
+<div class="md-nav__source">
+<a class="md-source" data-md-component="source" href="https://github.com/als-computing/splash_flows_globus" title="Go to repository">
+<div class="md-source__icon md-icon">
+<svg viewbox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"></path></svg>
+</div>
+<div class="md-source__repository">
+    splash_flows_globus
+  </div>
+</a>
+</div>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="..">
+<span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../install/">
+<span class="md-ellipsis">
+    
+  
+    Installation and Requirements
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../getting_started/">
+<span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item md-nav__item--active md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" id="__nav_4" type="checkbox"/>
+<label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+<span class="md-ellipsis">
+    
+  
+    Beamline Implementations
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-expanded="true" aria-labelledby="__nav_4_label" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_4">
+<span class="md-nav__icon md-icon"></span>
+            
+  
+    Beamline Implementations
+  
+
+          </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item md-nav__item--active">
+<input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    7.3.3 SAXS/WAXS/GISAXS
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
+<a class="md-nav__link md-nav__link--active" href="./">
+<span class="md-ellipsis">
+    
+  
+    7.3.3 SAXS/WAXS/GISAXS
+  
+
+    
+  </span>
+</a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-at-733">
+<span class="md-ellipsis">
+      
+        Data at 7.3.3
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#file-watcher">
+<span class="md-ellipsis">
+      
+        File Watcher
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-configuration">
+<span class="md-ellipsis">
+      
+        Prefect Configuration
+      
+    </span>
+</a>
+<nav aria-label="Prefect Configuration" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#registered-flows">
+<span class="md-ellipsis">
+      
+        Registered Flows
+      
+    </span>
+</a>
+<nav aria-label="Registered Flows" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#dispatcherpy">
+<span class="md-ellipsis">
+      
+        dispatcher.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#movepy">
+<span class="md-ellipsis">
+      
+        move.py
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-server-deployments">
+<span class="md-ellipsis">
+      
+        Prefect Server + Deployments
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#diagrams">
+<span class="md-ellipsis">
+      
+        Diagrams
+      
+    </span>
+</a>
+<nav aria-label="Diagrams" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sequence-diagram">
+<span class="md-ellipsis">
+      
+        Sequence Diagram
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-infrastructure-workflows">
+<span class="md-ellipsis">
+      
+        Data Infrastructure Workflows
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#vm-details">
+<span class="md-ellipsis">
+      
+        VM Details
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-access-for-users">
+<span class="md-ellipsis">
+      
+        Data Access for Users
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../alcf832/">
+<span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at ALCF
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../nersc832/">
+<span class="md-ellipsis">
+    
+  
+    8.3.2 Micro Tomography - Compute at NERSC
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../orchestration/">
+<span class="md-ellipsis">
+    
+  
+    Orchestration
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../configuration/">
+<span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../glossary/">
+<span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../about/">
+<span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+<div class="md-sidebar__scrollwrap">
+<div class="md-sidebar__inner">
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-at-733">
+<span class="md-ellipsis">
+      
+        Data at 7.3.3
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#file-watcher">
+<span class="md-ellipsis">
+      
+        File Watcher
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-configuration">
+<span class="md-ellipsis">
+      
+        Prefect Configuration
+      
+    </span>
+</a>
+<nav aria-label="Prefect Configuration" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#registered-flows">
+<span class="md-ellipsis">
+      
+        Registered Flows
+      
+    </span>
+</a>
+<nav aria-label="Registered Flows" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#dispatcherpy">
+<span class="md-ellipsis">
+      
+        dispatcher.py
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#movepy">
+<span class="md-ellipsis">
+      
+        move.py
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#prefect-server-deployments">
+<span class="md-ellipsis">
+      
+        Prefect Server + Deployments
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#diagrams">
+<span class="md-ellipsis">
+      
+        Diagrams
+      
+    </span>
+</a>
+<nav aria-label="Diagrams" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#sequence-diagram">
+<span class="md-ellipsis">
+      
+        Sequence Diagram
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-infrastructure-workflows">
+<span class="md-ellipsis">
+      
+        Data Infrastructure Workflows
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#vm-details">
+<span class="md-ellipsis">
+      
+        VM Details
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#data-access-for-users">
+<span class="md-ellipsis">
+      
+        Data Access for Users
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
+</div>
+</div>
+</div>
+<div class="md-content" data-md-component="content">
+<article class="md-content__inner md-typeset">
+<h1 id="beamline-733-flows">Beamline 7.3.3 Flows</h1>
+<p>This page documents the workflows supported by Splash Flows Globus at <a href="https://saxswaxs.lbl.gov/user-information">ALS Beamline 7.3.3 (SAXS/WAXS/GISAXS)</a>.</p>
+<p>Beamline 7.3.3 supports hard x-ray scattering techniques, including small- and wide-angle x-ray scattering (SAXS/WAXS) and grazing-incidence SAXS/WAXS (GISAXS/GIWAXS).</p>
+<h2 id="data-at-733">Data at 7.3.3</h2>
+<p>The data collected from 7.3.3 are typically 2D scattering images, where each pixel records scattering intensity as a function of scattering angle.</p>
+<h2 id="file-watcher">File Watcher</h2>
+<p>There is a file watcher on the system <code>data733</code> that listens for new scans that have finished writing to disk. From there, a Prefect Flow we call <code>dispatcher</code> kicks off the downstream steps in a <code>new_733_file_task</code> task.</p>
+<h2 id="prefect-configuration">Prefect Configuration</h2>
+<h3 id="registered-flows">Registered Flows</h3>
+<h4 id="dispatcherpy"><code>dispatcher.py</code></h4>
+<p>The Dispatcher Prefect Flow manages the logic for handling the order and execution of data tasks. As as soon as the File Watcher detects that a new file is written, it calls the <code>dispatcher()</code> Flow. In this case, the dispatcher handles the synchronous call to <code>move.py</code>, with a potential to add additional steps (e.g. scheduling remote HPC analysis code).</p>
+<h4 id="movepy"><code>move.py</code></h4>
+<p>Flow to process a new file at BL 7.3.3
+1. Copy the data from data733 to Lamarr (our common staging area).
+2. Copy the file from the data733 to NERSC CFS.
+3. Ingest the data from Lamarr into SciCat.
+4. Schedule pruning from data733 for 6 months from now.
+5. Archive the file from NERSC CFS to NERSC HPSS at some point in the future.</p>
+<h3 id="prefect-server-deployments">Prefect Server + Deployments</h3>
+<p>This beamline is starting fresh with <code>Prefect==3.4.2</code> (an upgrade from <code>2.19.5</code>). With the latest Prefect versions, we can define deployments in a <code>yaml</code> file rather than build/apply steps in a shell script. <code>create_deployments_733.sh</code> is the legacy way we support registering flows. Now, flows are defined in <code>orchestration/flows/bl733/prefect.yaml</code>. Keeping the prefect config for the beamline within the flows folder makes it easier to keep track of different Prefect deployments for different beamlines.</p>
+<p>Note that we still must create work pools manually before we can register flows to them.</p>
+<p>For example, here is how we can now create our deployments:</p>
+<pre><code class="language-bash"># cd to the directory
+cd orchestration/flows/bl733/
+
+# add Prefect API URL + Key to the environment (if not already present)
+export PREFECT_API_URL=http://&lt;your-prefect-server-for-bl733&gt;:4200/api
+
+# create the work-pools
+prefect work-pool create new_file_733_pool
+prefect work-pool create dispatcher_733_pool
+prefect work-pool create prune_733_pool
+
+prefect deploy
+</code></pre>
+<p>We can also preview a deployment: <code>prefect deploy --output yaml</code>, or deploy only one flow <code>prefect deploy --name run_733_dispatcher</code>.</p>
+<p>The following script follows the above logic for deploying the flows in a streamlined fashion for the latest version of Prefect:
+<code>splash_flows/init_work_pools.py</code></p>
+<h2 id="diagrams">Diagrams</h2>
+<h3 id="sequence-diagram">Sequence Diagram</h3>
+<div class="mermaid">sequenceDiagram
+    participant T as Trigger&lt;br/&gt;Components
+    participant F as Prefect&lt;br/&gt;Flows
+    participant S as Storage &amp;&lt;br/&gt;Processing
+
+    %% Initial Trigger
+    T-&gt;&gt;T: Detector → File Watcher
+    T-&gt;&gt;F: File Watcher&lt;br/&gt;triggers Dispatcher
+    F-&gt;&gt;F: Dispatcher coordinates downstream Flows
+
+    %% Flow 1: new_file_733
+    rect rgb(220, 230, 255)
+        note over F,S: FLOW 1: new_file_733
+        F-&gt;&gt;S: Access data733
+        S-&gt;&gt;S: Globus Transfer to NERSC CFS
+        S-&gt;&gt;S: Ingest metadata to SciCat
+    end
+
+    %% Flow 2: HPSS Transfer
+    rect rgb(220, 255, 230)
+        note over F,S: FLOW 2: Scheduled HPSS Transfer
+        F-&gt;&gt;S: Access NERSC CFS
+        S-&gt;&gt;S: SFAPI Transfer to HPSS Tape
+        S-&gt;&gt;S: Ingest metadata to SciCat
+    end
+
+    %% Flow 3: HPC Analysis
+    rect rgb(255, 230, 230)
+        note over F,S: FLOW 3: HPC Downstream Analysis
+        F-&gt;&gt;S: Access data733
+        S-&gt;&gt;S: Globus Transfer to HPC
+        S-&gt;&gt;S: Run HPC Compute Processing
+        S-&gt;&gt;S: Return scratch data to data733
+    end
+
+    %% Flow 4: Scheduled Pruning
+    rect rgb(255, 255, 220)
+        note over F,S: FLOW 4: Scheduled Pruning
+        F-&gt;&gt;S: Scheduled pruning jobs
+        S-&gt;&gt;S: Prune old files from CFS
+        S-&gt;&gt;S: Prune old files from data733
+    end
+</div>
+<h3 id="data-infrastructure-workflows">Data Infrastructure Workflows</h3>
+<div class="mermaid">---
+config:
+  theme: neo
+  layout: elk
+  look: neo
+---
+flowchart
+ subgraph s1["new_file_733 Flow"]
+        n20["data733"]
+        n21["NERSC CFS"]
+        n22@{ label: "SciCat&lt;br style=\"--tw-scale-x:\"&gt;[Metadata Database]" }
+  end
+ subgraph s2["HPSS Transfer Flow"]
+        n38["NERSC CFS"]
+        n39["HPSS Tape Archive"]
+        n40["SciCat &lt;br&gt;[Metadata Database]"]
+  end
+ subgraph s3["HPC Analysis Flow"]
+        n41["data733"]
+        n42["HPC&lt;br&gt;Filesystem"]
+        n43["HPC&lt;br&gt;Compute"]
+  end
+    n23["data733"] -- File Watcher --&gt; n24["Dispatcher&lt;br&gt;[Prefect Worker]"]
+    n25["Detector"] -- Raw Data --&gt; n23
+    n24 --&gt; s1 &amp; s2 &amp; s3
+    n20 -- Raw Data [Globus Transfer] --&gt; n21
+    n21 -- "&lt;span style=color:&gt;Metadata [SciCat Ingestion]&lt;/span&gt;" --&gt; n22
+    n32["Scheduled Pruning &lt;br&gt;[Prefect Workers]"] --&gt; n35["NERSC CFS"] &amp; n34["data733"]
+    n38 -- Raw Data [SFAPI Slurm htar Transfer] --&gt; n39
+    n39 -- "&lt;span style=color:&gt;Metadata [SciCat Ingestion]&lt;/span&gt;" --&gt; n40
+    s2 --&gt; n32
+    s3 --&gt; n32
+    s1 --&gt; n32
+    n41 -- Raw Data [Globus Transfer] --&gt; n42
+    n42 -- Raw Data --&gt; n43
+    n43 -- Scratch Data --&gt; n42
+    n42 -- Scratch Data [Globus Transfer] --&gt; n41
+    n20@{ shape: internal-storage}
+    n21@{ shape: disk}
+    n22@{ shape: db}
+    n38@{ shape: disk}
+    n39@{ shape: paper-tape}
+    n40@{ shape: db}
+    n41@{ shape: internal-storage}
+    n42@{ shape: disk}
+    n23@{ shape: internal-storage}
+    n24@{ shape: rect}
+    n25@{ shape: rounded}
+    n35@{ shape: disk}
+    n34@{ shape: internal-storage}
+     n20:::storage
+     n20:::Peach
+     n21:::Sky
+     n22:::Sky
+     n38:::Sky
+     n39:::storage
+     n40:::Sky
+     n41:::Peach
+     n42:::Sky
+     n43:::compute
+     n23:::collection
+     n23:::storage
+     n23:::Peach
+     n24:::collection
+     n24:::Rose
+     n25:::Ash
+     n32:::Rose
+     n35:::Sky
+     n34:::Peach
+    classDef collection fill:#D3A6A1, stroke:#D3A6A1, stroke-width:2px, color:#000000
+    classDef Rose stroke-width:1px, stroke-dasharray:none, stroke:#FF5978, fill:#FFDFE5, color:#8E2236
+    classDef storage fill:#A3C1DA, stroke:#A3C1DA, stroke-width:2px, color:#000000
+    classDef Ash stroke-width:1px, stroke-dasharray:none, stroke:#999999, fill:#EEEEEE, color:#000000
+    classDef visualization fill:#E8D5A6, stroke:#E8D5A6, stroke-width:2px, color:#000000
+    classDef Peach stroke-width:1px, stroke-dasharray:none, stroke:#FBB35A, fill:#FFEFDB, color:#8F632D
+    classDef Sky stroke-width:1px, stroke-dasharray:none, stroke:#374D7C, fill:#E2EBFF, color:#374D7C
+    classDef compute fill:#A9C0C9, stroke:#A9C0C9, stroke-width:2px, color:#000000
+    style s1 stroke:#757575
+    style s2 stroke:#757575
+    style s3 stroke:#757575
+</div>
+<h2 id="vm-details">VM Details</h2>
+<p>The computing backend runs on a VM in the B15 server room that is managed by ALS IT staff.</p>
+<p><strong>Name</strong>: <code>flow-733</code>
+<strong>OS</strong>: <code>Ubuntu 24.04 LTS</code></p>
+<p>We are using Ansible to streamline the development and support of this virtual machine. See https://github.com/als-computing/als_ansible/pull/4 for details.</p>
+<h2 id="data-access-for-users">Data Access for Users</h2>
+<p>Users can download their data from SciCat, our metadata database, where we keep track of file location history, and additional experiment metadata.</p>
+</article>
+</div>
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+</div>
+</main>
+<footer class="md-footer">
+<div class="md-footer-meta md-typeset">
+<div class="md-footer-meta__inner md-grid">
+<div>
+<a href="https://www.lbl.gov/" target="_blank" title="LBL">
+<img alt="LBL Home" height="70" src="../assets/images/lbl_logo.png" style="padding: 10px; height: 70px; width: 90px;" width="90"/>
+</a>
+<a href="https://science.energy.gov" target="_blank" title="DOE Office of Science">
+<img alt="DOE Office of Science Home" height="70" src="../assets/images/doe_logo.png" style="padding: 10px; height: 70px; width: 71px;" width="71"/>
+</a>
+</div>
+<a href="https://www.lbl.gov/disclaimers/" target="_blank" title="Privacy and Security Notice">
+         Privacy and Security Notice
+      </a>
+<br/>
+<div class="md-social">
+<a class="md-social__link" href="https://github.com/als-computing" rel="noopener" target="_blank" title="github.com">
+<svg viewbox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+</a>
+</div>
+</div>
+</div>
+<footer>
+</footer></footer></div>
+<div class="md-dialog" data-md-component="dialog">
+<div class="md-dialog__inner md-typeset"></div>
+</div>
+<script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+<script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+<script type="module">import mermaid from "https://unpkg.com/mermaid@10.4.0/dist/mermaid.esm.min.mjs";
+mermaid.initialize({});</script></body>
+</html>
