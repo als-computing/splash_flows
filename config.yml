@@ -76,19 +76,19 @@ globus:
     alcf832_synaps_raw:
       root_path: /data/bl832/raw
       uri: alcf.anl.gov
-      uuid: TBD
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
       name: alcf832_synaps_raw
 
     alcf832_synaps_recon:
       root_path: /data/bl832/scratch/reconstruction/
       uri: alcf.anl.gov
-      uuid: TBD
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
       name: alcf832_synaps_recon
 
     alcf832_synaps_segment:
       root_path: /data/bl832/scratch/segmentation/
       uri: alcf.anl.gov
-      uuid: TBD
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
       name: alcf832_synaps_segment
 
     alcf832_iri_raw:
