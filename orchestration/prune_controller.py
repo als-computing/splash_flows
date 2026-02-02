@@ -327,12 +327,12 @@ def prune_globus_endpoint(
     logger.info(f"Running Globus pruning flow for '{relative_path}' from '{source_endpoint.name}'")
 
     if not config:
-        tc = init_transfer_client()
+        tc = init_transfer_client(app=None)
     else:
         tc = config.tc
     globus_settings = Variable.get("globus-settings", _sync=True)
     max_wait_seconds = globus_settings["max_wait_seconds"]
-    flow_name = f"prune_from_{source_endpoint.name}"
+    flow_name = f"prune_{relative_path}_from_{source_endpoint.name}"
     logger.info(f"Running flow: {flow_name}")
     logger.info(f"Pruning {relative_path} from source endpoint: {source_endpoint.name}")
     prune_one_safe(
