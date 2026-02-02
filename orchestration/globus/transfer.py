@@ -271,7 +271,7 @@ def task_wait(
 def prune_one_safe(
     file: str,
     if_older_than_days: int,
-    tranfer_client: TransferClient,
+    transfer_client: TransferClient,
     source_endpoint: GlobusEndpoint,
     check_endpoint: Union[GlobusEndpoint, None],
     max_wait_seconds: int = 120,
@@ -283,7 +283,7 @@ def prune_one_safe(
     is also located at the check_endpoint. If not, raises
     """
     # does the file exist at the source endpoint?
-    g_file_obj = get_globus_file_object(tranfer_client, source_endpoint, file)
+    g_file_obj = get_globus_file_object(transfer_client, source_endpoint, file)
     assert g_file_obj is not None, f"file not found {source_endpoint.uri}"
     logger.info(f"file: {file} found on {source_endpoint.uri}")
 
@@ -291,7 +291,7 @@ def prune_one_safe(
     if check_endpoint is None:
         logger.info("No check endpoint provided, skipping check")
     else:
-        g_file_obj = get_globus_file_object(tranfer_client, check_endpoint, file)
+        g_file_obj = get_globus_file_object(transfer_client, check_endpoint, file)
         assert g_file_obj is not None, f"file not found {check_endpoint.uri}"
         logger.info(f"file: {file} found on {check_endpoint.uri}")
 
@@ -308,14 +308,14 @@ def prune_one_safe(
         logger.info("Not checking dates, sent if_older_than_days==0")
 
     delete_id = prune_files(
-        tranfer_client,
+        transfer_client,
         source_endpoint,
         [file],
         max_wait_seconds=max_wait_seconds,
         logger=logger,
     )
 
-    task_wait(tranfer_client, delete_id)
+    task_wait(transfer_client, delete_id)
     logger.info(f"file deleted from: {source_endpoint.uri}")
 
 
