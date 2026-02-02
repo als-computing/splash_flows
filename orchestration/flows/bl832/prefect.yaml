@@ -43,6 +43,12 @@ deployments:
     name: nersc_recon_flow_pool
     work_queue_name: nersc_recon_flow_queue
 
+- name: nersc_recon_multinode_flow
+  entrypoint: orchestration/flows/bl832/nersc.py:nersc_recon_multinode_flow
+  work_pool:
+    name: nersc_recon_flow_pool
+    work_queue_name: nersc_recon_multinode_flow_queue
+
 - name: nersc_streaming_flow
   entrypoint: orchestration/flows/bl832/nersc.py:nersc_streaming_flow
   work_pool:
