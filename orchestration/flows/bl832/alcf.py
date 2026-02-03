@@ -191,11 +191,11 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         logger = get_run_logger()
 
+        SEGMENTATION_VERSION = "v2"  # "v2"
+
         # Operate on reconstructed data
         rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{recon_folder_path}"
         output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{recon_folder_path}"
-        segmentation_module = "src.inference"
-        workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
@@ -203,20 +203,40 @@ class ALCFTomographyHPCController(TomographyHPCController):
         # We will probably have 2 endpoints, one for recon, one for segmentation
         endpoint_id = "168c595b-9493-42db-9c6a-aad960913de2"
         # with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
-        with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
-            logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
-            future = fxe.submit(
-                self._segmentation_wrapper,
-                input_dir=rundir,
-                output_dir=output_dir,
-                script_module=segmentation_module,
-                workdir=workdir
-            )
-            result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
-            return result
+
+        if SEGMENTATION_VERSION == "v1":
+            segmentation_module = "src.inference"
+            workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo"
+
+            with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
+                logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
+                future = fxe.submit(
+                    self._segmentation_wrapper_v1,
+                    input_dir=rundir,
+                    output_dir=output_dir,
+                    script_module=segmentation_module,
+                    workdir=workdir
+                )
+                result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
+
+        elif SEGMENTATION_VERSION == "v2":
+            segmentation_module = "src.inference_v2"
+            workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo"
+            with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
+                logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
+                future = fxe.submit(
+                    self._segmentation_wrapper_v2,
+                    input_dir=rundir,
+                    output_dir=output_dir,
+                    script_module=segmentation_module,
+                    workdir=workdir
+                )
+                result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
+
+        return result
 
     @staticmethod
-    def _segmentation_wrapper(
+    def _segmentation_wrapper_v1(
         input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
         output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
         script_module: str = "src.inference",
@@ -277,6 +297,90 @@ class ALCFTomographyHPCController(TomographyHPCController):
         print(f"Segmented data in {input_dir} in {seg_end-seg_start} seconds;\n {segment_res}")
         return (
             f"Segmented data specified in {input_dir} in {seg_end-seg_start} seconds;\n"
+            f"{segment_res}"
+        )
+
+    @staticmethod
+    def _segmentation_wrapper_v2(
+        input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
+        output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
+        script_module: str = "src.inference_v2",
+        workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo",
+        nproc_per_node: int = 4,
+        nnodes: int = 1,
+        patch_size: int = 640,
+        batch_size: int = 1,
+        confidence: float = 0.5,
+        prompts: list[str] = ["Cortex", "Phloem Fibers", "Air-based Pith cells", "Water-based Pith cells", "Xylem vessels"],
+        bpe_path: str = "/eagle/SYNAPS-I/segmentation/sam3_finetune/sam3/bpe_simple_vocab_16e6.txt.gz",
+        finetuned_checkpoint: str = "/eagle/SYNAPS-I/segmentation/sam3_finetune/sam3/checkpoint.pt",
+        original_checkpoint: str = "/eagle/SYNAPS-I/segmentation/sam3_finetune/sam3/sam3.pt",
+        use_finetuned: bool = True,
+    ) -> str:
+        """
+        Python function that wraps around the application call for segmentation on ALCF.
+
+        :param input_dir: the directory on the eagle file system (ALCF) where the input data are located
+        :param output_dir: the directory where segmentation results will be saved
+        :param script_module: the module path to the inference script
+        :param workdir: the path to the working directory containing the segmentation code
+        :param nproc_per_node: number of processes per node (typically number of GPUs)
+        :param nnodes: number of nodes to use
+        :param patch_size: size of patches for processing
+        :param batch_size: batch size per GPU
+        :param confidence: confidence threshold for predictions
+        :param prompts: list of text prompts for segmentation classes
+        :param bpe_path: path to BPE vocabulary file
+        :param finetuned_checkpoint: path to finetuned model checkpoint
+        :param original_checkpoint: path to original SAM3 checkpoint
+        :param use_finetuned: whether to use finetuned model (True) or original model (False)
+        :return: confirmation message
+        """
+        import os
+        import subprocess
+        import time
+
+        seg_start = time.time()
+
+        # Move to directory where the segmentation code is located
+        os.chdir(workdir)
+
+        # Build command
+        command = [
+            "python", "-m", "torch.distributed.run",
+            f"--nproc_per_node={nproc_per_node}",
+            f"--nnodes={nnodes}",
+            "-m", script_module,
+            "--input-dir", input_dir,
+            "--output-dir", output_dir,
+            "--patch-size", str(patch_size),
+            "--batch-size", str(batch_size),
+            "--confidence", str(confidence),
+            "--prompts", *prompts,
+            "--bpe-path", bpe_path,
+        ]
+
+        # Add checkpoint arguments based on whether using finetuned model
+        if use_finetuned:
+            command.extend([
+                "--finetuned-checkpoint", finetuned_checkpoint,
+                "--original-checkpoint", original_checkpoint,
+            ])
+        else:
+            command.extend([
+                "--original-checkpoint", original_checkpoint,
+            ])
+
+        segment_res = subprocess.run(command)
+
+        if segment_res.returncode != 0:
+            raise RuntimeError(f"Segmentation failed with return code {segment_res.returncode}")
+
+        seg_end = time.time()
+
+        print(f"Segmented data in {input_dir} in {seg_end - seg_start} seconds;\n {segment_res}")
+        return (
+            f"Segmented data specified in {input_dir} in {seg_end - seg_start} seconds;\n"
             f"{segment_res}"
         )
 
