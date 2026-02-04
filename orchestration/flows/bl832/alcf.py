@@ -349,8 +349,6 @@ class ALCFTomographyHPCController(TomographyHPCController):
 
         # Use explicit path to torchrun from the virtual environment
         venv_path = "/eagle/SYNAPS-I/segmentation/env"
-        # torchrun_path = f"{venv_path}/bin/torchrun"
-        # python_path = f"{venv_path}/bin/python"
 
         # Build torchrun arguments
         torchrun_args = [
@@ -367,7 +365,6 @@ class ALCFTomographyHPCController(TomographyHPCController):
             "--confidence", str(confidence),
             "--prompts",
         ]
-        # torchrun_args.extend(prompts)
         torchrun_args.extend([f'"{p}"' for p in prompts])
 
         torchrun_args.extend(["--bpe-path", bpe_path])
