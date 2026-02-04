@@ -191,8 +191,6 @@ class ALCFTomographyHPCController(TomographyHPCController):
         """
         logger = get_run_logger()
 
-        SEGMENTATION_VERSION = "v2"  # "v2"
-
         # Operate on reconstructed data
         rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{recon_folder_path}"
         output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{recon_folder_path}"
@@ -204,111 +202,28 @@ class ALCFTomographyHPCController(TomographyHPCController):
         endpoint_id = "168c595b-9493-42db-9c6a-aad960913de2"
         # with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
 
-        if SEGMENTATION_VERSION == "v1":
-            segmentation_module = "src.inference"
-            workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo"
-
-            with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
-                logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
-                future = fxe.submit(
-                    self._segmentation_wrapper_v1,
-                    input_dir=rundir,
-                    output_dir=output_dir,
-                    script_module=segmentation_module,
-                    workdir=workdir
-                )
-                result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
-
-        elif SEGMENTATION_VERSION == "v2":
-            segmentation_module = "src.inference_v2_optimized2"  # "src.inference_v2"
-            workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo"
-            with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
-                logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
-                future = fxe.submit(
-                    self._segmentation_wrapper_v2,
-                    input_dir=rundir,
-                    output_dir=output_dir,
-                    script_module=segmentation_module,
-                    workdir=workdir
-                )
-                result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
+        segmentation_module = "src.inference_v2_optimized2"
+        workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo"
+        with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
+            logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
+            future = fxe.submit(
+                self._segmentation_wrapper_v2,
+                input_dir=rundir,
+                output_dir=output_dir,
+                script_module=segmentation_module,
+                workdir=workdir
+            )
+            result = self._wait_for_globus_compute_future(future, "segmentation", check_interval=10)
 
         return result
 
     @staticmethod
-    def _segmentation_wrapper_v1(
+    def _segmentation_wrapper(
         input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
         output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
-        script_module: str = "src.inference",
-        workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo",
-        nproc_per_node: int = 4,  # 1 works
-        nnodes: int = 1,
-        nnode_rank: int = 0,
-        master_addr: str = "localhost",
-        master_port: str = "29500",
-        patch_size: int = 512,
-        batch_size: int = 1,
-        num_workers: int = 4,
-        confidence: float = 0.5,
-        prompts: list[str] = ["background", "cell"],
-    ) -> str:
-        """
-        Python function that wraps around the application call for segmentation on ALCF
-
-        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
-        :param script_path: the path to the script that will run the segmentation
-        :param folder_path: the path to the folder containing the TIFF data to be segmented
-        :return: confirmation message
-        """
-        import os
-        import subprocess
-        import time
-
-        seg_start = time.time()
-
-        # Move to directory where the segmentation code is located
-        os.chdir(workdir)
-
-        # Run segmentation.py
-        command = [
-            "python", "-m", "torch.distributed.run",
-            f"--nproc_per_node={nproc_per_node}",
-            f"--nnodes={nnodes}",
-            f"--node_rank={nnode_rank}",
-            f"--master_addr={master_addr}",
-            f"--master_port={master_port}",
-            "-m", script_module,
-            "--input-dir", input_dir,
-            "--output-dir", output_dir,
-            "--patch-size", str(patch_size),
-            "--batch-size", str(batch_size),
-            "--num-workers", str(num_workers),
-            "--confidence", str(confidence),
-            "--prompts", *prompts,
-        ]
-
-        segment_res = subprocess.run(command)  # stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        if segment_res.returncode != 0:
-            raise RuntimeError(f"Segmentation failed with return code {segment_res.returncode}")
-
-        seg_end = time.time()
-
-        print(f"Segmented data in {input_dir} in {seg_end-seg_start} seconds;\n {segment_res}")
-        return (
-            f"Segmented data specified in {input_dir} in {seg_end-seg_start} seconds;\n"
-            f"{segment_res}"
-        )
-
-    @staticmethod
-    def _segmentation_wrapper_v2(
-        input_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/reconstruction/",
-        output_dir: str = "/eagle/SYNAPS-I/data/bl832/scratch/segmentation/",
-        # script_module: str = "src.inference_v2",
-        script_module: str = "src.inference_v2_optimized",
+        script_module: str = "src.inference_v2_optimized2",
         workdir: str = "/eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo",
         nproc_per_node: int = 4,
-        nnodes: int = 2,
         patch_size: int = 640,
         batch_size: int = 8,
         confidence: float = 0.5,
@@ -318,6 +233,26 @@ class ALCFTomographyHPCController(TomographyHPCController):
         original_checkpoint: str = "/eagle/SYNAPS-I/segmentation/sam3_finetune/sam3/sam3.pt",
         use_finetuned: bool = True,
     ) -> str:
+        """
+        Wrapper function to run segmentation using torch.distributed.run on ALCF.
+        This is the code that is executed by Globus Compute.
+
+        :param input_dir: Directory containing input data for segmentation.
+        :param output_dir: Directory to save segmentation outputs.
+        :param script_module: Python module to run for segmentation.
+        :param workdir: Working directory for the segmentation script.
+        :param nproc_per_node: Number of processes per node.
+        :param patch_size: Size of the patches for segmentation.
+        :param batch_size: Batch size for segmentation.
+        :param confidence: Confidence threshold for segmentation.
+        :param prompts: List of prompts for segmentation.
+        :param bpe_path: Path to the BPE vocabulary file.
+        :param finetuned_checkpoint: Path to the finetuned model checkpoint.
+        :param original_checkpoint: Path to the original model checkpoint.
+        :param use_finetuned: Whether to use the finetuned model checkpoint.
+
+        :return: Confirmation message upon completion.
+        """
         import os
         import subprocess
         import time
@@ -333,6 +268,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         print(f"PBS_NODEFILE: {pbs_nodefile}")
         print(f"PBS_JOBID: {pbs_jobid}")
 
+        # Determine number of nodes and master address based on PBS_NODEFILE
         if pbs_nodefile and os.path.exists(pbs_nodefile):
             with open(pbs_nodefile, 'r') as f:
                 all_lines = [line.strip() for line in f if line.strip()]
@@ -351,6 +287,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         venv_path = "/eagle/SYNAPS-I/segmentation/env"
 
         # Build torchrun arguments
+        # rdzv is used for rendezvous in multi-node setups, meaning all nodes can find each other
         torchrun_args = [
             f"--nnodes={actual_nnodes}",
             f"--nproc_per_node={nproc_per_node}",
@@ -365,6 +302,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
             "--confidence", str(confidence),
             "--prompts",
         ]
+        # Add prompts to the arguments, each prompt is a separate argument
         torchrun_args.extend([f'"{p}"' for p in prompts])
 
         torchrun_args.extend(["--bpe-path", bpe_path])
@@ -380,6 +318,8 @@ class ALCFTomographyHPCController(TomographyHPCController):
         torchrun_cmd = f"{venv_path}/bin/python -m torch.distributed.run " + " ".join(torchrun_args)
 
         # Environment + NCCL setup - activate venv and set PATH explicitly
+        # Following best practices from ALCF:
+        # https://docs.alcf.anl.gov/polaris/data-science/frameworks/pytorch/#multi-gpu-multi-node-scale-up
         env_setup = (
             f"source {venv_path}/bin/activate && "
             f"export PATH={venv_path}/bin:$PATH && "
