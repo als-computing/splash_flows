@@ -131,6 +131,17 @@ class ALCFTomographyHPCController(TomographyHPCController):
         node_list: list[str] = None,  # Pass explicitly
         num_nodes: int = 8,
     ) -> str:
+        """
+        Wrapper function to run Tomopy reconstruction using mpiexec on ALCF across multiple nodes.
+
+        :param rundir: the directory on the eagle file system (ALCF) where the input data are located
+        :param script_path: the path to the script that will run the reconstruction
+        :param h5_file_name: the name of the h5 file to be reconstructed
+        :param folder_path: the path to the folder containing the h5 file
+        :param node_list: list of nodes to use for reconstruction (if None, will attempt to read from PBS_NODEFILE)
+        :param num_nodes: number of nodes to use for reconstruction (used if node_list is None)
+        :return: confirmation message
+        """
         import os
         import subprocess
         import time
