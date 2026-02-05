@@ -58,16 +58,24 @@ class ALCFTomographyHPCController(TomographyHPCController):
         folder_name = Path(file_path).parent.name
 
         rundir = f"{self.allocation_root}/data/bl832/raw"
-        recon_script = f"{self.allocation_root}/reconstruction/scripts/globus_reconstruction.py"
+        recon_script = f"{self.allocation_root}/reconstruction/scripts/globus_reconstruction_multinode.py"  # globus_reconstruction.py"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
+        # endpoint_id = Secret.load("globus-compute-endpoint").get()
+
+        endpoint_id = Variable.get(
+            "alcf-globus-compute-recon-uuid",
+            default="4953017e-6127-4587-9ee3-b71db7623122",
+            _sync=True
+        )
+
         # TODO: Update globus-compute-endpoint Secret block with the new endpoint UUID
         # We will probably have 2 endpoints, one for recon, one for segmentation
-        with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
+        with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
             logger.info(f"Running Tomopy reconstruction on {file_name} at ALCF")
             future = fxe.submit(
-                self._reconstruct_wrapper,
+                self._reconstruct_wrapper_multinode,
                 rundir,
                 recon_script,
                 file_name,
@@ -113,6 +121,118 @@ class ALCFTomographyHPCController(TomographyHPCController):
             f"Reconstructed data specified in {folder_path} / {h5_file_name} in {rec_end-rec_start} seconds;\n"
             f"{recon_res}"
         )
+
+    @staticmethod
+    def _reconstruct_wrapper_multinode(
+        rundir: str,
+        script_path: str,
+        h5_file_name: str,
+        folder_path: str,
+    ) -> str:
+        import os
+        import subprocess
+        import time
+        import h5py
+
+        rec_start = time.time()
+        os.chdir(rundir)
+
+        # Get PBS info
+        pbs_nodefile = os.environ.get("PBS_NODEFILE")
+
+        if pbs_nodefile and os.path.exists(pbs_nodefile):
+            with open(pbs_nodefile, 'r') as f:
+                all_lines = [line.strip() for line in f if line.strip()]
+            unique_nodes = list(dict.fromkeys(all_lines))
+            num_nodes = len(unique_nodes)
+        else:
+            num_nodes = 1
+            unique_nodes = ["localhost"]
+
+        # Read number of slices from HDF5
+        h5_path = f"{rundir}/{folder_path}/{h5_file_name}"
+        with h5py.File(h5_path, 'r') as f:
+            if '/exchange/data' in f:
+                num_slices = f['/exchange/data'].shape[1]
+            else:
+                # fallback to attrs
+                for key in f.keys():
+                    if 'nslices' in f[key].attrs:
+                        num_slices = int(f[key].attrs['nslices'])
+                        break
+
+        print("=== RECON DEBUG ===")
+        print(f"PBS_NODEFILE: {pbs_nodefile}")
+        print(f"Unique nodes ({num_nodes}): {unique_nodes}")
+        print(f"Total slices: {num_slices}")
+
+        slices_per_node = num_slices // num_nodes
+
+        venv_path = "/eagle/SYNAPS-I/reconstruction/env/tomopy"
+        env_setup = (
+            "export TMPDIR=/tmp && "
+            "module use /soft/modulefiles && "
+            "module load conda && "
+            "source $(conda info --base)/etc/profile.d/conda.sh && "
+            f"conda activate {venv_path} && "
+            f"cd {rundir} && "
+        )
+
+        if num_nodes > 1:
+            import tempfile
+
+            # Launch each node's work as a separate background process via mpiexec
+            procs = []
+            temp_hostfiles = []
+
+            for i, node in enumerate(unique_nodes):
+                sino_start = i * slices_per_node
+                sino_end = num_slices if i == num_nodes - 1 else (i + 1) * slices_per_node
+
+                cmd = f"python {script_path} {h5_file_name} {folder_path} {sino_start} {sino_end}"
+
+                # Write single-node hostfile
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hosts') as f:
+                    f.write(node + '\n')
+                    temp_hostfile = f.name
+                temp_hostfiles.append(temp_hostfile)
+
+                full_cmd = [
+                    "mpiexec",
+                    "-n", "1",
+                    "-ppn", "1",
+                    "-hostfile", temp_hostfile,
+                    "bash", "-c", env_setup + cmd
+                ]
+
+                print(f"Launching on {node}: slices {sino_start}-{sino_end}")
+                proc = subprocess.Popen(full_cmd)
+                procs.append((proc, node))
+
+            # Wait for all
+            failed = []
+            for proc, node in procs:
+                proc.wait()
+                if proc.returncode != 0:
+                    failed.append(node)
+
+            # Cleanup temp hostfiles
+            for hf in temp_hostfiles:
+                try:
+                    os.remove(hf)
+                except OSError:
+                    pass
+
+            if failed:
+                raise RuntimeError(f"Reconstruction failed on nodes: {failed}")
+        else:
+            # Single node - run directly
+            cmd = f"python {script_path} {h5_file_name} {folder_path}"
+            result = subprocess.run(["bash", "-c", env_setup + cmd])
+            if result.returncode != 0:
+                raise RuntimeError("Reconstruction failed")
+
+        return f"Reconstructed {h5_file_name} across {num_nodes} nodes in {time.time() - rec_start:.1f}s"
 
     def build_multi_resolution(
         self,
@@ -746,7 +866,7 @@ def alcf_forge_recon_segment_flow(
         )
 
     # Prune segmented data from data832 scratch
-    if segment_transfer_success:
+    if alcf_segmentation_success and segment_transfer_success:
         logger.info("Scheduling pruning of data832 scratch segmentation data.")
         prune_controller.prune(
             file_path=scratch_path_segment,
@@ -815,5 +935,29 @@ def alcf_segmentation_integration_test() -> bool:
     return flow_success
 
 
+@flow(name="alcf_reconstruction_integration_test", flow_run_name="alcf_reconstruction_integration_test")
+def alcf_reconstruction_integration_test() -> bool:
+    """
+    Integration test for the ALCF reconstruction task.
+
+    :return: True if the reconstruction task completed successfully, False otherwise.
+    """
+    logger = get_run_logger()
+    logger.info("Starting ALCF reconstruction integration test.")
+    raw_file_path = '_ra-00823_bard/20251218_111600_silkraw.h5'  # 'test'  #
+
+    tomography_controller = get_controller(
+        hpc_type=HPC.ALCF,
+        config=Config832()
+    )
+
+    flow_success = tomography_controller.reconstruct(
+        file_path=f"{raw_file_path}",
+    )
+
+    logger.info(f"Flow success: {flow_success}")
+    return flow_success
+
+
 if __name__ == "__main__":
-    alcf_segmentation_integration_test()
+    alcf_reconstruction_integration_test()
