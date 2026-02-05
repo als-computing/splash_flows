@@ -58,7 +58,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         folder_name = Path(file_path).parent.name
 
         rundir = f"{self.allocation_root}/data/bl832/raw"
-        recon_script = f"{self.allocation_root}/reconstruction/scripts/globus_reconstruction_multinode.py"  # globus_reconstruction.py"
+        recon_script = f"{self.allocation_root}/reconstruction/scripts/globus_reconstruction_multinode.py"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
@@ -128,49 +128,50 @@ class ALCFTomographyHPCController(TomographyHPCController):
         script_path: str,
         h5_file_name: str,
         folder_path: str,
+        node_list: list[str] = None,  # Pass explicitly
+        num_nodes: int = 8,
     ) -> str:
         import os
         import subprocess
         import time
         import h5py
+        import tempfile
 
         rec_start = time.time()
         os.chdir(rundir)
 
-        # Get PBS info
-        pbs_nodefile = os.environ.get("PBS_NODEFILE")
+        # If node_list not provided, try PBS_NODEFILE
+        if node_list is None:
+            pbs_nodefile = os.environ.get("PBS_NODEFILE")
+            if pbs_nodefile and os.path.exists(pbs_nodefile):
+                with open(pbs_nodefile, 'r') as f:
+                    all_lines = [line.strip() for line in f if line.strip()]
+                node_list = list(dict.fromkeys(all_lines))
+            else:
+                # Fallback: get nodes from PBS_NODENUM or assume localhost
+                node_list = ["localhost"]
 
-        if pbs_nodefile and os.path.exists(pbs_nodefile):
-            with open(pbs_nodefile, 'r') as f:
-                all_lines = [line.strip() for line in f if line.strip()]
-            unique_nodes = list(dict.fromkeys(all_lines))
-            num_nodes = len(unique_nodes)
-        else:
-            num_nodes = 1
-            unique_nodes = ["localhost"]
+        num_nodes = len(node_list)
+        print("=== RECON DEBUG ===")
+        print(f"Using {num_nodes} nodes: {node_list}")
 
-        # Read number of slices from HDF5
+        # Read number of slices
         h5_path = f"{rundir}/{folder_path}/{h5_file_name}"
         with h5py.File(h5_path, 'r') as f:
-            if '/exchange/data' in f:
-                num_slices = f['/exchange/data'].shape[1]
-            else:
-                # fallback to attrs
-                for key in f.keys():
-                    if 'nslices' in f[key].attrs:
-                        num_slices = int(f[key].attrs['nslices'])
-                        break
+            num_slices = f['/exchange/data'].shape[1]
 
-        print("=== RECON DEBUG ===")
-        print(f"PBS_NODEFILE: {pbs_nodefile}")
-        print(f"Unique nodes ({num_nodes}): {unique_nodes}")
         print(f"Total slices: {num_slices}")
-
         slices_per_node = num_slices // num_nodes
 
         venv_path = "/eagle/SYNAPS-I/reconstruction/env/tomopy"
+
+        # Critical: Set environment variables BEFORE the conda activation
         env_setup = (
             "export TMPDIR=/tmp && "
+            "export NUMEXPR_MAX_THREADS=64 && "
+            "export NUMEXPR_NUM_THREADS=64 && "
+            "export OMP_NUM_THREADS=64 && "
+            "export MKL_NUM_THREADS=64 && "
             "module use /soft/modulefiles && "
             "module load conda && "
             "source $(conda info --base)/etc/profile.d/conda.sh && "
@@ -178,59 +179,55 @@ class ALCFTomographyHPCController(TomographyHPCController):
             f"cd {rundir} && "
         )
 
-        if num_nodes > 1:
-            import tempfile
+        procs = []
+        temp_hostfiles = []
 
-            # Launch each node's work as a separate background process via mpiexec
-            procs = []
-            temp_hostfiles = []
+        for i, node in enumerate(node_list):
+            sino_start = i * slices_per_node
+            sino_end = num_slices if i == num_nodes - 1 else (i + 1) * slices_per_node
 
-            for i, node in enumerate(unique_nodes):
-                sino_start = i * slices_per_node
-                sino_end = num_slices if i == num_nodes - 1 else (i + 1) * slices_per_node
+            cmd = f"python {script_path} {h5_file_name} {folder_path} {sino_start} {sino_end}"
 
-                cmd = f"python {script_path} {h5_file_name} {folder_path} {sino_start} {sino_end}"
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hosts') as f:
+                f.write(node + '\n')
+                temp_hostfile = f.name
+            temp_hostfiles.append(temp_hostfile)
 
-                # Write single-node hostfile
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.hosts') as f:
-                    f.write(node + '\n')
-                    temp_hostfile = f.name
-                temp_hostfiles.append(temp_hostfile)
+            # Use --cpu-bind to ensure proper CPU affinity
+            full_cmd = [
+                "mpiexec",
+                "-n", "1",
+                "-ppn", "1",
+                "--cpu-bind", "depth",
+                "-d", "64",  # depth=64 cores per rank
+                "-hostfile", temp_hostfile,
+                "bash", "-c", env_setup + cmd
+            ]
 
-                full_cmd = [
-                    "mpiexec",
-                    "-n", "1",
-                    "-ppn", "1",
-                    "-hostfile", temp_hostfile,
-                    "bash", "-c", env_setup + cmd
-                ]
+            print(f"Launching on {node}: slices {sino_start}-{sino_end}")
+            proc = subprocess.Popen(full_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            procs.append((proc, node, sino_start, sino_end))
 
-                print(f"Launching on {node}: slices {sino_start}-{sino_end}")
-                proc = subprocess.Popen(full_cmd)
-                procs.append((proc, node))
+        # Wait and collect results
+        failed = []
+        for proc, node, sino_start, sino_end in procs:
+            stdout, stderr = proc.communicate()
+            if proc.returncode != 0:
+                print(f"FAILED on {node} (slices {sino_start}-{sino_end})")
+                print(f"STDERR: {stderr.decode()[-2000:]}")
+                failed.append(node)
+            else:
+                print(f"SUCCESS on {node} (slices {sino_start}-{sino_end})")
 
-            # Wait for all
-            failed = []
-            for proc, node in procs:
-                proc.wait()
-                if proc.returncode != 0:
-                    failed.append(node)
+        # Cleanup
+        for hf in temp_hostfiles:
+            try:
+                os.remove(hf)
+            except OSError:
+                pass
 
-            # Cleanup temp hostfiles
-            for hf in temp_hostfiles:
-                try:
-                    os.remove(hf)
-                except OSError:
-                    pass
-
-            if failed:
-                raise RuntimeError(f"Reconstruction failed on nodes: {failed}")
-        else:
-            # Single node - run directly
-            cmd = f"python {script_path} {h5_file_name} {folder_path}"
-            result = subprocess.run(["bash", "-c", env_setup + cmd])
-            if result.returncode != 0:
-                raise RuntimeError("Reconstruction failed")
+        if failed:
+            raise RuntimeError(f"Reconstruction failed on nodes: {failed}")
 
         return f"Reconstructed {h5_file_name} across {num_nodes} nodes in {time.time() - rec_start:.1f}s"
 
