@@ -46,6 +46,7 @@ globus:
       uri: beegfs.als.lbl.gov
       uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
       name: bl733-beegfs-data
+
     # 8.3.2 ENDPOINTS
 
     spot832:
@@ -72,17 +73,35 @@ globus:
       uuid: 75b478b2-37af-46df-bfbd-71ed692c6506
       name: data832_scratch
 
-    alcf832_raw:
+    alcf832_synaps_raw:
+      root_path: /data/bl832/raw
+      uri: alcf.anl.gov
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
+      name: alcf832_synaps_raw
+
+    alcf832_synaps_recon:
+      root_path: /data/bl832/scratch/reconstruction/
+      uri: alcf.anl.gov
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
+      name: alcf832_synaps_recon
+
+    alcf832_synaps_segment:
+      root_path: /data/bl832/scratch/segmentation/
+      uri: alcf.anl.gov
+      uuid: 728a8e30-32ef-4000-814c-f9ccbc00bf13
+      name: alcf832_synaps_segment
+
+    alcf832_iri_raw:
       root_path: /data/raw
       uri: alcf.anl.gov
       uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
-      name: alcf_raw
+      name: alcf_iri_raw
 
-    alcf832_scratch:
+    alcf832_iri_scratch:
       root_path: /data/scratch
       uri: alcf.anl.gov
       uuid: 55c3adf6-31f1-4647-9a38-52591642f7e7
-      name: alcf_scratch
+      name: alcf_iri_scratch
 
     alcf_eagle832:
       root_path: /IRIBeta/als/example
