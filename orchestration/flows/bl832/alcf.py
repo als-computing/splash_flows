@@ -192,22 +192,28 @@ class ALCFTomographyHPCController(TomographyHPCController):
         logger = get_run_logger()
 
         # Operate on reconstructed data
+        # Input: folder_name/rec20211222_125057_petiole4/
+        # Output should go to: folder_name/seg20211222_125057_petiole4/
+
         rundir = f"{self.allocation_root}/data/bl832/scratch/reconstruction/{recon_folder_path}"
-        output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{recon_folder_path}"
+        output_folder = recon_folder_path.replace('/rec', '/seg')
+        output_dir = f"{self.allocation_root}/data/bl832/scratch/segmentation/{output_folder}"
 
         gcc = Client(code_serialization_strategy=CombinedCode())
 
-        # TODO: Update globus-compute-endpoint Secret block with the new endpoint UUID
-        # We will probably have 2 endpoints, one for recon, one for segmentation
-        endpoint_id = "168c595b-9493-42db-9c6a-aad960913de2"
-        # with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
+        endpoint_id = Variable.get(
+            "alcf-globus-compute-seg-uuid",
+            default="168c595b-9493-42db-9c6a-aad960913de2",
+            _sync=True
+        )
 
         segmentation_module = "src.inference_v2_optimized2"
         workdir = f"{self.allocation_root}/segmentation/scripts/forge_feb_seg_model_demo_v2/forge_feb_seg_model_demo"
+
         with Executor(endpoint_id=endpoint_id, client=gcc) as fxe:
             logger.info(f"Running segmentation on {recon_folder_path} at ALCF")
             future = fxe.submit(
-                self._segmentation_wrapper_v2,
+                self._segmentation_wrapper,
                 input_dir=rundir,
                 output_dir=output_dir,
                 script_module=segmentation_module,
@@ -740,7 +746,7 @@ def alcf_forge_recon_segment_flow(
         )
 
     # Prune segmented data from data832 scratch
-    if alcf_segmentation_success:
+    if segment_transfer_success:
         logger.info("Scheduling pruning of data832 scratch segmentation data.")
         prune_controller.prune(
             file_path=scratch_path_segment,
