@@ -6,24 +6,23 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "authlib",
-    "globus-compute-sdk @ git+https://github.com/globus/globus-compute.git@d1731340074be56861ec91d732bdff44f8e2b46e#subdirectory=compute_sdk",
-    "globus-sdk>=3.0",
     "griffe>=0.49.0,<2.0.0",
     "h5py",
     "httpx>=0.22.0",
     "mkdocs",
     "mkdocs-material",
     "mkdocs-mermaid2-plugin",
-    "mlflow==2.22.0",
     "numpy>=1.26.4",
     "pillow",
-    "prefect==3.4.2",
+    "prefect>=3.4.2",
     "prometheus_client==0.21.1",
     "pydantic==2.11",
     "python-dotenv",
     "pyyaml",
     "scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@4828273f5f49ba4eba5442728729e0545b3f5b79",
-    "sfapi_client"
+    "sfapi_client",
+    "academy-py",
+    "agentic_blueprint_catalog @ git+https://github.com/academy-agents/agentic_blueprint_catalog.git",
 ]
 
 [build-system]
