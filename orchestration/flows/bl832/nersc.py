@@ -211,13 +211,19 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
                 mlflow_checkpoint_key="dino_checkpoint_path",
                 extra_cli_flags={"--project": "moon"},
             ),
+            ("dinov3", "leaf"): SegmentationModelSpec(
+                variable_name="nersc-dinov3-leaf-seg-options",
+                settings=self.config.nersc_segment_dinov3_leaf_settings,
+                mlflow_model_name="dinov3-leaf",
+                mlflow_checkpoint_key="dino_checkpoint_path",
+                extra_cli_flags={"--project": "leaf"},
+            ),
             ("sam3", "petiole"): SegmentationModelSpec(
                 variable_name="nersc-segmentation-options",
                 settings=self.config.nersc_segment_sam3_settings,
                 mlflow_model_name="sam3-petiole",
                 mlflow_checkpoint_key="finetuned_checkpoint_path",
             ),
-            # future: ("sam3", "moon"): SegmentationModelSpec(...),
         }
         key = (model, project)
         if key not in registry:
@@ -2193,6 +2199,203 @@ def nersc_moon_segment_flow(
         return False
 
 
+@flow(name="nersc_leaf_segment_flow", flow_run_name="nersc_leaf_seg-{file_path}")
+def nersc_leaf_segment_flow(
+    file_path: str,
+    config: Config832 | None = None,
+    num_nodes: int | None = None,
+) -> bool:
+    """Reconstruct a leaf scan and run DINOv3-leaf segmentation.
+
+    Runs reconstruction then DINOv3-leaf (leaf-specific). No SAM3 or
+    combine step — those are petiole-specific. Transfer and pruning follow the
+    same pattern as nersc_petiole_segment_flow.
+
+    :param file_path: Path to the raw .h5 file to be processed.
+    :param config: Configuration object for the flow.
+    :param num_nodes: Number of nodes for reconstruction.
+    :return: True if reconstruction and segmentation both succeeded.
+    """
+    logger = get_run_logger()
+
+    if config is None:
+        logger.info("Initializing Config")
+        config = Config832()
+
+    path = Path(file_path)
+    folder_name = path.parent.name
+    file_name = path.stem
+    scratch_path_tiff = f"{folder_name}/rec{file_name}"
+    scratch_path_segment = f"{folder_name}/seg{file_name}"
+
+    logger.info(f"Starting NERSC reconstruction + DINOv3-leaf flow for {file_path=}")
+
+    controller = get_controller(hpc_type=HPC.NERSC, config=config)
+
+    if num_nodes is None:
+        num_nodes = config.nersc_recon_settings.get("num_nodes", 4)
+    logger.info(f"Configured to use {num_nodes} nodes for reconstruction")
+
+    # ── STEP 1: Reconstruction ────────────────────────────────────────────────
+    recon_result = controller.reconstruct(file_path=file_path, num_nodes=num_nodes)
+
+    if isinstance(recon_result, dict):
+        nersc_reconstruction_success = recon_result.get("success", False)
+        timing = recon_result.get("timing")
+        if timing:
+            logger.info("=" * 50)
+            logger.info("TIMING BREAKDOWN")
+            logger.info("=" * 50)
+            logger.info(f"  Total job time:      {timing.get('total', 'N/A')}s")
+            logger.info(f"  Container pull:      {timing.get('container_pull', 'N/A')}s")
+            logger.info(
+                f"  File copy:           {timing.get('file_copy', 'N/A')}s "
+                f"(skipped: {timing.get('copy_skipped', 'N/A')})"
+            )
+            logger.info(f"  Metadata detection:  {timing.get('metadata', 'N/A')}s")
+            logger.info(f"  RECONSTRUCTION:      {timing.get('reconstruction', 'N/A')}s  <-- actual recon time")
+            logger.info(f"  Num slices:          {timing.get('num_slices', 'N/A')}")
+            logger.info("=" * 50)
+            if all(k in timing for k in ["total", "reconstruction"]):
+                overhead = timing["total"] - timing["reconstruction"]
+                logger.info(f"  Overhead:            {overhead}s")
+                logger.info(f"  Reconstruction %:    {100 * timing['reconstruction'] / timing['total']:.1f}%")
+            logger.info("=" * 50)
+    else:
+        nersc_reconstruction_success = recon_result
+
+    logger.info(f"NERSC reconstruction success: {nersc_reconstruction_success}")
+
+    if not nersc_reconstruction_success:
+        logger.error("Reconstruction failed — aborting leaf segmentation flow.")
+        raise ValueError("Reconstruction at NERSC failed")
+
+    # ── STEP 2: Transfer TIFFs to data832 ────────────────────────────────────
+    data832_tiff_future = None
+    try:
+        data832_tiff_future = globus_transfer_task.submit(
+            file_path=scratch_path_tiff,
+            source=config.nersc832_alsdev_pscratch_scratch,
+            destination=config.data832_scratch,
+            config=config,
+        )
+        logger.info("TIFF transfer to data832 submitted.")
+    except Exception as e:
+        logger.error(f"Failed to submit TIFF transfer to data832: {e}")
+
+    # ── STEP 3: DINOv3-leaf segmentation ─────────────────────────────────────
+    logger.info("Submitting DINOv3-leaf segmentation task.")
+    leaf_future = nersc_segmentation_dinov3_task.submit(
+        recon_folder_path=scratch_path_tiff, config=config, project="leaf"
+    )
+
+    leaf_success = leaf_future.result()
+    logger.info(f"DINOv3-leaf segmentation result: {leaf_success}")
+
+    # ── STEP 4: Transfer segmentation outputs to data832 ─────────────────────
+    data832_leaf_future = None
+    if leaf_success:
+        leaf_segment_path = f"{folder_name}/seg{file_name}/dino"
+        try:
+            data832_leaf_future = globus_transfer_task.submit(
+                file_path=leaf_segment_path,
+                source=config.nersc832_alsdev_pscratch_scratch,
+                destination=config.data832_scratch,
+                config=config,
+            )
+            logger.info("DINOv3-leaf transfer to data832 submitted.")
+        except Exception as e:
+            logger.error(f"Failed to submit DINOv3-leaf transfer to data832: {e}")
+
+    # ── STEP 5: Copy to NERSC CFS ─────────────────────────────────────────────
+    for cfs_path in [scratch_path_tiff, scratch_path_segment]:
+        try:
+            globus_transfer_task.submit(
+                file_path=cfs_path,
+                source=config.nersc832_alsdev_pscratch_scratch,
+                destination=config.nersc832_alsdev_scratch,
+                config=config,
+            )
+            logger.info(f"CFS transfer submitted: {cfs_path}")
+        except Exception as e:
+            logger.error(f"Failed to copy {cfs_path} to NERSC CFS: {e}")
+
+    # ── Resolve futures before pruning ────────────────────────────────────────
+    data832_tiff_transfer_success = data832_tiff_future.result() if data832_tiff_future else False
+    data832_leaf_transfer_success = data832_leaf_future.result() if data832_leaf_future else False
+
+    logger.info(
+        f"Transfer results — tiff: {data832_tiff_transfer_success}, "
+        f"leaf: {data832_leaf_transfer_success}"
+    )
+
+    # ── STEP 6: Pruning ───────────────────────────────────────────────────────
+    logger.info("Scheduling file pruning tasks.")
+    prune_controller = get_prune_controller(prune_type=PruneMethod.GLOBUS, config=config)
+
+    try:
+        prune_controller.prune(
+            file_path=f"{folder_name}/{path.name}",
+            source_endpoint=config.nersc832_alsdev_pscratch_raw,
+            check_endpoint=None,
+            days_from_now=1.0,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to schedule raw data pruning: {e}")
+
+    try:
+        prune_controller.prune(
+            file_path=scratch_path_tiff,
+            source_endpoint=config.nersc832_alsdev_pscratch_scratch,
+            check_endpoint=config.data832_scratch if data832_tiff_transfer_success else None,
+            days_from_now=1.0,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to schedule reconstruction data pruning: {e}")
+
+    if leaf_success:
+        try:
+            prune_controller.prune(
+                file_path=scratch_path_segment,
+                source_endpoint=config.nersc832_alsdev_pscratch_scratch,
+                check_endpoint=config.data832_scratch if data832_leaf_transfer_success else None,
+                days_from_now=1.0,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to schedule segmentation data pruning: {e}")
+
+    if data832_tiff_transfer_success:
+        try:
+            prune_controller.prune(
+                file_path=scratch_path_tiff,
+                source_endpoint=config.data832_scratch,
+                check_endpoint=None,
+                days_from_now=30.0,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to schedule data832 tiff pruning: {e}")
+
+    if data832_leaf_transfer_success:
+        try:
+            prune_controller.prune(
+                file_path=scratch_path_segment,
+                source_endpoint=config.data832_scratch,
+                check_endpoint=None,
+                days_from_now=30.0,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to schedule data832 leaf segment pruning: {e}")
+
+    if nersc_reconstruction_success and leaf_success:
+        logger.info("NERSC reconstruction + DINOv3-leaf flow completed successfully.")
+        return True
+    else:
+        logger.warning(
+            f"Flow completed with issues: recon={nersc_reconstruction_success}, leaf={leaf_success}"
+        )
+        return False
+
+
 @flow(name="nersc_streaming_flow", on_cancellation=[cancellation_hook])
 def nersc_streaming_flow(
     walltime: datetime.timedelta = datetime.timedelta(minutes=5),
@@ -2402,7 +2605,7 @@ def nersc_segmentation_sam3_integration_test() -> bool:
 
 if __name__ == "__main__":
     nersc_segmentation_dinov3_task(
-        recon_folder_path='dabramov/recmoon/',
+        recon_folder_path='dabramov/recleaf/',
         config=Config832(),
-        project="moon"
+        project="leaf"
     )

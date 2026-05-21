@@ -180,8 +180,8 @@ hpc_submission_settings832:
     # ── SLURM resource allocation ─────────────────────────────────────────────
     qos: realtime
     account: als
-    reservation: "_CAP_TOMO_MOON_CPU"
-    num_nodes: 16
+    reservation: ""
+    num_nodes: 4
     cpus-per-task: 128
     walltime: "0:30:00"
   nersc_multiresolution:
@@ -284,3 +284,26 @@ hpc_submission_settings832:
     conda_env_path: /global/cfs/cdirs/als/data_mover/8.3.2/envs/dino_demo
     seg_scripts_dir: /global/cfs/cdirs/als/data_mover/8.3.2/tomography_segmentation_scripts/moon_seg/forge_feb_seg_model_demo/
     dino_checkpoint_path: /global/cfs/cdirs/als/data_mover/8.3.2/tomography_segmentation_scripts/dino/best_moon.ckpt
+
+  # ── LEAF SEGMENTATION SETTINGS ───────────────────────────────────────────
+  nersc_segmentation_dinov3_leaf:
+    # ── SLURM resource allocation ─────────────────────────────────────────────
+    qos: realtime
+    account: als
+    constraint: gpu
+    reservation: ""
+    num_nodes: 4
+    ntasks-per-node: 1
+    nproc_per_node: 4
+    gpus-per-node: 4
+    cpus-per-task: 128
+    walltime: "00:59:00"
+    # ── Inference parameters ──────────────────────────────────────────────────
+    script_name: "src.inference_dino_v4"
+    project: "leaf"
+    batch_size: 4
+    # ── Paths ─────────────────────────────────────────────────────────────────
+    cfs_path: /global/cfs/cdirs/als/data_mover/8.3.2
+    conda_env_path: /global/cfs/cdirs/als/data_mover/8.3.2/envs/dino_demo
+    seg_scripts_dir: /global/cfs/cdirs/als/data_mover/8.3.2/tomography_segmentation_scripts/leaf_seg/forge_feb_seg_model_demo/
+    dino_checkpoint_path: /global/cfs/cdirs/als/data_mover/8.3.2/tomography_segmentation_scripts/dino/best_leaf_new.ckpt

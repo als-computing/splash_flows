@@ -145,6 +145,23 @@ def mock_config832(mocker):
         "conda_env_path": "/mock/conda/combine",
         "seg_scripts_dir": "/mock/seg_scripts/combine",
     }
+    mock_config.nersc_segment_dinov3_leaf_settings = {
+        "qos": "regular",
+        "account": "mock_account",
+        "constraint": "gpu",
+        "reservation": "",
+        "num_nodes": 4,
+        "ntasks-per-node": 1,
+        "nproc_per_node": 4,
+        "gpus-per-node": 4,
+        "cpus-per-task": 128,
+        "walltime": "00:59:00",
+        "batch_size": 4,
+        "cfs_path": "/mock/cfs",
+        "conda_env_path": "/mock/conda/dino_leaf",
+        "seg_scripts_dir": "/mock/seg_scripts/dino_leaf",
+        "dino_checkpoint_path": "/mock/dino_leaf.ckpt",
+    }
 
     mocker.patch("orchestration.flows.bl832.nersc.Config832", return_value=mock_config)
     return mock_config
@@ -791,6 +808,126 @@ def test_moon_segment_flow_no_sam3_no_combine(mocker, mock_config832, mock_recon
     mock_dinov3_task.submit.return_value = _make_future(mocker, True)
 
     nersc_moon_segment_flow(file_path="folder/file.h5", num_nodes=4, config=None)
+
+    mock_sam3_task.submit.assert_not_called()
+    mock_combine_task.submit.assert_not_called()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# segmentation_dinov3 with project="leaf"  (controller level)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_segmentation_dinov3_leaf_success(mocker, mock_sfapi_client, mock_config832):
+    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
+    from sfapi_client.compute import Machine
+
+    mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
+    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    controller = NERSCTomographyHPCController(client=mock_sfapi_client, config=mock_config832)
+
+    result = controller.segmentation_dinov3(recon_folder_path="folder/recfile", project="leaf")
+
+    mock_sfapi_client.compute.assert_called_with(Machine.perlmutter)
+    mock_sfapi_client.compute.return_value.submit_job.assert_called_once()
+    assert result is True
+
+
+def test_segmentation_dinov3_leaf_submission_failure(mocker, mock_sfapi_client, mock_config832):
+    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
+
+    mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
+    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mock_sfapi_client.compute.return_value.submit_job.side_effect = Exception("No GPU nodes")
+    controller = NERSCTomographyHPCController(client=mock_sfapi_client, config=mock_config832)
+
+    result = controller.segmentation_dinov3(recon_folder_path="folder/recfile", project="leaf")
+
+    assert result is False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# nersc_leaf_segment_flow  (recon + DINOv3-leaf only, no SAM3, no combine)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_leaf_segment_flow_succeeds(mocker, mock_config832, mock_recon_success):
+    """Recon + DINOv3-leaf both succeed → flow returns True."""
+    from orchestration.flows.bl832.nersc import nersc_leaf_segment_flow
+
+    mock_controller = mocker.MagicMock()
+    mock_controller.reconstruct.return_value = mock_recon_success
+    mocker.patch("orchestration.flows.bl832.nersc.get_controller", return_value=mock_controller)
+
+    mock_globus_transfer = mocker.patch("orchestration.flows.bl832.nersc.globus_transfer_task")
+    mock_globus_transfer.submit.return_value = _make_future(mocker, True)
+
+    mocker.patch("orchestration.flows.bl832.nersc.get_prune_controller", return_value=mocker.MagicMock())
+
+    mock_dinov3_task = mocker.patch("orchestration.flows.bl832.nersc.nersc_segmentation_dinov3_task")
+    mock_dinov3_task.submit.return_value = _make_future(mocker, True)
+
+    result = nersc_leaf_segment_flow(file_path="folder/file.h5", num_nodes=4, config=None)
+
+    assert result is True
+    mock_controller.reconstruct.assert_called_once()
+    mock_dinov3_task.submit.assert_called_once_with(
+        recon_folder_path="folder/recfile", config=mock_config832, project="leaf"
+    )
+
+
+def test_leaf_segment_flow_seg_failure(mocker, mock_config832, mock_recon_success):
+    """Recon succeeds but DINOv3-leaf fails → flow returns False."""
+    from orchestration.flows.bl832.nersc import nersc_leaf_segment_flow
+
+    mock_controller = mocker.MagicMock()
+    mock_controller.reconstruct.return_value = mock_recon_success
+    mocker.patch("orchestration.flows.bl832.nersc.get_controller", return_value=mock_controller)
+
+    mock_globus_transfer = mocker.patch("orchestration.flows.bl832.nersc.globus_transfer_task")
+    mock_globus_transfer.submit.return_value = _make_future(mocker, False)
+
+    mocker.patch("orchestration.flows.bl832.nersc.get_prune_controller", return_value=mocker.MagicMock())
+
+    mock_dinov3_task = mocker.patch("orchestration.flows.bl832.nersc.nersc_segmentation_dinov3_task")
+    mock_dinov3_task.submit.return_value = _make_future(mocker, False)
+
+    result = nersc_leaf_segment_flow(file_path="folder/file.h5", num_nodes=4, config=None)
+
+    assert result is False
+
+
+def test_leaf_segment_flow_recon_failure(mocker, mock_config832):
+    """Recon failure should raise ValueError immediately."""
+    from orchestration.flows.bl832.nersc import nersc_leaf_segment_flow
+
+    mock_controller = mocker.MagicMock()
+    mock_controller.reconstruct.return_value = {"success": False, "job_id": None, "timing": None}
+    mocker.patch("orchestration.flows.bl832.nersc.get_controller", return_value=mock_controller)
+    mocker.patch("orchestration.flows.bl832.nersc.globus_transfer_task")
+    mocker.patch("orchestration.flows.bl832.nersc.get_prune_controller", return_value=mocker.MagicMock())
+
+    with pytest.raises(ValueError, match="Reconstruction at NERSC failed"):
+        nersc_leaf_segment_flow(file_path="folder/file.h5", num_nodes=4, config=None)
+
+
+def test_leaf_segment_flow_no_sam3_no_combine(mocker, mock_config832, mock_recon_success):
+    """SAM3 and combine tasks should never be called in the leaf flow."""
+    from orchestration.flows.bl832.nersc import nersc_leaf_segment_flow
+
+    mock_controller = mocker.MagicMock()
+    mock_controller.reconstruct.return_value = mock_recon_success
+    mocker.patch("orchestration.flows.bl832.nersc.get_controller", return_value=mock_controller)
+
+    mock_globus_transfer = mocker.patch("orchestration.flows.bl832.nersc.globus_transfer_task")
+    mock_globus_transfer.submit.return_value = _make_future(mocker, True)
+
+    mocker.patch("orchestration.flows.bl832.nersc.get_prune_controller", return_value=mocker.MagicMock())
+
+    mock_sam3_task = mocker.patch("orchestration.flows.bl832.nersc.nersc_segmentation_sam3_task")
+    mock_combine_task = mocker.patch("orchestration.flows.bl832.nersc.nersc_combine_segmentations_task")
+    mock_dinov3_task = mocker.patch("orchestration.flows.bl832.nersc.nersc_segmentation_dinov3_task")
+    mock_dinov3_task.submit.return_value = _make_future(mocker, True)
+
+    nersc_leaf_segment_flow(file_path="folder/file.h5", num_nodes=4, config=None)
 
     mock_sam3_task.submit.assert_not_called()
     mock_combine_task.submit.assert_not_called()

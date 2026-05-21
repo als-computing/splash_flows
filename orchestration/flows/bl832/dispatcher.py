@@ -34,6 +34,10 @@ class FlowParameterMapper:
         "nersc_moon_segment_flow/nersc_moon_segment_flow": [
             "file_path",
             "num_nodes",
+            "config"],
+        "nersc_leaf_segment_flow/nersc_leaf_segment_flow": [
+            "file_path",
+            "num_nodes",
             "config"]
     }
 
@@ -70,6 +74,7 @@ def setup_decision_settings(
     nersc_recon: bool,
     nersc_petiole_segment: bool,
     nersc_moon_segment: bool,
+    nersc_leaf_segment: bool,
     new_file_832: bool
 ) -> dict:
     """
@@ -88,6 +93,7 @@ def setup_decision_settings(
                     f"nersc_recon={nersc_recon}, "
                     f"nersc_petiole_segment={nersc_petiole_segment}, "
                     f"nersc_moon_segment={nersc_moon_segment}, "
+                    f"nersc_leaf_segment={nersc_leaf_segment}, "
                     f"new_file_832={new_file_832}")
         # Define which flows to run based on the input settings
         settings = {
@@ -95,6 +101,7 @@ def setup_decision_settings(
             "nersc_recon_flow/nersc_recon_flow": nersc_recon,
             "nersc_petiole_segment_flow/nersc_petiole_segment_flow": nersc_petiole_segment,
             "nersc_moon_segment_flow/nersc_moon_segment_flow": nersc_moon_segment,
+            "nersc_leaf_segment_flow/nersc_leaf_segment_flow": nersc_leaf_segment,
             "new_832_file_flow/new_file_832": new_file_832
         }
         # Save the settings in a JSON block for later retrieval by other flows
@@ -185,6 +192,12 @@ async def dispatcher(
             "nersc_moon_segment_flow/nersc_moon_segment_flow", available_params
         )
         tasks.append(run_recon_flow_async("nersc_moon_segment_flow/nersc_moon_segment_flow", moon_params))
+
+    if decision_settings.get("nersc_leaf_segment_flow/nersc_leaf_segment_flow"):
+        leaf_params = FlowParameterMapper.get_flow_parameters(
+            "nersc_leaf_segment_flow/nersc_leaf_segment_flow", available_params
+        )
+        tasks.append(run_recon_flow_async("nersc_leaf_segment_flow/nersc_leaf_segment_flow", leaf_params))
 
     # Run ALCF and NERSC flows in parallel, if any
     if tasks:

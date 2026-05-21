@@ -77,6 +77,22 @@ def register_mlflow_checkpoints():
         },
     )
 
+    register_checkpoint(
+        model_name="dinov3-leaf",
+        nersc_path="/global/cfs/cdirs/als/data_mover/8.3.2/tomography_segmentation_scripts/dino/best_leaf_new.ckpt",
+        alcf_path="/eagle/IRIBeta/als/seg_models/dino/best_leaf_new.ckpt",
+        config=config,
+        alias="production",
+        description="DINOv3 fine-tuned on leaf micro-CT data.",
+        inference_params={
+            "conda_env_path": "/global/cfs/cdirs/als/data_mover/8.3.2/envs/dino_demo",
+            "seg_scripts_dir": f"{scripts_dir}leaf_seg/forge_feb_seg_model_demo/",
+            "script_name": "src.inference_dino_v4",
+            "batch_size": 4,
+            "nproc_per_node": 4,
+        },
+    )
+
 
 def retrieve_mlflow_params_test() -> bool:
     """Test that _load_job_options correctly pulls inference params from the MLflow registry.
