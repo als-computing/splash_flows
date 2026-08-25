@@ -877,7 +877,7 @@ srun podman-hpc run \
 --volume {pscratch_path}/8.3.2:/alsdata \
 --volume {pscratch_path}/8.3.2:/alsuser/ \
 {multires_image} \
-bash -c "python tiff_to_zarr.py {recon_path} --raw_file {raw_path}"
+bash -c "python -m pip install --user --no-deps 'ngff-zarr==0.39.0' && python tiff_to_zarr.py {recon_path} --raw_file {raw_path}"
 
 date
 """

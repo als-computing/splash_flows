@@ -89,7 +89,7 @@ def main():
     image.scale = read_pixelsize_from_hdf5(args.raw_file)
     image.axes_units = {'x': 'micrometer', 'y': 'micrometer', 'z': 'micrometer'}
     multiscales = to_multiscales(image, method=Methods.DASK_IMAGE_GAUSSIAN, cache=False)
-    to_ngff_zarr(zarr_dir, multiscales)
+    to_ngff_zarr(zarr_dir, multiscales, version="0.4")
     print('NGFF Zarr created')
 
     # Set permissions for the output directory and its contents
