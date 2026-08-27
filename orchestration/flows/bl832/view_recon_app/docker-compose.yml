@@ -1,0 +1,23 @@
+services:
+  tomography-visualizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${REACT_PORT:-5174}:5174"  # React app
+      - "${TILED_PORT:-8000}:8000"  # Tiled server
+      - "${VIEWER_PORT:-8082}:8082"  # itk-vtk-viewer
+    volumes:
+      - ${DATA_PATH:-./data}:/data  # Mount user data directory
+    environment:
+      - DATA_DIR=/data  # Path inside container where data is mounted
+      - TILED_PORT=${TILED_PORT:-8000}
+      - VIEWER_PORT=${VIEWER_PORT:-8082}
+      - REACT_PORT=${REACT_PORT:-5174}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5174"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
