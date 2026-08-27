@@ -43,3 +43,10 @@ class Config832(BeamlineConfig):
         self.nersc_segment_dinov3_settings = self.config["hpc_submission_settings832"]["nersc_segmentation_dinov3"]
         self.nersc_combine_segmentation_settings = self.config["hpc_submission_settings832"]["nersc_combine_segmentations"]
         self.nersc_segment_dinov3_moon_settings = self.config["hpc_submission_settings832"]["nersc_segmentation_dinov3_moon"]
+        # ALCF HPC submission settings
+        self.alcf832_synaps = self.endpoints["alcf832_synaps"]
+        self.alcf832_synaps_raw = self.endpoints["alcf832_synaps_raw"]
+        self.alcf832_synaps_recon = self.endpoints["alcf832_synaps_recon"]
+        self.alcf832_synaps_segment = self.endpoints["alcf832_synaps_segment"]
+        self.alcf832_iri_raw = self.endpoints["alcf832_iri_raw"]
+        self.alcf832_iri_scratch = self.endpoints["alcf832_iri_scratch"]

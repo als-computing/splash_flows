@@ -1,0 +1,46 @@
+engine:
+  type: GlobusComputeEngine
+  max_retries_on_system_failure: 0
+  max_workers: 1
+  prefetch_capacity: 0
+
+  address:
+    type: address_by_interface
+    ifname: bond0
+
+  strategy: simple
+  job_status_kwargs:
+    max_idletime: 300
+    strategy_period: 60
+
+  provider:
+    type: PBSProProvider
+
+    launcher:
+      type: MpiExecLauncher
+      bind_cmd: --cpu-bind
+      overrides: --depth=64 --ppn 1
+
+    account: SYNAPS-I
+    queue: demand
+    cpus_per_node: 64
+
+    # No ngpus requested — CPU-only combine step
+    scheduler_options: "#PBS -l filesystems=home:eagle -l select=2"
+
+    worker_init: |
+      export TMPDIR=/tmp
+      module use /soft/modulefiles
+      module load conda
+      source $(conda info --base)/etc/profile.d/conda.sh
+      conda activate /eagle/SYNAPS-I/segmentation/env_dino_cellpose
+      # export HF_HUB_CACHE=/eagle/SYNAPS-I/segmentation/.cache/huggingface
+      export HF_HOME=$HF_HUB_CACHE
+      export OMP_NUM_THREADS=64
+      cd /eagle/SYNAPS-I/segmentation/scripts/inference_v5/forge_feb_seg_model_demo
+
+    walltime: 59:00
+    nodes_per_block: 2
+    init_blocks: 0
+    min_blocks: 0
+    max_blocks: 1

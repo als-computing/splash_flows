@@ -1,0 +1,48 @@
+engine:
+  type: GlobusComputeEngine
+  max_retries_on_system_failure: 0
+  max_workers_per_node: 1
+  prefetch_capacity: 0
+
+  address:
+    type: address_by_interface
+    ifname: bond0
+
+  strategy: simple
+  job_status_kwargs:
+    max_idletime: 300
+    strategy_period: 60
+
+  provider:
+    type: PBSProProvider
+
+    launcher:
+      type: SimpleLauncher
+
+    account: SYNAPS-I
+    queue: demand
+    cpus_per_node: 64 # Full node for multi-node jobs
+
+    # Request 4 nodes with 4 GPUs each
+    scheduler_options: "#PBS -l filesystems=home:eagle -l select=4:ngpus=4"
+
+    worker_init: |
+      export TMPDIR=/tmp
+      module use /soft/modulefiles
+      module load conda
+      conda activate base
+      source /eagle/SYNAPS-I/segmentation/env/bin/activate
+      export HF_HUB_CACHE=/eagle/SYNAPS-I/segmentation/.cache/huggingface
+      export HF_HOME=$HF_HUB_CACHE
+      export CUDA_DEVICE_ORDER=PCI_BUS_ID
+      # Enable IB for multi-node communication
+      export NCCL_IB_DISABLE=0
+      export NCCL_P2P_DISABLE=0
+      export OMP_NUM_THREADS=8
+      cd /eagle/SYNAPS-I/segmentation/scripts/forge_feb_seg_model_demo
+
+    walltime: 59:00
+    nodes_per_block: 4 # Changed from 1 to 2
+    init_blocks: 0
+    min_blocks: 0
+    max_blocks: 1
