@@ -2,31 +2,25 @@ from dataclasses import dataclass, field
 import datetime
 from dotenv import load_dotenv
 import httpx
-import json
 import logging
-import os
 from pathlib import Path
 import re
 import time
 
-from authlib.jose import JsonWebKey
 from prefect import flow, get_run_logger, task
 from prefect.variables import Variable
 from sfapi_client import Client
-from sfapi_client.compute import Machine
 from typing import Any, Optional
 
 from orchestration.flows.bl832.config import Config832
-
-from orchestration.flows.bl832.job_controller import get_controller, HPC, NERSCLoginMethod, TomographyHPCController
+from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
 from orchestration.flows.bl832.streaming_mixin import (
     NerscStreamingMixin, SlurmJobBlock, cancellation_hook, monitor_streaming_job, save_block
 )
-from orchestration.mlflow import get_checkpoint_info
-from orchestration.globus.get_globus_token import (
-    get_iri_access_token,
-    DEFAULT_TOKEN_FILE,
-)
+from orchestration.jobs.nersc.controller import NERSCJobController
+from orchestration.jobs.nersc.login import NERSCLoginMethod
+from orchestration.jobs.nersc.shifter import pull_shifter_image, check_shifter_image
+from orchestration.jobs.options import load_job_options
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.prune_controller import get_prune_controller, PruneMethod
 from orchestration.tiled import register_file_to_tiled
@@ -37,15 +31,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 load_dotenv()
 
-# Applies only to NERSCLoginMethod.IRIAPI
-_IRIAPI_TOKEN_FILE_ENV: str = "PATH_GLOBUS_TOKEN_FILE"
-
 
 @dataclass
 class SegmentationModelSpec:
     """All config-resolution inputs for a single model+project combination.
 
-    Consumed by ``_load_job_options`` and the job-script builders.
+    Consumed by ``load_job_options`` and the job-script builders.
     Adding a new model or project means adding one entry to the registry —
     nothing else changes.
 
@@ -54,8 +45,6 @@ class SegmentationModelSpec:
     :param mlflow_model_name: Registered MLflow model name.
     :param mlflow_checkpoint_key: Config key populated from the MLflow
         model's ``nersc_path`` tag.
-    :param output_subdir: Subdirectory written under ``seg_folder/``,
-        e.g. ``'dino'``, ``'sam3'``, ``'dino_moon'``.
     :param extra_cli_flags: Additional flags injected into the inference
         command, e.g. ``{'--project': 'moon'}``. Omit flags not needed.
     """
@@ -66,98 +55,12 @@ class SegmentationModelSpec:
     extra_cli_flags: dict[str, str] = field(default_factory=dict)
 
 
-def _load_job_options(
-    variable_name: str,
-    config_settings: dict[str, Any],
-    config: Config832 | None = None,
-    mlflow_model_name: str | None = None,
-    mlflow_checkpoint_key: str | None = None,
-) -> dict[str, Any]:
-    """Load job options with three-layer resolution: config → MLflow → Prefect Variable.
+class NERSCTomographyHPCController(TomographyHPCController, NERSCJobController, NerscStreamingMixin):
+    """NERSC tomography HPC controller for BL832.
 
-    Resolution order (later layers win):
-
-    1. ``config_settings`` — authoritative defaults from the config YAML.
-    2. MLflow Model Registry — if ``mlflow_model_name`` is provided, all
-       ``inference_params`` tags are overlaid onto opts by their config key name.
-       ``nersc_path`` is additionally mapped to ``mlflow_checkpoint_key`` if given.
-    3. Prefect Variable (``variable_name``) — skipped if absent or ``defaults: true``.
-       If ``defaults: false``, provided keys override all lower layers.
-
-    Args:
-        variable_name: Name of the Prefect Variable to load.
-        config_settings: Settings dict from Config832 used as base defaults.
-        config: Config832 instance needed for MLflow lookup. If ``None``, the
-            MLflow layer is skipped.
-        mlflow_model_name: Registered MLflow model name, e.g. ``'sam3-petiole'``.
-            If ``None``, the MLflow layer is skipped.
-        mlflow_checkpoint_key: Config key to populate from the MLflow model's
-            ``nersc_path`` tag, e.g. ``'finetuned_checkpoint_path'``.
-
-    Returns:
-        Resolved options dict ready for use by the caller.
-    """
-    # ── Layer 1: config defaults ──────────────────────────────────────────────
-    opts = dict(config_settings)
-
-    # ── Layer 2: MLflow registry ──────────────────────────────────────────────
-    if config is not None and mlflow_model_name:
-        try:
-            checkpoint_info = get_checkpoint_info(mlflow_model_name, config)
-            if checkpoint_info:
-                # Map nersc_path to the caller-specified checkpoint key
-                if mlflow_checkpoint_key:
-                    opts[mlflow_checkpoint_key] = checkpoint_info.nersc_path
-                    logger.info(
-                        f"MLflow '{mlflow_model_name}': "
-                        f"{mlflow_checkpoint_key}={checkpoint_info.nersc_path}"
-                    )
-                # Overlay all inference params that match existing config keys
-                overlaid = []
-                for k, v in checkpoint_info.inference_params.items():
-                    if k in opts:
-                        opts[k] = v
-                        overlaid.append(k)
-                    else:
-                        # Also inject new keys (e.g. alcf_path for future use)
-                        opts[k] = v
-                logger.info(
-                    f"MLflow '{mlflow_model_name}': overlaid params: {overlaid}"
-                )
-            else:
-                logger.info(
-                    f"MLflow: no production checkpoint for '{mlflow_model_name}', "
-                    "using config defaults."
-                )
-        except Exception as e:
-            logger.warning(
-                f"MLflow lookup failed for '{mlflow_model_name}': {e}. "
-                "Using config defaults."
-            )
-
-    # ── Layer 3: Prefect Variable overrides ───────────────────────────────────
-    try:
-        options = Variable.get(variable_name, default={"defaults": True}, _sync=True)
-        if isinstance(options, str):
-            options = json.loads(options)
-    except Exception as e:
-        logger.warning(f"Could not load '{variable_name}': {e}. Skipping variable overrides.")
-        return opts
-
-    if options.get("defaults", True):
-        logger.info(f"Prefect Variable '{variable_name}': no overrides.")
-        return opts
-
-    overrides = {k: v for k, v in options.items() if k != "defaults"}
-    logger.info(f"Prefect Variable '{variable_name}': applying overrides: {list(overrides)}")
-    return {**opts, **overrides}
-
-
-class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin):
-    """
-    Implementation for a NERSC-based tomography HPC controller.
-
-    Submits reconstruction and multi-resolution jobs to NERSC via SFAPI.
+    Submits reconstruction, multi-resolution, and segmentation jobs to NERSC
+    via the SFAPI or IRI API. Beamline-agnostic job primitives (submit, wait,
+    filesystem ops) are inherited from NERSCJobController.
     """
 
     def __init__(
@@ -166,6 +69,7 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
         client: Client | httpx.Client | None = None,
         login_method: NERSCLoginMethod = NERSCLoginMethod.SFAPI,
     ) -> None:
+        NERSCJobController.__init__(self, config, client, login_method)
         TomographyHPCController.__init__(self, config)
         self.client = client
         self.login_method = login_method
@@ -175,119 +79,6 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
             self.nersc_resources = config.nersc_resources["sfapi"]
         else:
             raise ValueError(f"Unsupported NERSCLoginMethod: {login_method}")
-
-    @staticmethod
-    def create_nersc_client(
-        config: Config832,
-        login_method: NERSCLoginMethod = NERSCLoginMethod.SFAPI,
-    ) -> Client | httpx.Client:
-        """Create and return a NERSC client for the requested login method.
-
-        Two fundamentally different auth strategies are supported:
-
-        - :attr:`NERSCLoginMethod.SFAPI`: uses an Iris-registered OAuth2
-          client ID + private key (NERSC OIDC flow). Set ``PATH_NERSC_CLIENT_ID``
-          and ``PATH_NERSC_PRI_KEY`` to the paths of those files.
-
-        - :attr:`NERSCLoginMethod.IRIAPI`: uses a Globus bearer token written
-          by ``globus_token.py``. Set ``PATH_GLOBUS_TOKEN_FILE`` to the token
-          file path, or rely on the default (``~/.globus/auth_tokens.json``).
-
-        Args:
-            config: Config832 instance for accessing config settings needed during client creation.
-            login_method: Which NERSC API to authenticate against.
-                Defaults to :attr:`NERSCLoginMethod.SFAPI`.
-
-        Returns:
-            An authenticated :class:`sfapi_client.Client` instance.
-
-        Raises:
-            ValueError: If SFAPI credential environment variables are unset.
-            FileNotFoundError: If credential or token files are absent.
-            RuntimeError: If the Globus token is expired.
-            Exception: If the underlying client construction fails.
-        """
-        logger.info(f"Creating NERSC client using login method: {login_method.value}")
-
-        if login_method is NERSCLoginMethod.SFAPI:
-            api_base_url = config.nersc_resources["sfapi"]["api_base_url"]
-            client = NERSCTomographyHPCController._create_sfapi_client()
-
-        elif login_method is NERSCLoginMethod.IRIAPI:
-            api_base_url = config.nersc_resources["iri"]["api_base_url"]
-            client = NERSCTomographyHPCController._create_iriapi_client(api_base_url)
-        else:
-            raise ValueError(f"Unhandled NERSCLoginMethod: {login_method}")
-
-        logger.info(
-            f"NERSC client created successfully "
-            f"(method={login_method.value}, api_url={api_base_url})."
-        )
-        return client
-
-    @staticmethod
-    def _create_iriapi_client(api_base_url: str) -> httpx.Client:
-        """Create a NERSC client for the IRI API using a Globus bearer token.
-
-        Requires ``GLOBUS_CLIENT_ID`` and ``GLOBUS_CLIENT_SECRET`` in the
-        environment. Reuses a cached token if valid; otherwise mints a new one
-        via the client credentials grant. No browser or user interaction.
-
-        Parameters:
-            api_base_url: The base URL for the NERSC IRI API
-        Returns:
-            An authenticated :class:`httpx.Client` targeting the IRI API.
-
-        Raises:
-            ValueError: If ``GLOBUS_CLIENT_ID`` or ``GLOBUS_CLIENT_SECRET`` are unset.
-            RuntimeError: If the acquired token is missing required scopes.
-        """
-        token_file_env = os.getenv(_IRIAPI_TOKEN_FILE_ENV)
-        token_file = Path(token_file_env) if token_file_env else DEFAULT_TOKEN_FILE
-
-        access_token = get_iri_access_token(
-            token_file=token_file,
-            force_login=False,
-            prompt_login=False
-        )
-
-        return httpx.Client(
-            base_url=api_base_url,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0),
-        )
-
-    @staticmethod
-    def _create_sfapi_client() -> Client:
-        """Create and return an NERSC client instance"""
-
-        # When generating the SFAPI Key in Iris, make sure to select "asldev" as the user!
-        # Otherwise, the key will not have the necessary permissions to access the data.
-        client_id_path = os.getenv("PATH_NERSC_CLIENT_ID")
-        client_secret_path = os.getenv("PATH_NERSC_PRI_KEY")
-
-        if not client_id_path or not client_secret_path:
-            logger.error("NERSC credentials paths are missing.")
-            raise ValueError("Missing NERSC credentials paths.")
-        if not os.path.isfile(client_id_path) or not os.path.isfile(client_secret_path):
-            logger.error("NERSC credential files are missing.")
-            raise FileNotFoundError("NERSC credential files are missing.")
-
-        client_id = None
-        client_secret = None
-        with open(client_id_path, "r") as f:
-            client_id = f.read()
-
-        with open(client_secret_path, "r") as f:
-            client_secret = JsonWebKey.import_key(json.loads(f.read()))
-
-        try:
-            client = Client(client_id, client_secret)
-            logger.info("NERSC client created successfully.")
-            return client
-        except Exception as e:
-            logger.error(f"Failed to create NERSC client: {e}")
-            raise e
 
     def _get_segmentation_spec(self, model: str, project: str) -> SegmentationModelSpec:
         """Return the SegmentationModelSpec for a model+project combination.
@@ -327,234 +118,6 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
             )
         return registry[key]
 
-    def _get_nersc_username(self) -> str:
-        """Get the NERSC username for constructing pscratch paths.
-
-        Uses the sfapi_client user endpoint for SFAPI, or reads
-        ``NERSC_USERNAME`` from the environment for IRIAPI.
-
-        Returns:
-            NERSC username string.
-
-        Raises:
-            ValueError: If IRIAPI is selected and NERSC_USERNAME is unset.
-        """
-        if self.login_method is NERSCLoginMethod.SFAPI:
-            return self.client.user().name
-        else:
-            username = os.getenv("NERSC_USERNAME")
-            if not username:
-                raise ValueError(
-                    "NERSC_USERNAME must be set in the environment when using IRIAPI."
-                )
-            return username
-
-    def _submit_job(self, job_script: str, num_nodes: int = 1) -> str:
-        """Submit a Slurm job script and return the job ID.
-
-        Dispatches to the appropriate submission mechanism based on
-        ``self.login_method``.
-
-        Args:
-            job_script: The full Slurm batch script to submit.
-            num_nodes: The number of nodes to request for the job.
-
-        Returns:
-            The submitted job ID as a string.
-
-        Raises:
-            RuntimeError: If job submission fails.
-        """
-        if self.login_method is NERSCLoginMethod.SFAPI:
-            perlmutter = self.client.compute(Machine.perlmutter)
-            job = perlmutter.submit_job(job_script)
-            return str(job.jobid)
-
-        elif self.login_method is NERSCLoginMethod.IRIAPI:
-            sbatch_values = {}
-            for line in job_script.splitlines():
-                if line.startswith("#SBATCH"):
-                    if "-q " in line:
-                        sbatch_values["queue_name"] = line.split("-q ")[-1].strip()
-                    elif "-A " in line:
-                        sbatch_values["account"] = line.split("-A ")[-1].strip()
-                    elif "--time=" in line:
-                        t = line.split("--time=")[-1].strip()
-                        parts = t.split(":")
-                        sbatch_values["duration"] = int(parts[0])*3600 + int(parts[1])*60 + int(parts[2])
-                    elif "-N " in line:
-                        sbatch_values["node_count"] = int(line.split("-N ")[-1].strip())
-                    elif "-C " in line:
-                        sbatch_values["constraint"] = line.split("-C ")[-1].strip()
-                    elif "--output=" in line:
-                        sbatch_values["stdout_path"] = line.split("--output=")[-1].strip()
-                    elif "--error=" in line:
-                        sbatch_values["stderr_path"] = line.split("--error=")[-1].strip()
-                    elif "--reservation=" in line:
-                        sbatch_values["reservation"] = line.split("--reservation=")[-1].strip()
-
-            # Strip shebang and SBATCH headers, keep the script body
-            script_body = "\n".join(
-                line for line in job_script.splitlines()
-                if not line.startswith("#SBATCH") and not line.startswith("#!/")
-            ).strip()
-
-            constraint = sbatch_values.get("constraint", "cpu")
-            is_gpu = "gpu" in constraint.lower()
-
-            resources = {
-                "node_count": sbatch_values.get("node_count", 1),
-                "processes_per_node": 1,
-                "exclusive_node_use": True,
-            }
-            if is_gpu:
-                resources["gpu_cores_per_process"] = 4
-            else:
-                resources["cpu_cores_per_process"] = 128
-
-            custom_attributes = {"constraint": constraint}
-
-            attributes = {
-                "duration": sbatch_values.get("duration", 1800),
-                "queue_name": sbatch_values.get("queue_name", "regular"),
-                "account": sbatch_values.get("account", "als"),
-                "custom_attributes": custom_attributes,
-            }
-            if "reservation" in sbatch_values:
-                attributes["reservation_id"] = sbatch_values["reservation"]
-
-            job_spec = {
-                "executable": "/bin/bash",
-                "arguments": ["-s"],       # read script from stdin isn't supported, so...
-                "pre_launch": script_body,  # run the body here before the executable
-                "resources": resources,
-                "attributes": attributes,
-            }
-
-            if "stdout_path" in sbatch_values:
-                job_spec["stdout_path"] = sbatch_values["stdout_path"]
-            if "stderr_path" in sbatch_values:
-                job_spec["stderr_path"] = sbatch_values["stderr_path"]
-
-            response = self.client.post(
-                f"/api/v1/compute/job/{self.nersc_resources['perlmutter_job_submit']}",
-                json=job_spec,
-            )
-            if not response.is_success:
-                logger.error(f"Job submission failed: {response.status_code} {response.text}")
-                logger.error(f"Job spec was: {json.dumps(job_spec, indent=2)}")
-            response.raise_for_status()
-            return str(response.json()["id"])
-
-        else:
-            raise ValueError(f"Unhandled NERSCLoginMethod: {self.login_method}")
-
-    def _wait_for_job(self, job_id: str) -> bool:
-        """Block until a submitted job completes.
-
-        Dispatches to the appropriate polling mechanism based on
-        ``self.login_method``.
-
-        Args:
-            job_id: The job ID returned by `_submit_job`.
-
-        Returns:
-            True if the job completed successfully, False otherwise.
-        """
-        if self.login_method is NERSCLoginMethod.SFAPI:
-            perlmutter = self.client.compute(Machine.perlmutter)
-            job = perlmutter.job(jobid=job_id)
-            job.complete()
-            return True
-
-        elif self.login_method is NERSCLoginMethod.IRIAPI:
-            while True:
-                response = self.client.get(
-                    f"/api/v1/compute/status/{self.nersc_resources['compute_resource']}/{job_id}"
-                )
-                response.raise_for_status()
-                state = response.json().get("status", {}).get("state")
-                logger.info(f"Job {job_id} state: {state}")
-                if state == "completed":
-                    return True
-                if state in ("failed", "canceled", "timeout"):
-                    logger.error(f"Job {job_id} ended with state: {state}")
-                    return False
-                time.sleep(60)
-
-        else:
-            raise ValueError(f"Unhandled NERSCLoginMethod: {self.login_method}")
-
-    def _mkdir_remote(self, path: str) -> None:
-        """Create a directory on Perlmutter remotely.
-
-        Args:
-            path: Absolute path to create.
-        """
-        if self.login_method is NERSCLoginMethod.SFAPI:
-            perlmutter = self.client.compute(Machine.perlmutter)
-            perlmutter.run(f"mkdir -p {path}")
-        elif self.login_method is NERSCLoginMethod.IRIAPI:
-            response = self.client.post(
-                f"/api/v1/filesystem/mkdir/{self.nersc_resources['perlmutter_login']}",
-                json={"path": path, "parents": True},
-            )
-            response.raise_for_status()
-        else:
-            raise ValueError(f"Unhandled NERSCLoginMethod: {self.login_method}")
-
-    def _read_remote_file(self, path: str) -> str:
-        """Read a remote file on Perlmutter and return its contents.
-
-        Args:
-            path: Absolute path to the file on Perlmutter.
-
-        Returns:
-            File contents as a string.
-        """
-        if self.login_method is NERSCLoginMethod.SFAPI:
-            perlmutter = self.client.compute(Machine.perlmutter)
-            result = perlmutter.run(f"cat {path}")
-            if isinstance(result, str):
-                return result
-            elif hasattr(result, 'output'):
-                return result.output
-            elif hasattr(result, 'stdout'):
-                return result.stdout
-            return str(result)
-
-        elif self.login_method is NERSCLoginMethod.IRIAPI:
-            response = self.client.get(
-                f"/api/v1/filesystem/view/{self.nersc_resources['perlmutter_login']}",
-                params={"path": path},
-            )
-            response.raise_for_status()
-            task_id = response.json().get("task_id")
-            if not task_id:
-                return response.text
-
-            for _ in range(40):
-                task_response = self.client.get(f"/api/v1/task/{task_id}")
-                task_response.raise_for_status()
-                task = task_response.json()
-                status = task.get("status")
-                if status == "completed":
-                    result = task.get("result", "")
-                    if isinstance(result, dict):
-                        output = result.get("output", result)
-                        if isinstance(output, dict):
-                            return output.get("content", str(output))
-                        return str(output)
-                    return str(result)
-                elif status == "failed":
-                    raise RuntimeError(f"File read task {task_id} failed: {task.get('result')}")
-                time.sleep(3)
-
-            raise TimeoutError(f"File read task {task_id} did not complete")
-
-        else:
-            raise ValueError(f"Unhandled NERSCLoginMethod: {self.login_method}")
-
     def reconstruct(
         self,
         file_path: str = "",
@@ -569,7 +132,7 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
         """
         logger.info("Starting NERSC reconstruction process.")
 
-        username = self._get_nersc_username()
+        username = self.get_nersc_username()
 
         raw_path = self.config.nersc832_alsdev_raw.root_path
         logger.info(f"{raw_path=}")
@@ -597,7 +160,7 @@ class NERSCTomographyHPCController(TomographyHPCController, NerscStreamingMixin)
         logger.info(f"Folder name: {folder_name}")
         logger.info(f"Number of nodes: {num_nodes}")
 
-        opts = _load_job_options("nersc-reconstruction-options", self.config.nersc_recon_settings)
+        opts = load_job_options("nersc-reconstruction-options", self.config.nersc_recon_settings)
 
         logger.info(f"Resolved options: {opts}")
 
@@ -739,10 +302,10 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
         job_id = None
         try:
             logger.info("Submitting reconstruction job to Perlmutter.")
-            job_id = self._submit_job(job_script)
+            job_id = self.submit_job(job_script)
             logger.info(f"Submitted job ID: {job_id}")
             time.sleep(60)
-            success = self._wait_for_job(job_id)
+            success = self.wait_for_job(job_id)
             timing = self._fetch_timing_data(pscratch_path, job_id) if success else None
             return {"success": success, "job_id": job_id, "timing": timing}
         except Exception as e:
@@ -760,7 +323,7 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
         timing_file = f"{pscratch_path}/tomo_recon_logs/timing_{job_id}.txt"
 
         try:
-            output = self._read_remote_file(timing_file)
+            output = self.read_remote_file(timing_file)
 
             logger.info(f"Timing file contents:\n{output}")
 
@@ -816,7 +379,7 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
 
         logger.info("Starting NERSC multiresolution process.")
 
-        username = self._get_nersc_username()
+        username = self.get_nersc_username()
 
         multires_image = self.config.ghcr_images832["multires_image"]
         logger.info(f"{multires_image=}")
@@ -842,7 +405,7 @@ echo "JOB_END=$(date +%s)" >> $TIMING_FILE
 
         # account = self.config.nersc_account
 
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-multiresolution-options", self.config.nersc_multiresolution_settings
         )
 
@@ -883,10 +446,10 @@ date
 """
         try:
             logger.info("Submitting Tiff to Zarr job to Perlmutter.")
-            job_id = self._submit_job(job_script)
+            job_id = self.submit_job(job_script)
             logger.info(f"Submitted job ID: {job_id}")
             time.sleep(60)
-            success = self._wait_for_job(job_id)
+            success = self.wait_for_job(job_id)
             logger.info(f"Multiresolution job {'completed' if success else 'failed'}.")
             return success
         except Exception as e:
@@ -903,10 +466,10 @@ date
         """
         logger.info("Starting NERSC segmentation process (inference_v6).")
 
-        username = self._get_nersc_username()
+        username = self.get_nersc_username()
         pscratch_path = f"/pscratch/sd/{username[0]}/{username}"
 
-        opts = _load_job_options(
+        opts = load_job_options(
             variable_name="nersc-segmentation-options",
             config_settings=self.config.nersc_segment_sam3_settings,
             config=self.config,
@@ -1098,14 +661,14 @@ exit $SEG_STATUS
 
             # Ensure directories exist
             logger.info("Creating necessary directories...")
-            self._mkdir_remote(f"{pscratch_path}/tomo_seg_logs")
-            self._mkdir_remote(output_dir)
+            self.mkdir_remote(f"{pscratch_path}/tomo_seg_logs")
+            self.mkdir_remote(output_dir)
 
             # Submit job
-            job_id = self._submit_job(job_script)
+            job_id = self.submit_job(job_script)
             logger.info(f"Submitted job ID: {job_id}")
             time.sleep(60)
-            success = self._wait_for_job(job_id)
+            success = self.wait_for_job(job_id)
             logger.info("Segmentation job completed successfully.")
 
             timing = self._fetch_seg_timing_from_output(pscratch_path, job_id, job_name)
@@ -1154,12 +717,12 @@ exit $SEG_STATUS
         """
         logger.info("Starting NERSC DINOv3 segmentation process.")
 
-        username = self._get_nersc_username()
+        username = self.get_nersc_username()
         pscratch_path = f"/pscratch/sd/{username[0]}/{username}"
 
         # Load from config
         spec = self._get_segmentation_spec("dinov3", project)
-        opts = _load_job_options(
+        opts = load_job_options(
             variable_name=spec.variable_name,
             config_settings=spec.settings,
             config=self.config,
@@ -1295,10 +858,10 @@ exit $SEG_STATUS
 """
         try:
             logger.info("Submitting DINOv3 segmentation job to Perlmutter.")
-            job_id = self._submit_job(job_script)
+            job_id = self.submit_job(job_script)
             logger.info(f"Submitted job ID: {job_id}")
             time.sleep(60)
-            success = self._wait_for_job(job_id)
+            success = self.wait_for_job(job_id)
             logger.info(f"DINOv3 segmentation job {'completed successfully' if success else 'failed'}.")
             return success
         except Exception as e:
@@ -1319,10 +882,10 @@ exit $SEG_STATUS
         """
         logger.info("Starting NERSC segmentation combination process.")
 
-        username = self._get_nersc_username()
+        username = self.get_nersc_username()
         pscratch_path = f"/pscratch/sd/{username[0]}/{username}"
 
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-combine-seg-options", self.config.nersc_combine_segmentation_settings
         )
 
@@ -1419,10 +982,10 @@ exit 0
 """
         try:
             logger.info("Submitting segmentation combination job to Perlmutter.")
-            job_id = self._submit_job(job_script)
+            job_id = self.submit_job(job_script)
             logger.info(f"Submitted job ID: {job_id}")
             time.sleep(60)
-            success = self._wait_for_job(job_id)
+            success = self.wait_for_job(job_id)
             logger.info(f"Segmentation combination job {'completed successfully' if success else 'failed'}.")
             return success
         except Exception as e:
@@ -1441,7 +1004,7 @@ exit 0
         output_file = f"{pscratch_path}/tomo_seg_logs/{job_name}_{job_id}.out"
 
         try:
-            output = self._read_remote_file(output_file)
+            output = self.read_remote_file(output_file)
 
             logger.info("Job output file contents (last 50 lines):")
             lines = output.strip().split('\n')
@@ -1500,140 +1063,6 @@ exit 0
             client=self.client,
             walltime=walltime
         )
-
-    def pull_shifter_image(
-        self,
-        image: str = None,
-        wait: bool = True,
-    ) -> bool:
-        """
-        Pull a container image into NERSC's Shifter cache.
-
-        This should be run once when the image is updated, not before every reconstruction.
-        After the image is cached, jobs using --image= will start much faster.
-
-        :param image: Container image to pull (defaults to recon_image from config)
-        :param wait: Whether to wait for the pull to complete
-        :return: True if successful, False otherwise
-        """
-        logger.info("Starting Shifter image pull.")
-
-        username = self._get_nersc_username()
-        pscratch_path = f"/pscratch/sd/{username[0]}/{username}"
-
-        if image is None:
-            image = self.config.ghcr_images832["recon_image"]
-
-        logger.info(f"Pulling image: {image}")
-
-        job_script = f"""#!/bin/bash
-#SBATCH -q debug
-#SBATCH -A als
-#SBATCH -C cpu
-#SBATCH --job-name=shifter_pull
-#SBATCH --output={pscratch_path}/tomo_recon_logs/shifter_pull_%j.out
-#SBATCH --error={pscratch_path}/tomo_recon_logs/shifter_pull_%j.err
-#SBATCH -N 1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --time=0:15:00
-
-echo "Starting Shifter image pull at $(date)"
-echo "Image: {image}"
-
-# Check if image already exists
-echo "Checking existing images..."
-shifterimg images | grep -E "$(echo {image} | sed 's/:/.*/')" || true
-
-# Pull the image
-echo "Pulling image..."
-shifterimg -v pull {image}
-PULL_STATUS=$?
-
-if [ $PULL_STATUS -eq 0 ]; then
-    echo "Image pull successful"
-else
-    echo "Image pull failed with status $PULL_STATUS"
-    exit 1
-fi
-
-# Verify the image is now available
-echo "Verifying image..."
-shifterimg images | grep -E "$(echo {image} | sed 's/:/.*/')"
-
-echo "Completed at $(date)"
-"""
-
-        try:
-            logger.info("Submitting Shifter image pull job to Perlmutter.")
-            job_id = self._submit_job(job_script)
-            logger.info(f"Submitted job ID: {job_id}")
-
-            if wait:
-                time.sleep(30)
-                success = self._wait_for_job(job_id)
-                logger.info(f"Shifter image pull {'completed successfully' if success else 'failed'}.")
-                return success
-            else:
-                logger.info(f"Job submitted. Check status with job ID: {job_id}")
-                return True
-
-        except Exception as e:
-            logger.error(f"Error during Shifter image pull: {e}")
-            return False
-
-    def check_shifter_image(
-        self,
-        image: str = None,
-    ) -> bool:
-        """
-        Check if a container image is already in NERSC's Shifter cache.
-
-        :param image: Container image to check (defaults to recon_image from config)
-        :return: True if image exists in cache, False otherwise
-        """
-        logger.info("Checking Shifter image cache.")
-
-        if image is None:
-            image = self.config.ghcr_images832["recon_image"]
-
-        try:
-            # Run shifterimg images command
-            if self.login_method is NERSCLoginMethod.SFAPI:
-                # synchronous via utilities/command
-                perlmutter = self.client.compute(Machine.perlmutter)
-                result = perlmutter.run(f"shifterimg images | grep -E \"$(echo {image} | sed 's/:/.*/g')\"")
-                output = result if isinstance(result, str) else getattr(result, 'output', str(result))
-
-            elif self.login_method is NERSCLoginMethod.IRIAPI:
-                # async: submit job → wait → read stdout file
-                username = self._get_nersc_username()
-                pscratch_path = f"/pscratch/sd/{username[0]}/{username}"
-                output_file = f"{pscratch_path}/tomo_recon_logs/shifter_check.txt"
-                check_script = f"""#!/bin/bash
-#SBATCH -q debug
-#SBATCH -A als
-#SBATCH -C cpu
-#SBATCH -N 1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --time=0:05:00
-shifterimg images | grep -E "$(echo {image} | sed 's/:/.*/g')" > {output_file} 2>&1 || true
-"""
-                job_id = self._submit_job(check_script)
-                self._wait_for_job(job_id)
-                output = self._read_remote_file(output_file)
-
-            if output.strip():
-                logger.info(f"Image found in Shifter cache: {output.strip()}")
-                return True
-            else:
-                logger.info(f"Image not found in Shifter cache: {image}")
-                return False
-
-        except Exception as e:
-            logger.warning(f"Error checking Shifter cache: {e}")
-            return False
 
 
 def schedule_pruning(
@@ -1908,14 +1337,6 @@ def nersc_recon_flow(
     nersc_to_beegfs_zarr_future.result()
     logger.info("All transfers complete.")
 
-    # Register the reconstructed TIFFs in tiled
-    register_file_to_tiled(
-        path=Path(config.beegfs_scratch.root_path+tiff_file_path),
-        prefix="beamlines/bl832/scratch",
-        overwrite=False,
-        tags=["scratch", "bl832"],
-    )
-
     # Register the reconstructed ZARRs in tiled
     register_file_to_tiled(
         path=Path(config.beegfs_scratch.root_path+zarr_file_path),
@@ -1954,6 +1375,7 @@ def nersc_petiole_segment_flow(
     :param file_path: The path to the file to be processed.
     :param config: Configuration object for the flow.
     :param num_nodes: Number of nodes for reconstruction.
+    :login_method: Method to use for logging into NERSC (default: SFAPI).
     :return: True if reconstruction and at least one segmentation task succeeded.
     """
     logger = get_run_logger()
@@ -1996,7 +1418,6 @@ def nersc_petiole_segment_flow(
         file_path=file_path,
         num_nodes=num_nodes,
         config=config,
-        login_method=login_method
     )
 
     if isinstance(recon_result, dict):
@@ -2050,7 +1471,7 @@ def nersc_petiole_segment_flow(
     logger.info("Submitting SAM3 and DINOv3 segmentation tasks concurrently.")
 
     sam3_future = nersc_segmentation_sam3_task.submit(
-        recon_folder_path=scratch_path_tiff, config=config, login_method=login_method
+        recon_folder_path=scratch_path_tiff, config=config
     )
     dinov3_future = nersc_segmentation_dinov3_task.submit(
         recon_folder_path=scratch_path_tiff, config=config, project="petiole", login_method=login_method
@@ -2103,7 +1524,7 @@ def nersc_petiole_segment_flow(
         logger.info("Running segmentation combination.")
 
         combine_future = nersc_combine_segmentations_task.submit(
-            recon_folder_path=scratch_path_tiff, config=config, login_method=login_method
+            recon_folder_path=scratch_path_tiff, config=config
         )
 
         combine_success = combine_future.result()
@@ -2535,10 +1956,10 @@ def pull_shifter_image_flow(
     )
 
     # Check if already cached
-    if controller.check_shifter_image(image):
+    if check_shifter_image(controller, image):
         logger.info("Image already in cache, pulling anyway to update...")
 
-    success = controller.pull_shifter_image(image)
+    success = pull_shifter_image(controller, image)
     logger.info(f"Shifter image pull success: {success}")
 
     return success
@@ -2581,7 +2002,7 @@ def nersc_multiresolution_task(
 
     :param file_path: Path to the reconstructed data folder to be processed.
     :param config: Configuration object for the flow.
-    :param login_method: NERSC API to authenticate against.
+    :param login_method: Method to use for logging into NERSC (default: SFAPI).
     :return: True if the task completed successfully, False otherwise.
     """
     logger = get_run_logger()

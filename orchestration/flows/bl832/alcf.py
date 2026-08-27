@@ -1,45 +1,33 @@
-from concurrent.futures import Future
 import datetime
+import logging
 from pathlib import Path
-import time
 from typing import Optional
 
-from globus_compute_sdk import Client, Executor
-from globus_compute_sdk.serialize import CombinedCode
 from prefect import flow, task, get_run_logger
-from prefect.blocks.system import Secret
 from prefect.variables import Variable
 
 from orchestration.flows.bl832.config import Config832
 from orchestration.flows.bl832.job_controller import get_controller, HPC, TomographyHPCController
+from orchestration.jobs.alcf.controller import ALCFJobController
 from orchestration.transfer_controller import get_transfer_controller, CopyMethod
 from orchestration.prefect import schedule_prefect_flow
 from orchestration.tiled import register_file_to_tiled
 
+logger = logging.getLogger(__name__)
 
-class ALCFTomographyHPCController(TomographyHPCController):
+
+class ALCFTomographyHPCController(TomographyHPCController, ALCFJobController):
+    """ALCF tomography HPC controller for BL832.
+
+    Submits reconstruction and multi-resolution jobs to ALCF via Globus Compute.
+    Beamline-agnostic submit/wait primitives are inherited from ALCFJobController.
     """
-    Implementation of TomographyHPCController for ALCF. Methods here leverage Globus Compute for processing tasks.
-    There is a @staticmethod wrapper for each compute task submitted via Globus Compute.
-    Also, there is a shared wait_for_globus_compute_future method that waits for the task to complete.
 
-    Args:
-        TomographyHPCController (ABC): Abstract class for tomography HPC controllers.
-    """
-
-    def __init__(
-        self,
-        config: Config832
-    ) -> None:
-        super().__init__(config)
-        # Load allocation root from the Prefect JSON block
-        # The block must be registered with the name "alcf-allocation-root-path"
-        logger = get_run_logger()
-        allocation_data = Variable.get("alcf-allocation-root-path", _sync=True)
-        self.allocation_root = allocation_data.get("alcf-allocation-root-path")
-        if not self.allocation_root:
-            raise ValueError("Allocation root not found in JSON block 'alcf-allocation-root-path'")
-        logger.info(f"Allocation root loaded: {self.allocation_root}")
+    def __init__(self, config: Config832) -> None:
+        # ALCF doesn't take a pre-built client — Globus Compute Client is
+        # constructed inside ALCFJobController.submit() per-call.
+        ALCFJobController.__init__(self, config)
+        TomographyHPCController.__init__(self, config)
 
     def reconstruct(
         self,
@@ -54,26 +42,22 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
-        logger = get_run_logger()
+        run_logger = get_run_logger()
         file_name = Path(file_path).stem + ".h5"
         folder_name = Path(file_path).parent.name
 
         iri_als_bl832_rundir = f"{self.allocation_root}/data/raw"
         iri_als_bl832_recon_script = f"{self.allocation_root}/scripts/globus_reconstruction.py"
 
-        gcc = Client(code_serialization_strategy=CombinedCode())
-
-        with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
-            logger.info(f"Running Tomopy reconstruction on {file_name} at ALCF")
-            future = fxe.submit(
-                self._reconstruct_wrapper,
-                iri_als_bl832_rundir,
-                iri_als_bl832_recon_script,
-                file_name,
-                folder_name
-            )
-            result = self._wait_for_globus_compute_future(future, "reconstruction", check_interval=10)
-            return result
+        run_logger.info(f"Running Tomopy reconstruction on {file_name} at ALCF")
+        future = self.submit(
+            self._reconstruct_wrapper,
+            iri_als_bl832_rundir,
+            iri_als_bl832_recon_script,
+            file_name,
+            folder_name,
+        )
+        return self.wait_for_future(future, "reconstruction", check_interval=10)
 
     @staticmethod
     def _reconstruct_wrapper(
@@ -129,7 +113,7 @@ class ALCFTomographyHPCController(TomographyHPCController):
         Returns:
             bool: True if the task completed successfully, False otherwise.
         """
-        logger = get_run_logger()
+        run_logger = get_run_logger()
 
         file_name = Path(file_path).stem
         folder_name = Path(file_path).parent.name
@@ -140,19 +124,15 @@ class ALCFTomographyHPCController(TomographyHPCController):
         iri_als_bl832_rundir = f"{self.allocation_root}/data/raw"
         iri_als_bl832_conversion_script = f"{self.allocation_root}/scripts/tiff_to_zarr.py"
 
-        gcc = Client(code_serialization_strategy=CombinedCode())
-
-        with Executor(endpoint_id=Secret.load("globus-compute-endpoint").get(), client=gcc) as fxe:
-            logger.info(f"Running Tiff to Zarr on {raw_path} at ALCF")
-            future = fxe.submit(
-                self._build_multi_resolution_wrapper,
-                iri_als_bl832_rundir,
-                iri_als_bl832_conversion_script,
-                tiff_scratch_path,
-                raw_path
-            )
-            result = self._wait_for_globus_compute_future(future, "tiff to zarr conversion", check_interval=10)
-            return result
+        run_logger.info(f"Running Tiff to Zarr on {raw_path} at ALCF")
+        future = self.submit(
+            self._build_multi_resolution_wrapper,
+            iri_als_bl832_rundir,
+            iri_als_bl832_conversion_script,
+            tiff_scratch_path,
+            raw_path,
+        )
+        return self.wait_for_future(future, "tiff to zarr conversion", check_interval=10)
 
     @staticmethod
     def _build_multi_resolution_wrapper(
@@ -186,76 +166,6 @@ class ALCFTomographyHPCController(TomographyHPCController):
             f"Converted tiff files to zarr;\n {zarr_res}"
         )
 
-    @staticmethod
-    def _wait_for_globus_compute_future(
-        future: Future,
-        task_name: str,
-        check_interval: int = 20,
-        walltime: int = 1200  # seconds = 20 minutes
-    ) -> bool:
-        """
-        Wait for a Globus Compute task to complete, assuming that if future.done() is False, the task is running.
-
-        Args:
-            future: The future object returned from the Globus Compute Executor submit method.
-            task_name: A descriptive name for the task being executed (used for logging).
-            check_interval: The interval (in seconds) between status checks.
-            walltime: The maximum time (in seconds) to wait for the task to complete.
-
-        Returns:
-            bool: True if the task completed successfully within walltime, False otherwise.
-        """
-        logger = get_run_logger()
-
-        start_time = time.time()
-        success = False
-
-        try:
-            previous_state = None
-            while not future.done():
-                elapsed_time = time.time() - start_time
-                if elapsed_time > walltime:
-                    logger.error(f"The {task_name} task exceeded the walltime of {walltime} seconds."
-                                 "Cancelling the Globus Compute job.")
-                    future.cancel()
-                    return False
-
-                # Check if the task was cancelled
-                if future.cancelled():
-                    logger.warning(f"The {task_name} task was cancelled.")
-                    return False
-                # Assume the task is running if not done and not cancelled
-                elif previous_state != 'running':
-                    logger.info(f"The {task_name} task is running...")
-                    previous_state = 'running'
-
-                time.sleep(check_interval)  # Wait before the next status check
-
-            # Task is done, check if it was cancelled or raised an exception
-            if future.cancelled():
-                logger.warning(f"The {task_name} task was cancelled after completion.")
-                return False
-
-            exception = future.exception()
-            if exception:
-                logger.error(f"The {task_name} task raised an exception: {exception}")
-                return False
-
-            # Task completed successfully
-            result = future.result()
-            logger.info(f"The {task_name} task completed successfully with result: {result}")
-            success = True
-
-        except Exception as e:
-            logger.error(f"An error occurred while waiting for the {task_name} task: {str(e)}")
-            success = False
-
-        finally:
-            # Log the total time taken for the task
-            elapsed_time = time.time() - start_time
-            logger.info(f"Total duration of the {task_name} task: {elapsed_time:.2f} seconds.")
-
-        return success
 
 
 @task(name="schedule_prune_task")

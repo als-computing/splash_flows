@@ -201,60 +201,6 @@ def mock_iriapi_client(mocker):
 
     return client
 
-# ---------------------------------------------------------------------------
-# _create_sfapi_client
-# ---------------------------------------------------------------------------
-
-
-def test_create_sfapi_client_success(mocker):
-    """Valid credentials produce a Client instance."""
-    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
-
-    mocker.patch("orchestration.flows.bl832.nersc.os.getenv", side_effect=lambda x: {
-        "PATH_NERSC_CLIENT_ID": "/path/to/client_id",
-        "PATH_NERSC_PRI_KEY": "/path/to/client_secret",
-    }.get(x))
-    mocker.patch("orchestration.flows.bl832.nersc.os.path.isfile", return_value=True)
-    mocker.patch(
-        "builtins.open",
-        side_effect=[
-            mocker.mock_open(read_data="my-client-id")(),
-            mocker.mock_open(read_data='{"kty": "RSA", "n": "x", "e": "y"}')(),
-        ]
-    )
-    mocker.patch("orchestration.flows.bl832.nersc.JsonWebKey.import_key", return_value="mock_secret")
-    mock_client_cls = mocker.patch("orchestration.flows.bl832.nersc.Client")
-
-    client = NERSCTomographyHPCController._create_sfapi_client()
-
-    mock_client_cls.assert_called_once_with("my-client-id", "mock_secret")
-    assert client is mock_client_cls.return_value
-
-
-def test_create_sfapi_client_missing_paths(mocker):
-    """Unset env vars raise ValueError."""
-    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
-
-    mocker.patch("orchestration.flows.bl832.nersc.os.getenv", return_value=None)
-
-    with pytest.raises(ValueError, match="Missing NERSC credentials paths."):
-        NERSCTomographyHPCController._create_sfapi_client()
-
-
-def test_create_sfapi_client_missing_files(mocker):
-    """Env vars set but files absent raise FileNotFoundError."""
-    from orchestration.flows.bl832.nersc import NERSCTomographyHPCController
-
-    mocker.patch("orchestration.flows.bl832.nersc.os.getenv", side_effect=lambda x: {
-        "PATH_NERSC_CLIENT_ID": "/path/to/client_id",
-        "PATH_NERSC_PRI_KEY": "/path/to/client_secret",
-    }.get(x))
-    mocker.patch("orchestration.flows.bl832.nersc.os.path.isfile", return_value=False)
-
-    with pytest.raises(FileNotFoundError, match="NERSC credential files are missing."):
-        NERSCTomographyHPCController._create_sfapi_client()
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # build_multi_resolution
 # ──────────────────────────────────────────────────────────────────────────────
@@ -304,7 +250,7 @@ def test_segmentation_sam3_success(mocker, mock_sfapi_client, mock_config832):
     from sfapi_client.compute import Machine
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
         config=mock_config832,
@@ -326,7 +272,7 @@ def test_segmentation_sam3_submission_failure(mocker, mock_sfapi_client, mock_co
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     mock_sfapi_client.compute.return_value.submit_job.side_effect = Exception("GPU queue full")
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
@@ -346,7 +292,7 @@ def test_segmentation_sam3_uses_variable_options(mocker, mock_sfapi_client, mock
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={
         "defaults": False,
         "batch_size": 8,
         "patch_size": 512,
@@ -395,7 +341,7 @@ def test_segmentation_dinov3_success(mocker, mock_sfapi_client, mock_config832):
     from sfapi_client.compute import Machine
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
         config=mock_config832,
@@ -414,7 +360,7 @@ def test_segmentation_dinov3_submission_failure(mocker, mock_sfapi_client, mock_
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     mock_sfapi_client.compute.return_value.submit_job.side_effect = Exception("No GPU nodes")
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
@@ -522,7 +468,7 @@ def test_reconstruct_iriapi_job_failed(mocker, mock_iriapi_client, mock_config83
 
     monkeypatch.setenv("NERSC_USERNAME", "alsdev")
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mock_iriapi_client.get.return_value.json.return_value = {"status": {"state": "failed"}}  # was {"state": "FAILED"}
+    mock_iriapi_client.get.return_value.json.return_value = {"status": {"state": "failed"}}
 
     controller = NERSCTomographyHPCController(
         client=mock_iriapi_client,
@@ -605,7 +551,7 @@ def test_segmentation_dinov3_output_paths(mocker, mock_sfapi_client, mock_config
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
 
     captured_scripts = []
     original_return = mock_sfapi_client.compute.return_value.submit_job.return_value
@@ -636,7 +582,7 @@ def test_combine_segmentations_success(mocker, mock_sfapi_client, mock_config832
     from sfapi_client.compute import Machine
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
         config=mock_config832,
@@ -655,7 +601,7 @@ def test_combine_segmentations_submission_failure(mocker, mock_sfapi_client, moc
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
     mock_sfapi_client.compute.return_value.submit_job.side_effect = Exception("Cluster down")
     controller = NERSCTomographyHPCController(
         client=mock_sfapi_client,
@@ -673,7 +619,7 @@ def test_combine_segmentations_script_references_sam3_and_dino(mocker, mock_sfap
     from orchestration.flows.bl832.nersc import NERSCTomographyHPCController, NERSCLoginMethod
 
     mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
-    mocker.patch("orchestration.flows.bl832.nersc.Variable.get", return_value={"defaults": True})
+    mocker.patch("orchestration.jobs.options.Variable.get", return_value={"defaults": True})
 
     captured_scripts = []
     original_return = mock_sfapi_client.compute.return_value.submit_job.return_value

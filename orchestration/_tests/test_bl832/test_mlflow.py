@@ -226,13 +226,13 @@ class TestLoadJobOptionsMLflowLayer:
 
     def _patch_variable_defaults(self, mocker):
         mocker.patch(
-            "orchestration.flows.bl832.nersc.Variable.get",
+            "orchestration.jobs.options.Variable.get",
             return_value={"defaults": True},
         )
 
     def test_mlflow_nersc_path_mapped_to_checkpoint_key(self, mocker, mock_config832):
         """When MLflow returns a checkpoint, nersc_path is written to mlflow_checkpoint_key."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
         from orchestration.mlflow import ModelCheckpointInfo
 
         self._patch_variable_defaults(mocker)
@@ -246,12 +246,12 @@ class TestLoadJobOptionsMLflowLayer:
             inference_params={},
         )
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             return_value=checkpoint_info,
         )
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -263,7 +263,7 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_mlflow_inference_params_overlay_config_defaults(self, mocker, mock_config832):
         """inference_params from MLflow overwrite matching config keys."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
         from orchestration.mlflow import ModelCheckpointInfo
 
         self._patch_variable_defaults(mocker)
@@ -281,12 +281,12 @@ class TestLoadJobOptionsMLflowLayer:
             },
         )
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             return_value=checkpoint_info,
         )
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -300,13 +300,13 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_mlflow_layer_skipped_when_config_is_none(self, mocker, mock_config832):
         """Passing config=None skips the MLflow layer entirely."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
 
         self._patch_variable_defaults(mocker)
-        spy = mocker.patch("orchestration.flows.bl832.nersc.get_checkpoint_info")
+        spy = mocker.patch("orchestration.jobs.options.get_checkpoint_info")
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=None,
@@ -320,13 +320,13 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_mlflow_layer_skipped_when_model_name_is_none(self, mocker, mock_config832):
         """Passing mlflow_model_name=None skips the MLflow layer."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
 
         self._patch_variable_defaults(mocker)
-        spy = mocker.patch("orchestration.flows.bl832.nersc.get_checkpoint_info")
+        spy = mocker.patch("orchestration.jobs.options.get_checkpoint_info")
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        _load_job_options(
+        load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -337,16 +337,16 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_config_defaults_used_when_mlflow_returns_none(self, mocker, mock_config832):
         """get_checkpoint_info returning None → config defaults unchanged."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
 
         self._patch_variable_defaults(mocker)
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             return_value=None,
         )
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -358,16 +358,16 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_config_defaults_used_when_mlflow_raises(self, mocker, mock_config832):
         """An exception from get_checkpoint_info is caught; config defaults are used."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
 
         self._patch_variable_defaults(mocker)
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             side_effect=RuntimeError("Network timeout"),
         )
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -379,12 +379,12 @@ class TestLoadJobOptionsMLflowLayer:
 
     def test_prefect_variable_wins_over_mlflow(self, mocker, mock_config832):
         """Prefect Variable overrides take priority over MLflow inference params (layer 3 > layer 2)."""
-        from orchestration.flows.bl832.nersc import _load_job_options
+        from orchestration.jobs.options import load_job_options
         from orchestration.mlflow import ModelCheckpointInfo
 
         # MLflow says batch_size=8; Prefect Variable says batch_size=16 → 16 wins
         mocker.patch(
-            "orchestration.flows.bl832.nersc.Variable.get",
+            "orchestration.jobs.options.Variable.get",
             return_value={"defaults": False, "batch_size": 16},
         )
 
@@ -397,12 +397,12 @@ class TestLoadJobOptionsMLflowLayer:
             inference_params={"batch_size": 8},
         )
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             return_value=checkpoint_info,
         )
 
         base_settings = dict(mock_config832.nersc_segment_sam3_settings)
-        opts = _load_job_options(
+        opts = load_job_options(
             "nersc-segmentation-options",
             base_settings,
             config=mock_config832,
@@ -437,7 +437,7 @@ class TestSegmentationSam3MLflowCheckpoint:
         resolved_settings["finetuned_checkpoint_path"] = mlflow_checkpoint
 
         mocker.patch(
-            "orchestration.flows.bl832.nersc._load_job_options",
+            "orchestration.flows.bl832.nersc.load_job_options",
             return_value=resolved_settings,
         )
 
@@ -455,16 +455,16 @@ class TestSegmentationSam3MLflowCheckpoint:
             config=mock_config832,
             login_method=NERSCLoginMethod.IRIAPI,
         )
-        mocker.patch.object(controller, "_submit_job", side_effect=capture_script)
-        mocker.patch.object(controller, "_wait_for_job", return_value=True)
-        mocker.patch.object(controller, "_mkdir_remote", return_value=None)
+        mocker.patch.object(controller, "submit_job", side_effect=capture_script)
+        mocker.patch.object(controller, "wait_for_job", return_value=True)
+        mocker.patch.object(controller, "mkdir_remote", return_value=None)
         mocker.patch.object(controller, "_fetch_seg_timing_from_output", return_value=None)
         # _get_nersc_username reads NERSC_USERNAME for IRIAPI; stub it
-        mocker.patch.object(controller, "_get_nersc_username", return_value="testuser")
+        mocker.patch.object(controller, "get_nersc_username", return_value="testuser")
 
         result = controller.segmentation_sam3(recon_folder_path="folder/recfile")
 
-        assert captured, "_submit_job was never called"
+        assert captured, "submit_job was never called"
         assert mlflow_checkpoint in captured[0], (
             "The MLflow checkpoint path must appear in the SLURM job script"
         )
@@ -475,11 +475,11 @@ class TestSegmentationSam3MLflowCheckpoint:
 
         mocker.patch("orchestration.flows.bl832.nersc.time.sleep")
         mocker.patch(
-            "orchestration.flows.bl832.nersc.Variable.get",
+            "orchestration.jobs.options.Variable.get",
             return_value={"defaults": True},
         )
         mocker.patch(
-            "orchestration.flows.bl832.nersc.get_checkpoint_info",
+            "orchestration.jobs.options.get_checkpoint_info",
             return_value=None,
         )
 
@@ -494,16 +494,16 @@ class TestSegmentationSam3MLflowCheckpoint:
             config=mock_config832,
             login_method=NERSCLoginMethod.IRIAPI,
         )
-        mocker.patch.object(controller, "_submit_job", side_effect=capture_script)
-        mocker.patch.object(controller, "_wait_for_job", return_value=True)
-        mocker.patch.object(controller, "_mkdir_remote", return_value=None)
+        mocker.patch.object(controller, "submit_job", side_effect=capture_script)
+        mocker.patch.object(controller, "wait_for_job", return_value=True)
+        mocker.patch.object(controller, "mkdir_remote", return_value=None)
         mocker.patch.object(controller, "_fetch_seg_timing_from_output", return_value=None)
-        mocker.patch.object(controller, "_get_nersc_username", return_value="testuser")
+        mocker.patch.object(controller, "get_nersc_username", return_value="testuser")
 
         controller.segmentation_sam3(recon_folder_path="folder/recfile")
 
         config_default = mock_config832.nersc_segment_sam3_settings["finetuned_checkpoint_path"]
-        assert captured, "_submit_job was never called"
+        assert captured, "submit_job was never called"
         assert config_default in captured[0], (
             "Config default checkpoint path must be used when MLflow is unavailable"
         )
