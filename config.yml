@@ -140,15 +140,15 @@ globus:
       name: nersc832
 
     bl832-beegfs-raw:
-      root_path: /global/beegfs/beamlines/bl832/raw/
+      root_path: /raw/
       uri: beegfs.als.lbl.gov
-      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      uuid: ad1d70a4-649e-4e1a-8cd4-3074b825bd82
       name: bl832-beegfs-raw
 
     bl832-beegfs-scratch:
-      root_path: /global/beegfs/beamlines/bl832/scratch/
+      root_path: /processed/
       uri: beegfs.als.lbl.gov
-      uuid: d33b5d6e-1603-414e-93cb-bcb732b7914a
+      uuid: ad1d70a4-649e-4e1a-8cd4-3074b825bd82
       name: bl832-beegfs-scratch
 
   globus_apps:

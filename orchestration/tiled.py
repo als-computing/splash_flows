@@ -23,6 +23,19 @@ def register_file_to_tiled(
     overwrite: bool = False,
     tags: list[str] | None = None,
 ) -> None:
+    """
+    Register a file or Zarr/HDF5 store to the Tiled catalog.
+
+    Args:
+        path: The path to the file or Zarr/HDF5 store to register.
+        prefix: The sub-path within the Tiled catalog where the entry should be registered.
+        overwrite: Whether to overwrite an existing entry with the same key.
+        tags: A list of tags to apply to the registered entry.
+    Raises:
+        RuntimeError: If registration fails for any reason.
+    Returns:
+        None
+    """
     logger = get_run_logger()
     path = Path(path)
     tiled_uri = os.environ["TILED_URI"]
@@ -76,6 +89,17 @@ def register_file_to_tiled(
 
 @task(name="apply-tags", task_run_name="apply-tags-{tags}")
 def _apply_tags(entry_node, tags: list[str]) -> None:
+    """
+    Apply tags to a Tiled entry node. If the entry already has tags, merge them with the new tags.
+
+    Args:
+        entry_node: The Tiled entry node to which tags should be applied.
+        tags: A list of tags to apply to the entry node.
+    Raises:
+        Exception: If the tagging operation fails for any reason.
+    Returns:
+        None
+    """
     logger = get_run_logger()
     existing_blob = entry_node.access_blob
     existing_tags = (existing_blob or {}).get("tags", [])

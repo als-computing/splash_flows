@@ -1896,7 +1896,8 @@ def nersc_recon_flow(
     nersc_to_beegfs_zarr_future = globus_transfer_task.submit(
         file_path=zarr_file_path,
         source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.beegfs_scratch
+        destination=config.beegfs_scratch,
+        config=config
     )
 
     # Resolve before pruning (which needs to know what landed where)
@@ -1909,17 +1910,22 @@ def nersc_recon_flow(
     logger.info("All transfers complete.")
 
     # Register the reconstructed TIFFs in tiled
-    register_file_to_tiled(
-        path=Path(config.beegfs_scratch.root_path+tiff_file_path),
-        prefix="beamlines/bl832/scratch",
-        overwrite=False,
-        tags=["scratch", "bl832"],
-    )
+    # register_file_to_tiled(
+    #     path=Path(config.beegfs_scratch.root_path+tiff_file_path),
+    #     prefix="beamlines/bl832/scratch",
+    #     overwrite=False,
+    #     tags=["scratch", "bl832"],
+    # )
+
+    #TODO: get project ID from the raw.h5 metadata and add it to the tags for the zarr registration
+    # Probably will only work if the data is still on Spot832
 
     # Register the reconstructed ZARRs in tiled
+    p = Path("/global/beegfs/beamlines/bl832/" + config.beegfs_scratch.root_path + zarr_file_path)
+    logger.info(f"Registering Zarr file in Tiled: {p}")
     register_file_to_tiled(
-        path=Path(config.beegfs_scratch.root_path+zarr_file_path),
-        prefix="beamlines/bl832/scratch",
+        path=p,
+        prefix=f"beamlines/bl832/processed/{folder_name}",
         overwrite=False,
         tags=["8.3.2", folder_name],
     )

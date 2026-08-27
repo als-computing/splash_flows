@@ -127,7 +127,7 @@ def start_transfer(
             relative_path = item.relative_to(source_path.parent)
             tdata.add_item(str(item), os.path.join(dest_path, str(relative_path)))
     else:
-        tdata.add_item(str(source_path), dest_path)
+        tdata.add_item(str(source_path), dest_path, recursive=True)
     logger.info(
         f"starting transfer {source_endpoint.uri}:{source_path} to {dest_endpoint.uri}:{dest_path}"
     )
