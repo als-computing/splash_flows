@@ -1896,7 +1896,8 @@ def nersc_recon_flow(
     nersc_to_beegfs_zarr_future = globus_transfer_task.submit(
         file_path=zarr_file_path,
         source=config.nersc832_alsdev_pscratch_scratch,
-        destination=config.beegfs_scratch
+        destination=config.beegfs_scratch,
+        config=config
     )
 
     # Resolve before pruning (which needs to know what landed where)

@@ -28,7 +28,7 @@ dependencies = [
     "scicat_beamline @ git+https://github.com/als-computing/scicat_beamline.git@4828273f5f49ba4eba5442728729e0545b3f5b79",
     "sfapi_client",
     "starlette==1.0.0",
-    "tiled[client]",
+    "tiled[all]",
     "watchfiles"
 ]
 
